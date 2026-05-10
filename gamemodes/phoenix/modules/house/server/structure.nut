@@ -863,6 +863,54 @@ phoenix.house.Structure <- {
 		try { result.serialize().send(playerId, RELIABLE_ORDERED) } catch (er) {}
 	}
 
+	function leaveHouse(playerId, houseId) {
+		local id = phoenix.house.Structure.integer(houseId, 0)
+		local result = phoenix.house.Message.InteractResult()
+		result.houseId = id
+
+		local accountId = phoenix.house.Structure.accountId(playerId)
+		if (accountId <= 0) {
+			result.success = false
+			result.error = "account"
+			try { result.serialize().send(playerId, RELIABLE_ORDERED) } catch (e) {}
+			return
+		}
+
+		local house = (id in phoenix.house.Structure.houses) ? phoenix.house.Structure.houses[id] : null
+		if (house == null || house.id != id) {
+			phoenix.house.Structure.sendPanel(playerId, "noHouse")
+			return
+		}
+		if (house.ownerType != phoenix.house.Structure.ownerTypePlayer || house.ownerId != accountId) {
+			phoenix.house.Structure.sendPanel(playerId, "owned")
+			return
+		}
+
+		phoenix.house.Structure.ensureSchema(function() {
+			try {
+				local sql = "UPDATE `phoenix_houses` SET `ownerType`=NULL,`ownerId`=NULL,`rentPaidUntil`=0,`guestAccountIds`=NULL WHERE `id`=" + id
+				ORM.engine.executeAsync(sql, function(_) {
+					// update snapshot cache
+					if (house != null) {
+						house.ownerType = null
+						house.ownerId = null
+						house.ownerLabel = null
+						house.rentPaidUntil = 0
+						house.guests = []
+						house.guestLookup = {}
+						phoenix.house.Structure.houses[id] <- house
+					}
+					phoenix.house.Structure.broadcastSnapshot()
+					// notify & return UI panel state
+					try { phoenix.house.Structure.sendPanel(playerId, "houseLeft") } catch (e2) {}
+					try { result.success = true; result.error = "houseLeft"; result.serialize().send(playerId, RELIABLE_ORDERED) } catch (e3) {}
+				})
+			} catch (e) {
+				try { phoenix.house.Structure.sendPanel(playerId, "houseLeft") } catch (e2) {}
+			}
+		})
+	}
+
 	function requestAccess(playerId, houseId) {
 		local id = phoenix.house.Structure.integer(houseId, 0)
 		local result = phoenix.house.Message.InteractResult()
@@ -908,6 +956,7 @@ phoenix.house.Structure <- {
 		if (action == "accept") { phoenix.house.Structure.acceptRequest(playerId, message.houseId, message.target); return }
 		if (action == "deny") { phoenix.house.Structure.denyRequest(playerId, message.houseId, message.target); return }
 		if (action == "kick") { phoenix.house.Structure.kickGuest(playerId, message.houseId, message.target); return }
+		if (action == "leave") { phoenix.house.Structure.leaveHouse(playerId, message.houseId); return }
 		phoenix.house.Structure.buyOrRent(playerId, message.houseId, message.weeks)
 	}
 

@@ -17,6 +17,7 @@ phoenix.house.Ground <- {
 		phoenix.web.Router.on("phoenix:house:accept", phoenix.house.Ground.onAccept)
 		phoenix.web.Router.on("phoenix:house:deny", phoenix.house.Ground.onDeny)
 		phoenix.web.Router.on("phoenix:house:kick", phoenix.house.Ground.onKick)
+		phoenix.web.Router.on("phoenix:house:leave", phoenix.house.Ground.onLeave)
 		try { phoenix.ui.ActiveGui.register("house", phoenix.house.Ground.forceClose) } catch (e) {}
 	}
 
@@ -238,6 +239,11 @@ phoenix.house.Ground <- {
 		if (payload == null || !("houseId" in payload)) return
 		local target = ("target" in payload && payload.target != null) ? payload.target.tostring() : ""
 		phoenix.house.Ground.sendAction(payload.houseId.tointeger(), "kick", 0, target)
+	}
+
+	function onLeave(payload) {
+		if (payload == null || !("houseId" in payload)) return
+		phoenix.house.Ground.sendAction(payload.houseId.tointeger(), "leave", 0, "")
 	}
 
 	function toggleAdminBoundaries() {
