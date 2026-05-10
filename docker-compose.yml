@@ -1,0 +1,18 @@
+services:
+  mysql-server:
+    image: mysql:9.1.0
+    restart: unless-stopped
+    env_file: ./config/mysql.env
+    ports:
+      - "127.0.0.1:3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./migrations/:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1"]
+      timeout: 10s
+      interval: 5s
+      retries: 10
+
+volumes:
+  mysql_data:

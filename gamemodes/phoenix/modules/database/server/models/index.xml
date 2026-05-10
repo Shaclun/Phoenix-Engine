@@ -1,0 +1,7 @@
+<server>
+	<script src="account.nut" type="server" />
+	<script src="character.nut" type="server" />
+	<script src="item.nut" type="server" />
+	<script src="ban.nut" type="server" />
+	<script src="house.nut" type="server" />
+</server>

@@ -1,0 +1,388 @@
+/* Phoenix HUD */
+.phoenix-hud {
+	position: fixed;
+	left: 50%;
+	bottom: 14px;
+	transform: translateX(-50%);
+	z-index: 30;
+	display: none;
+	flex-direction: column;
+	align-items: center;
+	width: 720px;
+	pointer-events: none;
+	font-family: "Cinzel", "Trajan Pro", serif;
+	color: #f5e6c4;
+	user-select: none;
+}
+
+.phoenix-hud.is-visible { display: flex; }
+.phoenix-hud.is-blocked { display: none !important; }
+
+.phoenix-hud__name {
+	font-size: 18px;
+	font-weight: 700;
+	letter-spacing: 2px;
+	text-shadow: 0 0 6px #000, 0 0 2px #000;
+}
+
+.phoenix-hud__level {
+	font-size: 13px;
+	color: #f7c66a;
+	letter-spacing: 1.5px;
+	margin-bottom: 4px;
+	text-shadow: 0 0 4px #000;
+}
+
+.phoenix-hud__bars {
+	display: flex;
+	gap: 8px;
+	width: 100%;
+	margin-bottom: 4px;
+}
+
+.phoenix-hud__bar {
+	flex: 1;
+	height: 14px;
+	background: rgba(0, 0, 0, 0.65);
+	border: 1px solid rgba(245, 230, 196, 0.35);
+	border-radius: 2px;
+	position: relative;
+	overflow: hidden;
+	box-shadow: 0 0 6px rgba(0, 0, 0, 0.8);
+}
+
+.phoenix-hud__bar-fill {
+	position: absolute;
+	left: 0; top: 0; bottom: 0;
+	width: 100%;
+	transition: width 180ms linear;
+}
+.phoenix-hud__bar--hp .phoenix-hud__bar-fill { background: linear-gradient(180deg, #d24a4a, #7a1a1a); }
+.phoenix-hud__bar--mana .phoenix-hud__bar-fill { background: linear-gradient(180deg, #4a7ed2, #1a3b7a); }
+.phoenix-hud__bar--stamina .phoenix-hud__bar-fill { background: linear-gradient(180deg, #d4a44a, #7a591a); }
+
+.phoenix-hud__bar-label {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 11px;
+	font-weight: 600;
+	text-shadow: 0 0 3px #000, 1px 1px 0 #000;
+	color: #fff;
+	letter-spacing: 0.5px;
+}
+
+.phoenix-hud__exp {
+	width: 100%;
+	height: 8px;
+	background: rgba(0, 0, 0, 0.7);
+	border: 1px solid rgba(245, 230, 196, 0.3);
+	position: relative;
+	overflow: hidden;
+	margin-bottom: 6px;
+}
+.phoenix-hud__exp-fill {
+	position: absolute;
+	left: 0; top: 0; bottom: 0;
+	background: linear-gradient(180deg, #f7c66a, #c08418);
+	transition: width 240ms linear;
+}
+
+.phoenix-hud__hotbar {
+	display: flex;
+	gap: 4px;
+	pointer-events: auto;
+}
+
+.phoenix-hud__slot {
+	width: 48px;
+	height: 48px;
+	background: rgba(0, 0, 0, 0.7);
+	border: 1px solid rgba(245, 230, 196, 0.4);
+	border-radius: 3px;
+	position: relative;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 11px;
+	color: #f5e6c4;
+	cursor: pointer;
+}
+.phoenix-hud__slot:hover { border-color: #f7c66a; }
+.phoenix-hud__slot.is-dragover { border-color: #f7c66a; background: rgba(247, 198, 106, 0.15); }
+.phoenix-hud__slot-key {
+	position: absolute;
+	top: 2px;
+	left: 4px;
+	font-size: 10px;
+	color: #f7c66a;
+	text-shadow: 0 0 3px #000;
+}
+.phoenix-hud__slot-icon {
+	width: 38px;
+	height: 38px;
+	background-size: contain;
+	background-repeat: no-repeat;
+	background-position: center;
+	position: relative;
+	overflow: hidden;
+}
+.phoenix-hud__slot-icon gothic-render,
+.phoenix-hud__slot-icon gothic-render canvas {
+	position: absolute;
+	inset: 0;
+	width: 100% !important;
+	height: 100% !important;
+	object-fit: contain;
+}
+.phoenix-hud__slot-fallback {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 11px;
+	color: rgba(245, 230, 196, 0.5);
+}
+.phoenix-hud__slot-name {
+	position: absolute;
+	bottom: 2px;
+	left: 0;
+	right: 0;
+	text-align: center;
+	font-size: 9px;
+	color: #f5e6c4;
+	text-shadow: 0 0 3px #000;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	padding: 0 2px;
+}
+.phoenix-hud__slot-count {
+	position: absolute;
+	bottom: 2px;
+	right: 4px;
+	font-size: 10px;
+	font-weight: 700;
+	color: #fff;
+	text-shadow: 0 0 3px #000;
+}
+
+/* Target HUD (top center, like Eldoria) */
+.phoenix-target-hud {
+	position: fixed;
+	top: 18px;
+	left: 50%;
+	transform: translateX(-50%);
+	z-index: 28;
+	display: none;
+	flex-direction: column;
+	align-items: center;
+	width: 360px;
+	pointer-events: none;
+	font-family: "Cinzel", "Trajan Pro", serif;
+	color: #f5e6c4;
+}
+.phoenix-target-hud.is-visible { display: flex; }
+.phoenix-target-hud.is-blocked { display: none !important; }
+
+.phoenix-target-hud__name {
+	font-size: 15px;
+	font-weight: 700;
+	letter-spacing: 1.5px;
+	text-shadow: 0 0 5px #000, 0 0 2px #000;
+}
+.phoenix-target-hud__level {
+	font-size: 11px;
+	color: #f7c66a;
+	letter-spacing: 1.2px;
+	margin-bottom: 3px;
+	text-shadow: 0 0 4px #000;
+}
+.phoenix-target-hud__bar {
+	width: 100%;
+	height: 10px;
+	background: rgba(0, 0, 0, 0.7);
+	border: 1px solid rgba(245, 230, 196, 0.3);
+	margin-bottom: 2px;
+	position: relative;
+	overflow: hidden;
+}
+.phoenix-target-hud__bar-fill {
+	position: absolute;
+	left: 0; top: 0; bottom: 0;
+	transition: width 180ms linear;
+}
+.phoenix-target-hud__bar--hp .phoenix-target-hud__bar-fill { background: linear-gradient(180deg, #d24a4a, #7a1a1a); }
+.phoenix-target-hud__bar--mana .phoenix-target-hud__bar-fill { background: linear-gradient(180deg, #4a7ed2, #1a3b7a); }
+
+.phoenix-weapon-progress {
+	position: fixed;
+	right: 26px;
+	bottom: 90px;
+	z-index: 31;
+	display: none;
+	width: 286px;
+	padding: 10px 12px;
+	box-sizing: border-box;
+	background: rgba(0, 0, 0, 0.68);
+	border: 1px solid rgba(245, 230, 196, 0.34);
+	border-radius: 3px;
+	box-shadow: 0 10px 28px rgba(0, 0, 0, 0.44), inset 0 0 24px rgba(247, 198, 106, 0.06);
+	pointer-events: none;
+	font-family: "Cinzel", "Trajan Pro", serif;
+	color: #f5e6c4;
+	text-shadow: 0 0 4px #000;
+	user-select: none;
+}
+.phoenix-weapon-progress.is-visible { display: block; }
+.phoenix-weapon-progress.is-blocked { display: none !important; }
+.phoenix-weapon-progress.is-hiding { animation: phoenix-weapon-hide 360ms ease-in forwards; }
+.phoenix-weapon-progress__top,
+.phoenix-weapon-progress__meta {
+	display: flex;
+	align-items: center;
+	justify-content: space-between;
+	gap: 10px;
+}
+.phoenix-weapon-progress__name {
+	font-size: 13px;
+	font-weight: 700;
+	letter-spacing: 1px;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+.phoenix-weapon-progress__level {
+	flex: 0 0 auto;
+	font-size: 13px;
+	color: #f7c66a;
+	letter-spacing: 0.8px;
+}
+.phoenix-weapon-progress__bar {
+	height: 10px;
+	margin: 7px 0 5px;
+	background: rgba(0, 0, 0, 0.74);
+	border: 1px solid rgba(245, 230, 196, 0.28);
+	overflow: hidden;
+}
+.phoenix-weapon-progress__fill {
+	height: 100%;
+	width: 0;
+	background: linear-gradient(180deg, #f7c66a, #9d6214);
+	box-shadow: 0 0 10px rgba(247, 198, 106, 0.28);
+	transition: width 180ms linear;
+}
+.phoenix-weapon-progress__meta {
+	font-size: 11px;
+	color: #d9c79f;
+	letter-spacing: 0.7px;
+}
+.phoenix-weapon-progress.is-capped .phoenix-weapon-progress__fill { background: linear-gradient(180deg, #ff8a4d, #9f351c); }
+.phoenix-weapon-progress.is-notify { animation: phoenix-weapon-pop 620ms ease-out; }
+.phoenix-weapon-progress.is-updated .phoenix-weapon-progress__fill { animation: phoenix-weapon-fill 520ms ease-out; }
+
+@keyframes phoenix-weapon-pop {
+	0% { transform: translateX(22px); opacity: 0; filter: blur(7px); }
+	32% { transform: translateX(0); opacity: 1; filter: blur(0); border-color: rgba(247, 198, 106, 0.86); }
+	100% { transform: translateX(0); opacity: 1; filter: blur(0); }
+}
+
+@keyframes phoenix-weapon-hide {
+	0% { transform: translateX(0); opacity: 1; filter: blur(0); }
+	100% { transform: translateX(22px); opacity: 0; filter: blur(7px); }
+}
+
+@keyframes phoenix-weapon-fill {
+	0% { filter: brightness(1); }
+	35% { filter: brightness(1.85); }
+	100% { filter: brightness(1); }
+}
+
+/* Knockdown overlay */
+.phoenix-knockdown {
+	position: fixed;
+	inset: 0;
+	z-index: 60;
+	display: none;
+	align-items: center;
+	justify-content: center;
+	background: radial-gradient(circle at center, rgba(0,0,0,0.5), rgba(0,0,0,0.92));
+	color: #f5e6c4;
+	font-family: "Cinzel", "Trajan Pro", serif;
+	pointer-events: none;
+}
+.phoenix-knockdown.is-visible { display: flex; pointer-events: auto; }
+.phoenix-knockdown__inner { text-align: center; }
+.phoenix-knockdown__title { font-size: 32px; letter-spacing: 6px; color: #d24a4a; text-shadow: 0 0 12px #000; }
+.phoenix-knockdown__sub { font-size: 14px; margin-top: 10px; letter-spacing: 2px; }
+.phoenix-knockdown__choices {
+	display: none;
+	gap: 10px;
+	justify-content: center;
+	margin-top: 18px;
+}
+.phoenix-knockdown__choices.is-ready { display: flex; }
+.phoenix-knockdown__btn {
+	min-width: 150px;
+	height: 34px;
+	border: 1px solid rgba(245, 230, 196, 0.45);
+	background: rgba(20, 14, 10, 0.86);
+	color: #f5e6c4;
+	font-family: inherit;
+	font-size: 12px;
+	letter-spacing: 1px;
+	cursor: pointer;
+}
+.phoenix-knockdown__btn--primary {
+	border-color: rgba(247, 198, 106, 0.8);
+	color: #f7c66a;
+}
+.phoenix-knockdown__btn:disabled { opacity: 0.45; cursor: default; }
+
+.phoenix-herb-progress {
+	position: fixed;
+	left: 50%;
+	bottom: 132px;
+	transform: translateX(-50%);
+	z-index: 44;
+	display: none;
+	width: 360px;
+	font-family: "Cinzel", "Trajan Pro", serif;
+	color: #f5e6c4;
+	text-align: center;
+	pointer-events: none;
+	text-shadow: 0 0 5px #000;
+}
+.phoenix-herb-progress.is-visible { display: block; }
+.phoenix-herb-progress__label {
+	font-size: 15px;
+	font-weight: 700;
+	letter-spacing: 1px;
+	margin-bottom: 5px;
+}
+.phoenix-herb-progress__bar {
+	height: 12px;
+	background: rgba(0, 0, 0, 0.72);
+	border: 1px solid rgba(245, 230, 196, 0.38);
+	overflow: hidden;
+}
+.phoenix-herb-progress__fill {
+	height: 100%;
+	width: 0;
+	background: linear-gradient(180deg, #93d66f, #3f7d34);
+	transition: width 50ms linear;
+}
+.phoenix-herb-progress.is-success .phoenix-herb-progress__fill { background: linear-gradient(180deg, #b8e68f, #4f9b42); }
+.phoenix-herb-progress.is-cancelled .phoenix-herb-progress__fill { background: linear-gradient(180deg, #ff7d70, #a42524); }
+.phoenix-herb-progress.is-error .phoenix-herb-progress__fill { background: linear-gradient(180deg, #d05045, #76211f); }
+.phoenix-herb-progress__state {
+	font-size: 12px;
+	color: #d9c79f;
+	margin-top: 4px;
+	letter-spacing: 0.8px;
+}
+.phoenix-herb-progress.is-cancelled .phoenix-herb-progress__state { color: #ffb0a8; }
+.phoenix-herb-progress.is-error .phoenix-herb-progress__state { color: #e58c84; }

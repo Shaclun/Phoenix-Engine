@@ -1,0 +1,7 @@
+<server>
+	<script src="shared/namespace.nut" type="shared" />
+	<script src="client/json.nut" type="client" />
+	<script src="client/manager.nut" type="client" />
+	<script src="client/router.nut" type="client" />
+	<script src="client/events.nut" type="client" />
+</server>

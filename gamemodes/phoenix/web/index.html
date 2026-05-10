@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="pl">
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Phoenix</title>
+	<link rel="stylesheet" href="shared/style.css" />
+	<link rel="stylesheet" href="auth/style.css" />
+	<link rel="stylesheet" href="character/style.css" />
+	<link rel="stylesheet" href="chat/style.css" />
+	<link rel="stylesheet" href="inventory/style.css" />
+	<link rel="stylesheet" href="stats/style.css" />
+	<link rel="stylesheet" href="teacher/style.css" />
+	<link rel="stylesheet" href="house/style.css" />
+	<link rel="stylesheet" href="social/style.css" />
+	<link rel="stylesheet" href="admin/style.css" />
+	<link rel="stylesheet" href="shared/hud.css" />
+	<link rel="stylesheet" href="shared/notifications.css" />
+</head>
+<body class="phoenix-body">
+	<div class="phoenix-bg">
+		<div class="phoenix-bg__veil"></div>
+		<div class="phoenix-bg__embers"></div>
+	</div>
+
+	<header class="phoenix-topbar">
+		<div class="phoenix-brand">
+			<svg class="phoenix-brand__mark" viewBox="0 0 32 32" aria-hidden="true">
+				<path d="M16 2 L4 14 L8 14 L8 30 L24 30 L24 14 L28 14 Z M16 8 L20 14 L18 14 L18 24 L14 24 L14 14 L12 14 Z" fill="currentColor" />
+			</svg>
+			<span class="phoenix-brand__text" data-t="app.title">PHOENIX</span>
+		</div>
+
+		<div class="phoenix-langs" data-role="lang-switcher"></div>
+	</header>
+
+	<main id="phoenix-root" class="phoenix-root">
+		<section id="page-auth" class="phoenix-page" data-page="auth"></section>
+		<section id="page-character" class="phoenix-page" data-page="character"></section>
+		<section id="page-inventory" class="phoenix-page" data-page="inventory"></section>
+		<section id="page-stats" class="phoenix-page" data-page="stats"></section>
+		<section id="page-teacher" class="phoenix-page" data-page="teacher"></section>
+		<section id="page-house" class="phoenix-page" data-page="house"></section>
+		<section id="page-social" class="phoenix-page" data-page="social"></section>
+	</main>
+
+	<div class="phoenix-escmenu" id="phoenix-escmenu" tabindex="-1">
+		<div class="phoenix-escmenu__panel" tabindex="-1">
+			<header class="phoenix-escmenu__head">
+				<div class="phoenix-brand phoenix-escmenu__brand">
+					<svg class="phoenix-brand__mark" viewBox="0 0 32 32" aria-hidden="true">
+						<path d="M16 2 L4 14 L8 14 L8 30 L24 30 L24 14 L28 14 Z M16 8 L20 14 L18 14 L18 24 L14 24 L14 14 L12 14 Z" fill="currentColor" />
+					</svg>
+					<span class="phoenix-brand__text" data-t="app.title">PHOENIX</span>
+				</div>
+				<div class="phoenix-escmenu__langs" data-role="lang-switcher"></div>
+			</header>
+			<h2 class="phoenix-escmenu__title" data-t="menu.title">MENU</h2>
+			<div class="phoenix-escmenu__buttons">
+				<button class="phoenix-escmenu__btn phoenix-escmenu__btn--primary" id="escmenu-back" data-t="menu.back">Wróć do gry</button>
+				<button class="phoenix-escmenu__btn phoenix-escmenu__btn--admin" id="escmenu-admin" data-admin-only="1" data-t="menu.admin" hidden>Panel administratora</button>
+				<button class="phoenix-escmenu__btn phoenix-escmenu__btn--admin" id="escmenu-vanish" data-admin-only="1" hidden>Vanish: OFF</button>
+				<button class="phoenix-escmenu__btn" id="escmenu-char" data-t="menu.changeChar">Zmień postać</button>
+				<button class="phoenix-escmenu__btn" id="escmenu-logout" data-t="menu.logout">Wyloguj</button>
+				<button class="phoenix-escmenu__btn phoenix-escmenu__btn--danger" id="escmenu-exit" data-t="menu.exit">Wyjdź z gry</button>
+			</div>
+			<footer class="phoenix-escmenu__foot"><span data-t="app.tagline">Powstań z popiołów</span></footer>
+		</div>
+	</div>
+
+	<div class="phoenix-adminpanel" id="phoenix-adminpanel" hidden>
+		<div class="phoenix-adminpanel__panel">
+			<header class="phoenix-adminpanel__head">
+				<h2 class="phoenix-adminpanel__title" data-t="admin.title">Panel administratora</h2>
+				<div class="phoenix-adminpanel__tools">
+					<div class="phoenix-langs phoenix-langs--admin" data-role="lang-switcher"></div>
+					<button class="phoenix-adminpanel__close" id="adminpanel-close" type="button" aria-label="ESC">✕</button>
+				</div>
+			</header>
+			<nav class="phoenix-adminpanel__tabs" data-role="adminpanel-tabs"></nav>
+			<section class="phoenix-adminpanel__body" data-role="adminpanel-body"></section>
+		</div>
+	</div>
+
+
+	<footer class="phoenix-footer">
+		<span data-t="app.tagline">Powstań z popiołów</span>
+	</footer>
+
+	<script src="shared/i18n.js"></script>
+	<script src="shared/items.i18n.js"></script>
+	<script src="shared/weapon-names.i18n.js"></script>
+	<script src="shared/armor-names.i18n.js"></script>
+	<script src="shared/herb-names.i18n.js"></script>
+	<script src="shared/npc.i18n.js"></script>
+	<script src="shared/bridge.js"></script>
+	<script src="shared/notifications.js"></script>
+	<script src="shared/app.js"></script>
+	<script src="auth/script.js"></script>
+	<script src="character/script.js"></script>
+	<script src="chat/script.js"></script>
+	<script src="stats/script.js"></script>
+	<script src="teacher/script.js"></script>
+	<script src="house/script.js"></script>
+	<script src="social/script.js"></script>
+
+	<script src="vendor/gothic-render/THREE.MIN.JS"></script>
+	<script src="vendor/gothic-render/RENDER_STREAM.JS"></script>
+	<script src="vendor/gothic-render/RENDER_TEX.JS"></script>
+	<script src="vendor/gothic-render/RENDER_BASE.JS"></script>
+	<script src="vendor/gothic-render/RENDER_MRM.JS"></script>
+	<script src="vendor/gothic-render/RENDER_MDL.JS"></script>
+	<script src="vendor/gothic-render/RENDER_MMB.JS"></script>
+	<script src="vendor/gothic-render/RENDER_LOAD.JS"></script>
+	<script src="inventory/script.js"></script>
+	<script src="admin/script.js"></script>
+	<script src="shared/hud.js"></script>
+</body>
+</html>

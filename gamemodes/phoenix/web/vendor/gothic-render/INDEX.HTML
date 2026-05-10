@@ -1,0 +1,598 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gothic Render Library</title>
+    <style>
+        body {
+            font-family: 'Times New Roman', Times, serif;
+            margin: 0;
+            padding: 20px;
+            color: #d4b68a;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            min-height: 100vh;
+            box-sizing: border-box;
+        }
+
+        .example-container {
+            background: rgba(0, 0, 0, 0.85);
+            border: 4px solid #3c2f2f;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 0 20px rgba(0, 0, 0, 0.7);
+            max-width: 900px;
+            width: 90%;
+            box-sizing: border-box;
+        }
+
+        h1 {
+            font-size: 2.5em;
+            text-align: center;
+            text-transform: uppercase;
+            color: #d4b68a;
+            text-shadow: 2px 2px 4px #000;
+            margin: 0 0 20px 0;
+        }
+
+        .info {
+            background: rgba(50, 50, 50, 0.9);
+            padding: 10px;
+            border: 2px solid #3c2f2f;
+            border-radius: 4px;
+            margin-bottom: 20px;
+            font-family: 'Courier New', Courier, monospace;
+            color: #d4b68a;
+            text-align: center;
+            font-size: 0.9em;
+        }
+
+        .button-container {
+            display: flex;
+            justify-content: center;
+            gap: 15px;
+            margin-bottom: 20px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .gothic-input {
+            background: rgba(50, 50, 50, 0.9);
+            border: 2px solid #3c2f2f;
+            border-radius: 4px;
+            color: #d4b68a;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 1em;
+            padding: 8px;
+            width: 150px;
+            transition: border-color 0.2s;
+            box-sizing: border-box;
+        }
+
+        .gothic-input:focus {
+            border-color: #d4b68a;
+            outline: none;
+        }
+
+        .gothic-input::placeholder {
+            color: #8a7b5e;
+        }
+
+        .gothic-button {
+            background: rgba(50, 50, 50, 0.9);
+            border: 2px solid #3c2f2f;
+            border-radius: 4px;
+            color: #d4b68a;
+            font-family: 'Courier New', Courier, monospace;
+            font-size: 1em;
+            padding: 8px 20px;
+            cursor: pointer;
+            transition: background 0.2s, border-color 0.2s;
+        }
+
+        .gothic-button:hover {
+            background: rgba(100, 100, 100, 0.9);
+            border-color: #d4b68a;
+        }
+
+        .example-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(256px, 1fr));
+            gap: 15px;
+            justify-items: center;
+            padding: 10px;
+        }
+
+        gothic-render {
+            display: block;
+            width: 256px;
+            height: 256px;
+            background: rgba(50, 50, 50, 0.7);
+            border: 2px solid #3c2f2f;
+            border-radius: 4px;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.5);
+            transition: transform 0.2s, border-color 0.2s;
+            cursor: pointer;
+            overflow: hidden;
+        }
+
+        gothic-render:hover {
+            transform: scale(1.05);
+            border-color: #d4b68a;
+        }
+
+        gothic-render.active {
+            border-color: #d4b68a;
+            box-shadow: 0 0 10px #d4b68a;
+        }
+
+        .error-toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            background: rgba(150, 0, 0, 0.9);
+            color: #fff;
+            padding: 12px 18px;
+            border-radius: 6px;
+            font-family: 'Courier New', Courier, monospace;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.6);
+            opacity: 0;
+            animation: fadeInOut 4s forwards;
+            z-index: 10000;
+        }
+
+        @keyframes fadeInOut {
+            0% {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+
+            10% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+
+            90% {
+                opacity: 1;
+                transform: translateY(0);
+            }
+
+            100% {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <div class="example-container">
+        <h1>Gothic Render</h1>
+        <div class="info">
+            Use &lt;gothic-render width="256" height="256" visual="model.mrm" rot-x="0" rot-y="0" rot-z="0"
+            light-intensity="1" scale="1"&gt; to render models.
+        </div>
+        <div class="button-container">
+            <input type="text" class="gothic-input" id="visualInput" placeholder="Model (e.g., model-name.mrm)">
+            <input type="number" class="gothic-input" id="lightIntensityInput" placeholder="Light (0-10)" min="0"
+                max="10" step="0.1" value="1">
+            <input type="number" class="gothic-input" id="scaleInput" placeholder="Scale (0.1-5)" min="0.1" max="5"
+                step="0.1" value="1">
+            <button class="gothic-button" onclick="addRender()">Add Render</button>
+            <button class="gothic-button" onclick="clearGrid()">Clear Grid</button>
+            <button class="gothic-button" onclick="showMaterialOverridePanel()">Material Override Panel</button>
+        </div>
+        <div class="example-grid" id="exampleGrid">
+            <gothic-render width="256" height="256" visual="HUM_HEAD_PSIONIC.MMB" rot-x="0" rot-y="0" rot-z="0"
+                light-intensity="1" scale="2"></gothic-render>
+            <gothic-render width="256" height="256" visual="HUM_HEAD_PSIONIC.MMB" rot-x="0" rot-y="0" rot-z="0"
+                light-intensity="1" scale="2"></gothic-render>
+            <gothic-render width="256" height="256" visual="HUM_HEAD_PSIONIC.MMB" rot-x="0" rot-y="0" rot-z="0"
+                light-intensity="1" scale="2"></gothic-render>
+            <gothic-render width="256" height="256" visual="ITMW_BELIARWEAPON_2H.MRM" rot-x="0" rot-y="0" rot-z="0"
+                light-intensity="1" scale="2"></gothic-render>
+        </div>
+        <gothic-texture width="256" height="256" texture="MAP_ADDONWORLD" filter="nearest"></gothic-texture>
+    </div>
+
+    <div id="materialOverridePanel" style="display: none; position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%); 
+                                      background: rgba(0,0,0,0.9); border: 2px solid #3c2f2f; border-radius: 8px; 
+                                      padding: 20px; z-index: 10000; max-width: 500px; width: 90%;">
+        <h3 style="color: #d4b68a; text-align: center; margin: 0 0 15px 0;">Material Override Panel</h3>
+
+        <div style="margin-bottom: 15px;">
+            <label style="color: #d4b68a; display: block; margin-bottom: 5px;">Select Model:</label>
+            <select id="modelSelector" class="gothic-input" style="width: 100%;" onchange="updateMaterialList()">
+                <option value="">Choose a model...</option>
+            </select>
+        </div>
+
+        <div id="materialSection" style="display: none;">
+            <div style="margin-bottom: 15px;">
+                <label style="color: #d4b68a; display: block; margin-bottom: 5px;">Click Material to Select:</label>
+                <div id="materialList"
+                    style="background: rgba(50,50,50,0.7); padding: 5px; border-radius: 4px; 
+                                      max-height: 120px; overflow-y: auto; color: #d4b68a; font-family: 'Courier New';">
+                </div>
+            </div>
+
+            <div id="selectedMaterialInfo" style="display: none; margin-bottom: 15px; padding: 10px; 
+                                          background: rgba(80,80,80,0.5); border-radius: 4px;">
+                <div style="color: #d4b68a; margin-bottom: 5px;">
+                    Selected: <span id="selectedMaterialName" style="color: #fff; font-weight: bold;"></span>
+                </div>
+                <div style="color: #8a7b5e; font-size: 0.9em;">
+                    Current: <span id="selectedMaterialTexture"></span>
+                </div>
+            </div>
+
+            <div style="margin-bottom: 15px;">
+                <label style="color: #d4b68a; display: block; margin-bottom: 5px;">New Texture Name:</label>
+                <input type="text" id="textureNameInput" class="gothic-input" style="width: 100%;"
+                    placeholder="e.g., RED_ARMOR_TEXTURE" disabled>
+            </div>
+
+            <div style="display: flex; gap: 10px; margin-bottom: 15px;">
+                <button class="gothic-button" onclick="applyMaterialOverride()" id="applyButton" disabled>Apply
+                    Override</button>
+                <button class="gothic-button" onclick="clearAllOverrides()">Clear All</button>
+            </div>
+
+            <div id="activeOverrides" style="background: rgba(30,30,30,0.8); padding: 10px; border-radius: 4px;">
+                <div style="color: #d4b68a; font-weight: bold; margin-bottom: 5px;">Active Overrides:</div>
+                <div id="overridesList" style="color: #8a7b5e; font-family: 'Courier New'; font-size: 0.9em;">
+                    None
+                </div>
+            </div>
+        </div>
+
+        <div style="text-align: center; margin-top: 15px;">
+            <button class="gothic-button" onclick="hideMaterialOverridePanel()">Close</button>
+        </div>
+    </div>
+
+    <script type="text/javascript" src="THREE.MIN.JS"></script>
+    <script type="text/javascript" src="RENDER_STREAM.JS"></script>
+    <script type="text/javascript" src="RENDER_TEX.JS"></script>
+    <script type="text/javascript" src="RENDER_BASE.JS"></script>
+    <script type="text/javascript" src="RENDER_MRM.JS"></script>
+    <script type="text/javascript" src="RENDER_MDL.JS"></script>
+    <script type="text/javascript" src="RENDER_MMB.JS"></script>
+    <script type="text/javascript" src="RENDER_LOAD.JS"></script>
+
+    <script>
+        let activeRender = null;
+        let animationInterval = null;
+
+        function showError(msg) {
+            const toast = document.createElement('div');
+            toast.className = 'error-toast';
+            toast.textContent = msg;
+            document.body.appendChild(toast);
+            setTimeout(() => toast.remove(), 4000);
+        }
+
+        window.onerror = function (message) {
+            showError(message);
+            return false;
+        };
+
+        const originalError = console.error;
+        console.error = function (...args) {
+            showError(args.join(' '));
+            originalError.apply(console, args);
+        };
+
+        function safeSetRotation(element, x, y, z) {
+            try {
+                if (element && typeof element.setRotation === 'function') {
+                    element.setRotation(x, y, z);
+                } else if (element) {
+                    element.setAttribute('rot-x', x.toString());
+                    element.setAttribute('rot-y', y.toString());
+                    element.setAttribute('rot-z', z.toString());
+                }
+            } catch (error) {
+                console.warn('Error setting rotation:', error);
+            }
+        }
+
+        function safeSetLightIntensity(element, intensity) {
+            try {
+                if (element && typeof element.setLightIntensity === 'function') {
+                    element.setLightIntensity(intensity);
+                } else if (element) {
+                    element.setAttribute('light-intensity', intensity.toString());
+                }
+            } catch (error) {
+                console.warn('Error setting light intensity:', error);
+            }
+        }
+
+        function safeSetScale(element, scale) {
+            try {
+                if (element && typeof element.setScale === 'function') {
+                    element.setScale(scale);
+                } else if (element) {
+                    element.setAttribute('scale', scale.toString());
+                }
+            } catch (error) {
+                console.warn('Error setting scale:', error);
+            }
+        }
+
+        function addRender() {
+            const grid = document.getElementById('exampleGrid');
+            const visualInput = document.getElementById('visualInput');
+            const lightIntensityInput = document.getElementById('lightIntensityInput');
+            const scaleInput = document.getElementById('scaleInput');
+
+            const visualValue = visualInput.value.trim() || 'HUM_HEAD_PSIONIC.MMB';
+            const lightIntensityValue = clamp(parseFloat(lightIntensityInput.value) || 1, 0, 2);
+            const scaleValue = clamp(parseFloat(scaleInput.value) || 1, 0.1, 5);
+
+            const newRender = document.createElement('gothic-render');
+            newRender.setAttribute('width', '256');
+            newRender.setAttribute('height', '256');
+            newRender.setAttribute('visual', visualValue);
+            newRender.setAttribute('rot-x', '0');
+            newRender.setAttribute('rot-y', '0');
+            newRender.setAttribute('rot-z', '0');
+            newRender.setAttribute('light-intensity', lightIntensityValue.toString());
+            newRender.setAttribute('scale', scaleValue.toString());
+
+            setTimeout(() => {
+                newRender.addEventListener('click', () => toggleAnimation(newRender));
+            }, 100);
+
+            grid.appendChild(newRender);
+            visualInput.value = '';
+            lightIntensityInput.value = '1';
+            scaleInput.value = '1';
+        }
+
+        function clearGrid() {
+            const grid = document.getElementById('exampleGrid');
+            grid.innerHTML = '';
+            stopAnimation();
+        }
+
+        function toggleAnimation(render) {
+            if (activeRender === render) {
+                stopAnimation();
+            } else {
+                stopAnimation();
+                startAnimation(render);
+            }
+        }
+
+        function startAnimation(render) {
+            if (!render) return;
+
+            activeRender = render;
+            activeRender.classList.add('active');
+
+            let rotX = parseFloat(activeRender.getAttribute('rot-x')) || 0;
+            let rotY = parseFloat(activeRender.getAttribute('rot-y')) || 0;
+            let lightIntensity = parseFloat(activeRender.getAttribute('light-intensity')) || 1;
+            let scale = parseFloat(activeRender.getAttribute('scale')) || 1;
+            let lightDirection = 0.01;
+            let scaleDirection = 0.01;
+
+            animationInterval = setInterval(() => {
+                if (!activeRender) {
+                    clearInterval(animationInterval);
+                    return;
+                }
+
+                rotX += 0.05;
+                rotY += 0.05;
+                lightIntensity += lightDirection;
+                scale += scaleDirection;
+
+                if (lightIntensity >= 1.5 || lightIntensity <= 0.5) lightDirection = -lightDirection;
+                if (scale >= 1.5 || scale <= 0.5) scaleDirection = -scaleDirection;
+
+                safeSetRotation(activeRender, rotX, rotY, parseFloat(activeRender.getAttribute('rot-z')) || 0);
+                safeSetLightIntensity(activeRender, lightIntensity);
+                safeSetScale(activeRender, scale);
+            }, 16);
+        }
+
+        function stopAnimation() {
+            if (activeRender) {
+                activeRender.classList.remove('active');
+                clearInterval(animationInterval);
+                activeRender = null;
+                animationInterval = null;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function () {
+            setTimeout(() => {
+                document.querySelectorAll('gothic-render').forEach(render => {
+                    render.addEventListener('click', () => toggleAnimation(render));
+                });
+            }, 500);
+        });
+
+        // HUM_HEAD_V112_C0-C.TEX
+        // HUM_HEAD_V102_C0
+        let selectedModelElement = null;
+        let selectedMaterial = null;
+
+        function updateMaterialList() {
+            const selector = document.getElementById('modelSelector');
+            const selectedIndex = selector.value;
+
+            if (selectedIndex === '') {
+                document.getElementById('materialSection').style.display = 'none';
+                selectedModelElement = null;
+                selectedMaterial = null;
+                return;
+            }
+
+            const elements = document.querySelectorAll('gothic-render');
+            selectedModelElement = elements[selectedIndex];
+
+            if (selectedModelElement && selectedModelElement.isReady()) {
+                document.getElementById('materialSection').style.display = 'block';
+
+                const materials = selectedModelElement.getMaterialList();
+                const materialList = document.getElementById('materialList');
+
+                if (materials.length > 0) {
+                    materialList.innerHTML = materials.map((mat, index) =>
+                        `<div class="material-item" onclick="selectMaterial('${mat.materialName}', '${mat.currentTexture}')" 
+                     style="padding: 8px; margin: 2px 0; border: 1px solid #3c2f2f; border-radius: 3px; 
+                            cursor: pointer; transition: background 0.2s;"
+                     onmouseover="this.style.background='rgba(100,100,100,0.3)'"
+                     onmouseout="this.style.background='transparent'">
+                    <strong>${mat.materialName}</strong><br>
+                    <small style="color: #8a7b5e;">${mat.currentTexture}</small>
+                </div>`
+                    ).join('');
+                } else {
+                    materialList.innerHTML = 'No materials found or model not loaded yet';
+                }
+
+                // Reset selection
+                clearMaterialSelection();
+                updateActiveOverrides();
+            } else {
+                document.getElementById('materialSection').style.display = 'none';
+                showError('Selected model is not ready yet');
+            }
+        }
+
+        function selectMaterial(materialName, currentTexture) {
+            selectedMaterial = {
+                name: materialName,
+                currentTexture: currentTexture
+            };
+
+            // Update selected material display
+            document.getElementById('selectedMaterialName').textContent = materialName;
+            document.getElementById('selectedMaterialTexture').textContent = currentTexture;
+            document.getElementById('selectedMaterialInfo').style.display = 'block';
+
+            // Enable inputs
+            document.getElementById('textureNameInput').disabled = false;
+            document.getElementById('applyButton').disabled = false;
+            document.getElementById('textureNameInput').focus();
+
+            // Highlight selected material
+            document.querySelectorAll('.material-item').forEach(item => {
+                item.style.background = 'transparent';
+                item.style.borderColor = '#3c2f2f';
+            });
+
+            event.target.closest('.material-item').style.background = 'rgba(212, 182, 138, 0.2)';
+            event.target.closest('.material-item').style.borderColor = '#d4b68a';
+        }
+
+        function clearMaterialSelection() {
+            selectedMaterial = null;
+            document.getElementById('selectedMaterialInfo').style.display = 'none';
+            document.getElementById('textureNameInput').disabled = true;
+            document.getElementById('textureNameInput').value = '';
+            document.getElementById('applyButton').disabled = true;
+
+            // Remove highlights
+            document.querySelectorAll('.material-item').forEach(item => {
+                item.style.background = 'transparent';
+                item.style.borderColor = '#3c2f2f';
+            });
+        }
+
+        async function applyMaterialOverride() {
+            if (!selectedModelElement || !selectedMaterial) {
+                showError('No material selected');
+                return;
+            }
+
+            const textureName = document.getElementById('textureNameInput').value.trim();
+
+            if (!textureName) {
+                showError('Please enter texture name');
+                return;
+            }
+
+            await selectedModelElement.setMaterialTexture(selectedMaterial.name, textureName);
+            document.getElementById('textureNameInput').value = '';
+
+            updateActiveOverrides();
+            console.log(`Applied override: ${selectedMaterial.name} -> ${textureName}`);
+
+            // Refresh material list to show updated current texture
+            setTimeout(() => updateMaterialList(), 500);
+        }
+
+        function showMaterialOverridePanel() {
+            const panel = document.getElementById('materialOverridePanel');
+            panel.style.display = 'block';
+
+            // Populate model selector
+            const selector = document.getElementById('modelSelector');
+            selector.innerHTML = '<option value="">Choose a model...</option>';
+
+            document.querySelectorAll('gothic-render').forEach((element, index) => {
+                const visual = element.getAttribute('visual') || `Model ${index + 1}`;
+                const option = document.createElement('option');
+                option.value = index;
+                option.textContent = `${visual} (Index: ${index})`;
+                selector.appendChild(option);
+            });
+        }
+
+        function hideMaterialOverridePanel() {
+            document.getElementById('materialOverridePanel').style.display = 'none';
+        }
+
+        function clearAllOverrides() {
+            if (!selectedModelElement) {
+                showError('No model selected');
+                return;
+            }
+
+            selectedModelElement.clearMaterialOverrides();
+            updateActiveOverrides();
+            console.log('Cleared all material overrides');
+        }
+
+        function updateActiveOverrides() {
+            if (!selectedModelElement) return;
+
+            const overridesList = document.getElementById('overridesList');
+
+            if (selectedModelElement.materialOverrides.size === 0) {
+                overridesList.textContent = 'None';
+                return;
+            }
+
+            const overrides = [];
+            for (const [material, texture] of selectedModelElement.materialOverrides) {
+                overrides.push(`${material} → ${texture}`);
+            }
+
+            overridesList.innerHTML = overrides.join('<br>');
+        }
+
+        // Update existing addRender function to refresh model list if panel is open
+        const originalAddRender = addRender;
+        addRender = function () {
+            originalAddRender();
+
+            // Refresh model selector if panel is open
+            const panel = document.getElementById('materialOverridePanel');
+            if (panel.style.display === 'block') {
+                setTimeout(() => showMaterialOverridePanel(), 500); // Give time for model to load
+            }
+        };
+    </script>
+</body>
+
+</html>

@@ -1,0 +1,26 @@
+<server>
+	<script src="shared/namespace.nut" type="shared" />
+	<script src="shared/enums.nut" type="shared" />
+	<script src="shared/events.nut" type="shared" />
+
+	<import src="modules/core/index.xml" />
+	<import src="modules/net/index.xml" />
+	<import src="modules/database/index.xml" />
+	<import src="modules/web/index.xml" />
+	<import src="modules/ui/index.xml" />
+	<import src="modules/notification/index.xml" />
+	<import src="modules/text/index.xml" />
+	<import src="modules/account/index.xml" />
+	<import src="modules/item/index.xml" />
+	<import src="modules/character/index.xml" />
+	<import src="modules/player/index.xml" />
+	<import src="modules/camera/index.xml" />
+	<import src="modules/chat/index.xml" />
+	<import src="modules/social/index.xml" />
+	<import src="modules/herb/index.xml" />
+	<import src="modules/vob/index.xml" />
+	<import src="modules/house/index.xml" />
+	<import src="modules/npc/index.xml" />
+	<import src="modules/quest/index.xml" />
+	<import src="modules/admin/index.xml" />
+</server>

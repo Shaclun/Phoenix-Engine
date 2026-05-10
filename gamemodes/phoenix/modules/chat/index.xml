@@ -1,0 +1,7 @@
+<server>
+	<script src="shared/namespace.nut" type="shared" />
+	<script src="shared/messages.nut" type="shared" />
+	<script src="server/handlers.nut" type="server" />
+	<script src="client/draw3d.nut" type="client" />
+	<script src="client/chat.nut" type="client" />
+</server>

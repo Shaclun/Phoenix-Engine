@@ -1,0 +1,11 @@
+<server>
+    <script src="src/core.nut" type="server" />
+    <script src="src/model.nut" type="server" />
+    <script src="src/query.nut" type="server" />
+    <script src="src/migration.nut" type="server" />
+
+    <script src="src/types/expression.nut" type="server" />
+
+    <script src="src/engine/sqlite.nut" type="server" />
+    <script src="src/engine/mysql.nut" type="server" />
+</server>

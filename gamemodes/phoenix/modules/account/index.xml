@@ -1,0 +1,15 @@
+<server>
+	<script src="shared/namespace.nut" type="shared" />
+	<script src="shared/messages.nut" type="shared" />
+
+	<script src="server/crypto.nut" type="server" />
+	<script src="server/validator.nut" type="server" />
+	<script src="server/session.nut" type="server" />
+	<script src="server/structure.nut" type="server" />
+	<script src="server/auth.nut" type="server" />
+	<script src="server/handlers.nut" type="server" />
+
+	<script src="client/model.nut" type="client" />
+	<script src="client/interface.nut" type="client" />
+	<script src="client/routes.nut" type="client" />
+</server>

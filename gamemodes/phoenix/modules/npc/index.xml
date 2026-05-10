@@ -1,0 +1,14 @@
+<server>
+	<script src="shared/namespace.nut" type="shared" />
+	<script src="shared/instances.nut" type="shared" />
+	<script src="shared/messages.nut" type="shared" />
+
+	<script src="server/spawn.nut" type="server" />
+	<script src="server/preset.nut" type="server" />
+	<script src="server/ai.nut" type="server" />
+	<script src="server/bestiary.nut" type="server" />
+	<script src="server/handlers.nut" type="server" />
+	<script src="server/teacher.nut" type="server" />
+	<script src="client/nameplates.nut" type="client" />
+	<script src="client/interaction.nut" type="client" />
+</server>

@@ -1,0 +1,6 @@
+addEvent("phoenix.database.OnReady")
+addEvent("phoenix.database.OnSyncReady")
+addEvent("phoenix.account.OnAuthenticated")
+addEvent("phoenix.account.OnLogout")
+addEvent("phoenix.character.OnSelected")
+addEvent("phoenix.web.OnReady")

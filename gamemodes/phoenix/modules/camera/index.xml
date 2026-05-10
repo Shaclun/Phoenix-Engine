@@ -1,0 +1,6 @@
+<server>
+	<script src="namespace.nut" type="shared" />
+	<script src="client/math.nut" type="client" />
+	<script src="client/orbital.nut" type="client" />
+	<script src="client/structure.nut" type="client" />
+</server>

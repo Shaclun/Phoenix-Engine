@@ -1,0 +1,206 @@
+.house-panel {
+	width: min(760px, calc(100vw - 48px));
+	margin: 7vh auto 0;
+	position: relative;
+	padding: 22px;
+	border: 1px solid var(--phoenix-line);
+	border-radius: 0;
+	clip-path: var(--clip-angular);
+	background: linear-gradient(180deg, rgba(20,12,6,0.98) 0%, rgba(10,6,3,0.96) 100%);
+	box-shadow: 0 0 34px rgba(0,0,0,0.65), inset 0 0 32px rgba(255,122,46,0.05);
+	color: var(--phoenix-text);
+	font-family: "Cinzel", "Trajan Pro", "Times New Roman", serif;
+}
+
+.house-panel__close {
+	position: absolute;
+	top: 14px;
+	right: 14px;
+}
+
+.house-head {
+	padding-right: 40px;
+	margin-bottom: 18px;
+}
+
+.house-kicker {
+	display: block;
+	font-size: 12px;
+	font-weight: 700;
+	text-transform: uppercase;
+	color: var(--phoenix-muted);
+}
+
+.house-head h1 {
+	margin: 4px 0 0;
+	font-size: 28px;
+	line-height: 1.15;
+	color: var(--phoenix-gold);
+	text-shadow: 0 0 12px rgba(255,122,46,0.22);
+}
+
+.house-entry,
+.house-section {
+	display: grid;
+	gap: 14px;
+}
+
+.house-section {
+	margin-top: 18px;
+	padding-top: 18px;
+	border-top: 1px solid var(--phoenix-line-soft);
+}
+
+.house-section h2 {
+	margin: 0;
+	font-size: 17px;
+}
+
+.house-grid {
+	display: grid;
+	gap: 10px;
+}
+
+.house-grid--two {
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.house-grid--three {
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.house-grid > div,
+.house-price {
+	padding: 12px;
+	border: 1px solid rgba(214,132,50,0.14);
+	border-radius: 3px;
+	background: rgba(255,122,46,0.055);
+}
+
+.house-grid span,
+.house-price span,
+.house-muted {
+	color: rgba(244, 234, 216, 0.7);
+}
+
+.house-grid b,
+.house-price strong {
+	display: block;
+	margin-top: 4px;
+	font-size: 18px;
+}
+
+.house-warning {
+	margin: 0;
+	padding: 10px 12px;
+	border-radius: 6px;
+	background: rgba(178,67,52,0.18);
+	color: #ffb39f;
+}
+
+.house-rent-row,
+.house-invite {
+	display: grid;
+	grid-template-columns: 1fr auto auto auto;
+	gap: 10px;
+	align-items: center;
+}
+
+.house-invite {
+	grid-template-columns: 1fr auto;
+}
+
+.house-rent-row input[type="range"] {
+	width: 100%;
+}
+
+.house-invite input,
+.house-invite select {
+	min-width: 0;
+	padding: 11px 12px;
+	border: 1px solid rgba(214,132,50,0.28);
+	border-radius: 3px;
+	background: rgba(0, 0, 0, 0.2);
+	color: var(--phoenix-text);
+}
+
+.house-owner {
+	font-size: 14px;
+}
+
+.house-owner strong {
+	color: var(--phoenix-gold);
+}
+
+.house-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+	display: grid;
+	gap: 8px;
+}
+
+.house-request,
+.house-guest {
+	display: grid;
+	grid-template-columns: 1fr auto auto;
+	gap: 10px;
+	align-items: center;
+	padding: 8px 12px;
+	border: 1px solid rgba(214,132,50,0.18);
+	border-radius: 3px;
+	background: rgba(255,122,46,0.04);
+}
+
+.house-guest {
+	grid-template-columns: 1fr auto;
+}
+
+.house-btn--danger {
+	border-color: rgba(178,67,52,0.55);
+	background: rgba(178,67,52,0.20);
+	color: #ffb39f;
+}
+
+.house-btn {
+	min-height: 38px;
+	padding: 0 14px;
+	border: 1px solid rgba(214,132,50,0.28);
+	border-radius: 3px;
+	background: rgba(255,122,46,0.10);
+	color: var(--phoenix-text);
+	font-weight: 700;
+	cursor: pointer;
+}
+
+.house-btn--primary {
+	border-color: var(--phoenix-line);
+	background: linear-gradient(180deg, rgba(191, 136, 57, 0.95), rgba(122, 78, 34, 0.95));
+	color: var(--phoenix-text);
+}
+
+.house-guests,
+.house-status,
+.house-muted {
+	margin: 0;
+}
+
+.house-status {
+	min-height: 18px;
+	color: var(--phoenix-gold);
+}
+
+@media (max-width: 720px) {
+	.house-panel {
+		width: calc(100vw - 24px);
+		margin-top: 4vh;
+		padding: 18px;
+	}
+
+	.house-grid--two,
+	.house-grid--three,
+	.house-rent-row,
+	.house-invite {
+		grid-template-columns: 1fr;
+	}
+}

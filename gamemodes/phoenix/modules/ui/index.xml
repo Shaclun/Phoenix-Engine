@@ -1,0 +1,4 @@
+<server>
+	<script src="shared/namespace.nut" type="shared" />
+	<script src="client/active.nut" type="client" />
+</server>

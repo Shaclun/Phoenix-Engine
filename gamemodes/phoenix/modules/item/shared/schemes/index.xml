@@ -1,0 +1,13 @@
+<server>
+	<!-- Catalog of static item definitions. Order does not matter; each
+	     file calls phoenix.item.register(...) into the shared registry. -->
+	<script src="weapons-1h.nut"      type="shared" />
+	<script src="weapons-2h.nut"      type="shared" />
+	<script src="weapons-ranged.nut"  type="shared" />
+	<script src="armor.nut"           type="shared" />
+	<script src="herbs.nut"           type="shared" />
+	<script src="misc.nut"            type="shared" />
+	<!--<script src="shields.nut"         type="shared" />
+	<script src="consumables.nut"     type="shared" />
+	<script src="magic.nut"           type="shared" />-->
+</server>

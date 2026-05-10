@@ -1,0 +1,5 @@
+<server>
+	<script src="shared/namespace.nut" type="shared" />
+	<script src="server/connector.nut" type="server" />
+	<import src="server/models/index.xml" />
+</server>

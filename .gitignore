@@ -1,0 +1,5 @@
+.sentry-native/
+cache/
+server.log
+*.bak
+node_modules/

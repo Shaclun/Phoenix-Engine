@@ -1,0 +1,37 @@
+<server>
+	<debug>true</debug>
+	<config public=false host_name="Gothic Online" max_slots=32 port=28970 />
+	<master url="https://api.gothic-online.com" />
+	<version build=0 />
+	<world name="NEWWORLD\NEWWORLD.ZEN" />
+	<description>
+        <![CDATA[<center><b><font size=5 color=LemonChiffon>Gothic 2 Online</font></b><br><font color=White size=4>Community Server</font>]]>
+    </description>
+
+	<!-- Default -->
+
+	<!-- Native modules -->
+	<module src="database/modules/MySQL.x64.dll" type="server" />
+	<module src="database/modules/json.x64.dll" type="server" />
+	<module src="database/modules/pugiXML.x64.dll" type="server" />
+
+	<!-- Libraries -->
+	<import src="lib/dotenv/index.xml" />
+	<import src="lib/bpackets/index.xml" />
+	<import src="lib/orm/orm.xml" />
+
+	<!-- Gamemode -->
+	<import src="gamemodes/phoenix/scripts.xml" />
+
+	<!-- Modules -->
+	<module src="LocalStorage.dll" type="client" />
+	<module src="CEF.dll" type="client" />
+
+	<!-- Example -->
+	<!-- <import src="examples/PATH_TO_XML" /> -->
+	
+	<!-- Ids -->
+	<data src="data.xml" />
+	<mds src="mds.xml" />
+	<faceani src="faceani.xml" />
+</server>

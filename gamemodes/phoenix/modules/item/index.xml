@@ -1,0 +1,26 @@
+<server>
+	<!-- Shared (server + client) — namespace, enums, packet schema, scheme registry -->
+	<script src="shared/namespace.nut"  type="shared" />
+	<script src="shared/enums.nut"      type="shared" />
+	<script src="shared/quality.nut"    type="shared" />
+	<script src="shared/upgrade.nut"    type="shared" />
+	<script src="shared/scheme.nut"     type="shared" />
+	<!-- Auto-generated INSTANCE -> compiled mesh table; populates
+	     phoenix.item.visuals declared in scheme.nut. Regenerate with
+	     tools/build-item-visuals.py whenever data.xml changes. -->
+	<script src="shared/items.visuals.nut" type="shared" />
+	<script src="shared/messages.nut"   type="shared" />
+
+	<!-- Item definition catalogues — split by category, registered in load order -->
+	<import src="shared/schemes/index.xml" />
+
+	<!-- Server-side: persistence, factory, inventory bucket, packet handlers -->
+	<script src="server/structure.nut" type="server" />
+	<script src="server/upgrader.nut"  type="server" />
+	<script src="server/handlers.nut"  type="server" />
+
+	<!-- Client-side: local cache + UI route bindings -->
+	<script src="client/model.nut"     type="client" />
+	<script src="client/routes.nut"    type="client" />
+	<script src="client/interface.nut" type="client" />
+</server>
