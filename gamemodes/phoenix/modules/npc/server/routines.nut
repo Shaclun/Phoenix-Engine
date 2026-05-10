@@ -288,6 +288,25 @@ phoenix.npc.Routines <- {
 		entry.ai.routineAnimApplied <- ""
 	}
 
+	function findNearestWaypoint(entry) {
+		if (entry == null) return -1
+		local r = ("routine" in entry.ai) ? entry.ai.routine : null
+		if (r == null || !("nodes" in r) || r.nodes.len() == 0) return -1
+		local pos = null
+		try { pos = getPlayerPosition(entry.npcId) } catch (e) { return 0 }
+		if (pos == null) return 0
+		local bestIdx = 0
+		local bestDist = 999999999.0
+		for (local i = 0; i < r.nodes.len(); i += 1) {
+			local n = r.nodes[i]
+			if (n.type == "wait") continue
+			local dx = n.x - pos.x; local dz = n.z - pos.z
+			local d = sqrt(dx * dx + dz * dz)
+			if (d < bestDist) { bestDist = d; bestIdx = i }
+		}
+		return bestIdx
+	}
+
 	function onSpawnBound(spawnId, entry) {
 		if (!phoenix.npc.Routines.loaded) return
 		local r = phoenix.npc.Routines.getBySpawnId(spawnId)
@@ -305,11 +324,7 @@ phoenix.npc.Routines <- {
 		local isHuman = false
 		try { isHuman = phoenix.npc.AI._isHuman(row) } catch (e) {}
 		if (!isHuman) return (mode == "run") ? "S_FISTRUNL" : "S_FISTWALKL"
-		try {
-			if (mode == "run") return phoenix.npc.AI._runAnimFor(row, WEAPONMODE_FIST)
-			return phoenix.npc.AI._walkAnimFor(row, WEAPONMODE_FIST)
-		} catch (e) {}
-		return (mode == "run") ? "S_FISTRUNL" : "S_FISTWALKL"
+		return (mode == "run") ? "S_RUNL" : "S_WALKL"
 	}
 
 	function tick(entry, now) {

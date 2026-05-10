@@ -98,6 +98,16 @@ phoenix.npc.AI <- {
 		return "S_" + phoenix.npc.AI._wmName(wm) + "WALKL"
 	}
 
+	function _neutralWalkAnim(row) {
+		if (!phoenix.npc.AI._isHuman(row)) return "S_FISTWALKL"
+		return "S_WALKL"
+	}
+
+	function _neutralRunAnim(row) {
+		if (!phoenix.npc.AI._isHuman(row)) return "S_FISTRUNL"
+		return "S_RUNL"
+	}
+
 	function _attackAnimFor(row, wm = -1) {
 		if (!phoenix.npc.AI._isHuman(row)) return "T_FISTATTACK"
 		if (wm < 0) wm = phoenix.npc.AI._resolveWeaponMode(row)
@@ -432,7 +442,7 @@ phoenix.npc.AI <- {
 		entry.ai.detourX <- pos.x + sin(angle) * radius
 		entry.ai.detourZ <- pos.z + cos(angle) * radius
 		entry.ai.detourUntil <- now + 1800
-		phoenix.npc.AI._runAt(entry, pos, entry.ai.detourX, entry.ai.detourZ, phoenix.npc.AI._walkAnimFor(entry.row, WEAPONMODE_FIST), now, "return")
+		phoenix.npc.AI._runAt(entry, pos, entry.ai.detourX, entry.ai.detourZ, phoenix.npc.AI._neutralWalkAnim(entry.row), now, "return")
 	}
 
 	function _finishReturn(entry, forceIdle = false) {
@@ -448,7 +458,10 @@ phoenix.npc.AI <- {
 		entry.ai.weaponSheathed <- true
 		entry.ai.nextWander <- getTickCount() + 6000 + (rand() % 6000)
 		if ("routine" in entry.ai && entry.ai.routine != null) {
-			entry.ai.routineIndex <- 0
+			local nearest = 0
+			try { nearest = phoenix.npc.Routines.findNearestWaypoint(entry) } catch (eN) {}
+			if (nearest < 0) nearest = 0
+			entry.ai.routineIndex <- nearest
 			entry.ai.routineWaitUntil <- 0
 			entry.ai.routineAnimApplied <- ""
 		}
@@ -523,6 +536,18 @@ phoenix.npc.AI <- {
 		if (entry == null || !entry.alive || pos == null) return false
 		if (("nextHomeCheckAt" in entry.ai) && now < entry.ai.nextHomeCheckAt) return false
 		entry.ai.nextHomeCheckAt <- now + phoenix.npc.AI.homeCheckMs
+		local hasRoutine = ("routine" in entry.ai) && entry.ai.routine != null && ("nodes" in entry.ai.routine) && entry.ai.routine.nodes.len() > 0 && entry.ai.routine.enabled == 1
+		if (hasRoutine) {
+			local hasTargetRoutine = phoenix.npc.AI._hasLiveTarget(entry, pos, world)
+			if (!hasTargetRoutine) return false
+			local leashR = phoenix.npc.AI._leashRadius(entry.row)
+			local distR = phoenix.npc.AI._distFlat(pos.x, pos.z, entry.ai.anchorX, entry.ai.anchorZ)
+			if (distR > leashR * 1.75) {
+				phoenix.npc.AI._teleportHome(entry, true)
+				return true
+			}
+			return false
+		}
 		local dist = phoenix.npc.AI._distFlat(pos.x, pos.z, entry.ai.anchorX, entry.ai.anchorZ)
 		local hasTarget = phoenix.npc.AI._hasLiveTarget(entry, pos, world)
 		local state = ("state" in entry.ai) ? entry.ai.state : "idle"
@@ -594,7 +619,7 @@ phoenix.npc.AI <- {
 			}
 		}
 		if (("detourUntil" in entry.ai) && now < entry.ai.detourUntil && ("detourX" in entry.ai)) {
-			phoenix.npc.AI._runAt(entry, pos, entry.ai.detourX, entry.ai.detourZ, phoenix.npc.AI._walkAnimFor(row, WEAPONMODE_FIST), now, "return")
+			phoenix.npc.AI._runAt(entry, pos, entry.ai.detourX, entry.ai.detourZ, phoenix.npc.AI._neutralWalkAnim(row), now, "return")
 			return true
 		}
 		local watch = phoenix.npc.AI._moveWatch(entry, pos, dist, now)
@@ -608,10 +633,10 @@ phoenix.npc.AI <- {
 			return true
 		}
 		if (watch == 1) {
-			phoenix.npc.AI._kickRun(entry, pos, entry.ai.anchorX, entry.ai.anchorZ, phoenix.npc.AI._walkAnimFor(row, WEAPONMODE_FIST), now, "return")
+			phoenix.npc.AI._kickRun(entry, pos, entry.ai.anchorX, entry.ai.anchorZ, phoenix.npc.AI._neutralWalkAnim(row), now, "return")
 			return true
 		}
-		phoenix.npc.AI._runAt(entry, pos, entry.ai.anchorX, entry.ai.anchorZ, phoenix.npc.AI._walkAnimFor(row, WEAPONMODE_FIST), now, "return")
+		phoenix.npc.AI._runAt(entry, pos, entry.ai.anchorX, entry.ai.anchorZ, phoenix.npc.AI._neutralWalkAnim(row), now, "return")
 		return true
 	}
 
@@ -799,12 +824,28 @@ phoenix.npc.AI <- {
 				}
 			} catch (e) {}
 		}
+		local hasRoutine = ("routine" in entry.ai) && entry.ai.routine != null && ("nodes" in entry.ai.routine) && entry.ai.routine.nodes.len() > 0
 		phoenix.npc.AI._clearCombatMovement(entry)
 		entry.ai.targetPid = -1
 		entry.ai.warnStart = 0
 		entry.ai.waitAction = -1
 		entry.ai.lastAttack = 0
 		entry.ai.idleApplied <- ""
+		if (hasRoutine) {
+			entry.ai.returning <- false
+			entry.ai.postCombatReturn <- false
+			entry.ai.postCombatSettleUntil <- 0
+			entry.ai.combatCooldownUntil <- 0
+			local nearest = 0
+			try { nearest = phoenix.npc.Routines.findNearestWaypoint(entry) } catch (eN) {}
+			if (nearest < 0) nearest = 0
+			entry.ai.routineIndex <- nearest
+			entry.ai.routineWaitUntil <- 0
+			entry.ai.routineAnimApplied <- ""
+			entry.ai.state = "idle"
+			phoenix.npc.AI._resetMoveWatch(entry)
+			return
+		}
 		entry.ai.returning <- true
 		entry.ai.postCombatReturn <- true
 		entry.ai.postCombatSettleUntil <- now + phoenix.npc.AI.postCombatSettleMs
@@ -851,6 +892,7 @@ phoenix.npc.AI <- {
 				entry.ai.lootPhase <- "search"
 				entry.ai.lootSearchStart <- now
 				phoenix.npc.AI._setAngleTo(npcId, pos.x, pos.z, vp.x, vp.z, entry.ai, now, true)
+				try { stopAni(npcId, phoenix.npc.AI._neutralWalkAnim(entry.row)) } catch (e) {}
 				try { stopAni(npcId, phoenix.npc.AI._walkAnimFor(entry.row, WEAPONMODE_FIST)) } catch (e) {}
 				try {
 					if (getPlayerWeaponMode(npcId) != WEAPONMODE_NONE) drawWeapon(npcId, WEAPONMODE_NONE)
@@ -859,7 +901,7 @@ phoenix.npc.AI <- {
 				return true
 			}
 			phoenix.npc.AI._setAngleTo(npcId, pos.x, pos.z, vp.x, vp.z, entry.ai, now, true)
-			local walkAnim = phoenix.npc.AI._walkAnimFor(entry.row, WEAPONMODE_FIST)
+			local walkAnim = phoenix.npc.AI._neutralWalkAnim(entry.row)
 			try {
 				if (getPlayerAni(npcId) != walkAnim) playAni(npcId, walkAnim)
 			} catch (e) {}
@@ -899,6 +941,22 @@ phoenix.npc.AI <- {
 		entry.ai.waitAction = -1
 		entry.ai.lastAttack = 0
 		entry.ai.idleApplied <- ""
+		local hasRoutine = ("routine" in entry.ai) && entry.ai.routine != null && ("nodes" in entry.ai.routine) && entry.ai.routine.nodes.len() > 0
+		if (hasRoutine) {
+			entry.ai.returning <- false
+			entry.ai.postCombatReturn <- false
+			entry.ai.postCombatSettleUntil <- 0
+			entry.ai.combatCooldownUntil <- 0
+			local nearest = 0
+			try { nearest = phoenix.npc.Routines.findNearestWaypoint(entry) } catch (eN) {}
+			if (nearest < 0) nearest = 0
+			entry.ai.routineIndex <- nearest
+			entry.ai.routineWaitUntil <- 0
+			entry.ai.routineAnimApplied <- ""
+			entry.ai.state = "idle"
+			phoenix.npc.AI._resetMoveWatch(entry)
+			return
+		}
 		entry.ai.returning <- true
 		entry.ai.postCombatReturn <- true
 		entry.ai.postCombatSettleUntil <- now + phoenix.npc.AI.postCombatSettleMs
@@ -1147,6 +1205,7 @@ phoenix.npc.AI <- {
 			local d = phoenix.npc.AI._distFlat(pos.x, pos.z, entry.ai.wanderTargetX, entry.ai.wanderTargetZ)
 			if (d < 80.0) {
 				entry.ai.state = "idle"
+				try { stopAni(npcId, phoenix.npc.AI._neutralWalkAnim(entry.row)) } catch (e) {}
 				try { stopAni(npcId, phoenix.npc.AI._walkAnimFor(entry.row, WEAPONMODE_FIST)) } catch (e) {}
 				phoenix.npc.AI._ensureIdle(entry, true)
 				return
@@ -1155,7 +1214,7 @@ phoenix.npc.AI <- {
 				phoenix.npc.AI._setAngleTo(npcId, pos.x, pos.z, entry.ai.wanderTargetX, entry.ai.wanderTargetZ, entry.ai, now, true)
 				entry.ai.wanderAngleSet <- true
 			}
-			local walkAnim = phoenix.npc.AI._walkAnimFor(entry.row, WEAPONMODE_FIST)
+			local walkAnim = phoenix.npc.AI._neutralWalkAnim(entry.row)
 			try {
 				if (getPlayerAni(npcId) != walkAnim) playAni(npcId, walkAnim)
 			} catch (e) {}
