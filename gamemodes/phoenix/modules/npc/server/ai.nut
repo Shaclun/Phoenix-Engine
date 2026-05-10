@@ -442,6 +442,9 @@ phoenix.npc.AI <- {
 		entry.ai.lastReturnDist <- 0.0
 		entry.ai.lastReturnAt <- 0
 		entry.ai.returnStartedAt <- 0
+		entry.ai.combatCleared <- false
+		entry.ai.weaponSheathed <- true
+		entry.ai.nextWander <- getTickCount() + 6000 + (rand() % 6000)
 		phoenix.npc.AI._resetMoveWatch(entry)
 		phoenix.npc.AI._restoreHomeAngle(entry)
 		phoenix.npc.AI._ensureIdle(entry, forceIdle)
@@ -989,7 +992,9 @@ phoenix.npc.AI <- {
 			}
 		}
 
+		local wasReturning = ("returning" in entry.ai) && entry.ai.returning == true
 		if (phoenix.npc.AI._softReturn(entry, pos, now)) return
+		if (wasReturning) return
 		if (now >= entry.ai.nextWander) {
 			entry.ai.nextWander = now + 6000 + (rand() % 6000)
 			local rx = entry.ai.anchorX + ((rand() % 800) - 400).tofloat()
@@ -1002,12 +1007,12 @@ phoenix.npc.AI <- {
 			local d = phoenix.npc.AI._distFlat(pos.x, pos.z, entry.ai.wanderTargetX, entry.ai.wanderTargetZ)
 			if (d < 60.0) {
 				entry.ai.state = "idle"
-				try { stopAni(npcId, phoenix.npc.AI._walkAnimFor(entry.row)) } catch (e) {}
+				try { stopAni(npcId, phoenix.npc.AI._walkAnimFor(entry.row, WEAPONMODE_FIST)) } catch (e) {}
 				phoenix.npc.AI._ensureIdle(entry, true)
 				return
 			}
 			phoenix.npc.AI._setAngleTo(npcId, pos.x, pos.z, entry.ai.wanderTargetX, entry.ai.wanderTargetZ, entry.ai, now, true)
-			local walkAnim = phoenix.npc.AI._walkAnimFor(entry.row)
+			local walkAnim = phoenix.npc.AI._walkAnimFor(entry.row, WEAPONMODE_FIST)
 			try {
 				if (getPlayerAni(npcId) != walkAnim) playAni(npcId, walkAnim)
 			} catch (e) {}

@@ -3,6 +3,9 @@
 	<script src="shared/enums.nut" type="shared" />
 	<script src="shared/events.nut" type="shared" />
 
+	<script src="config/gate_spots.nut" type="server" />
+	<script src="config/character_spots.nut" type="server" />
+
 	<import src="modules/core/index.xml" />
 	<import src="modules/net/index.xml" />
 	<import src="modules/database/index.xml" />

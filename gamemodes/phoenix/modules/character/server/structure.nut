@@ -3,11 +3,13 @@ phoenix.character.InventoryOwnerPlayer <- 0
 phoenix.character.ItemQualityCommon <- 2
 phoenix.character.ItemSlotNone <- 0
 
-phoenix.character.Scenarios <- [
-	{ x = -37591.7, y = -2033.3,  z = 15142.5,  angle = 91.6603 },
-	{ x = 21282.2,  y = -5116.71, z = 4491.03,  angle = 57.3989 },
-	{ x = -19429.0, y = -2791.03, z = -11997.8, angle = 0.181277 }
-]
+phoenix.character.Scenarios <- (("config" in phoenix) && ("CharacterSpots" in phoenix.config) && ("Scenarios" in phoenix.config.CharacterSpots))
+	? phoenix.config.CharacterSpots.Scenarios.map(function (s) { return { x = s.X, y = s.Y, z = s.Z, angle = s.Angle } })
+	: [
+		{ x = -37591.7, y = -2033.3,  z = 15142.5,  angle = 91.6603 },
+		{ x = 21282.2,  y = -5116.71, z = 4491.03,  angle = 57.3989 },
+		{ x = -19429.0, y = -2791.03, z = -11997.8, angle = 0.181277 }
+	]
 
 phoenix.character.StarterMelee <- [
 	{ key = "melee_1h", instance = "ITMW_1H_BAU_AXE" },
@@ -152,10 +154,13 @@ phoenix.character.Structure <- {
 				record.voice = payload.voice
 				record.world = "NEWWORLD.ZEN"
 
-				record.positionX = 870.118
-				record.positionY = -96.2501
-				record.positionZ = -1848.33
-				record.angle     = 65.1225
+				local _default = (("config" in phoenix) && ("CharacterSpots" in phoenix.config) && ("DEFAULT_RECORD" in phoenix.config.CharacterSpots))
+					? phoenix.config.CharacterSpots.DEFAULT_RECORD
+					: null
+				record.positionX = (_default != null && ("X" in _default.Position)) ? _default.Position.X : 870.118
+				record.positionY = (_default != null && ("Y" in _default.Position)) ? _default.Position.Y : -96.2501
+				record.positionZ = (_default != null && ("Z" in _default.Position)) ? _default.Position.Z : -1848.33
+				record.angle     = (_default != null && ("Angle" in _default)) ? _default.Angle : 65.1225
 				local starterItems = phoenix.character.buildStarterItems(payload.gender, payload.weapon, payload.ranged, payload.outfit)
 				record.equipment = ""
 				record.hpMax = 100

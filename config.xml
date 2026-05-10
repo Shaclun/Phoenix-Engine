@@ -8,8 +8,6 @@
         <![CDATA[<center><b><font size=5 color=LemonChiffon>Gothic 2 Online</font></b><br><font color=White size=4>Community Server</font>]]>
     </description>
 
-	<!-- Default -->
-
 	<!-- Native modules -->
 	<module src="database/modules/MySQL.x64.dll" type="server" />
 	<module src="database/modules/json.x64.dll" type="server" />

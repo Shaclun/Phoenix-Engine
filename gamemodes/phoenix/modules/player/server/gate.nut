@@ -1,9 +1,9 @@
 phoenix.player.Gate <- {
-	LOBBY_VIRTUAL_WORLD = 999
-	LOBBY_X = 870.118
-	LOBBY_Y = -96.2501
-	LOBBY_Z = -1848.33
-	LOBBY_ANGLE = 65.1225
+	LOBBY_VIRTUAL_WORLD = (("config" in phoenix) && ("GateSpots" in phoenix.config) && ("LOBBY" in phoenix.config.GateSpots) && ("VIRTUAL_WORLD" in phoenix.config.GateSpots.LOBBY)) ? phoenix.config.GateSpots.LOBBY.VIRTUAL_WORLD : 999
+	LOBBY_X = (("config" in phoenix) && ("GateSpots" in phoenix.config) && ("LOBBY" in phoenix.config.GateSpots) && ("X" in phoenix.config.GateSpots.LOBBY)) ? phoenix.config.GateSpots.LOBBY.X : 870.118
+	LOBBY_Y = (("config" in phoenix) && ("GateSpots" in phoenix.config) && ("LOBBY" in phoenix.config.GateSpots) && ("Y" in phoenix.config.GateSpots.LOBBY)) ? phoenix.config.GateSpots.LOBBY.Y : -96.2501
+	LOBBY_Z = (("config" in phoenix) && ("GateSpots" in phoenix.config) && ("LOBBY" in phoenix.config.GateSpots) && ("Z" in phoenix.config.GateSpots.LOBBY)) ? phoenix.config.GateSpots.LOBBY.Z : -1848.33
+	LOBBY_ANGLE = (("config" in phoenix) && ("GateSpots" in phoenix.config) && ("LOBBY" in phoenix.config.GateSpots) && ("ANGLE" in phoenix.config.GateSpots.LOBBY)) ? phoenix.config.GateSpots.LOBBY.ANGLE : 65.1225
 	DEATH_REVIVE_DELAY_MS = 10000
 	DEATH_REVIVE_HP_PERCENT = 0.10
 	pending = {}

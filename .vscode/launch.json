@@ -1,0 +1,11 @@
+{
+    "version": "0.2.0",
+    "configurations": [
+        {
+            "name": "Gothic Starter",
+            "type": "gothicStarter",
+            "request": "launch",
+            "vscCommand": "vscode-gothiconline.launch"
+        }
+    ]
+}
