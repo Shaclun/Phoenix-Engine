@@ -41,6 +41,7 @@ phoenix.npc.Interaction <- {
 
 	function close() {
 		if (!phoenix.npc.Interaction.visible) return
+		local closingNpcId = phoenix.npc.Interaction.currentNpcId
 		try { phoenix.npc.Interaction.restoreAfterDialog() } catch (e) {}
 		phoenix.npc.Interaction.visible = false
 		phoenix.npc.Interaction.currentNpcId = -1
@@ -49,6 +50,14 @@ phoenix.npc.Interaction <- {
 		try {
 			if (phoenix.ui.ActiveGui.is("teacher")) phoenix.ui.ActiveGui.clear()
 		} catch (e) {}
+		if (closingNpcId >= 0) {
+			try {
+				local m = phoenix.npc.Message.DialogAction()
+				m.npcId = closingNpcId
+				m.action = "close"
+				m.serialize().send(RELIABLE_ORDERED)
+			} catch (e) {}
+		}
 	}
 
 	function forceClose(_a = null) { phoenix.npc.Interaction.close() }

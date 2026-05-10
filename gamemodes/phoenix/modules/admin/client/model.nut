@@ -73,6 +73,27 @@ phoenix.admin.Model <- {
 		lastMoveAt = 0
 	}
 
+	routineGhost = {
+		active = false,
+		obj = null,
+		markers = [],
+		nodes = [],
+		visual = "BOOTS.3DS",
+		world = "",
+		spawnId = 0,
+		x = 0.0,
+		y = 0.0,
+		z = 0.0,
+		rotY = 0.0,
+		cameraActive = false,
+		cameraPaused = false,
+		camDistance = 360.0,
+		camPitch = 22.0,
+		camYaw = 0.0,
+		camDragging = false,
+		lastMoveAt = 0
+	}
+
 	ui = {
 		locked = false,
 		chatWasVisible = false,
@@ -105,6 +126,9 @@ phoenix.admin.Model <- {
 		if (action == "adminHouseGhostStop") { phoenix.admin.Model.houseGhostStop(); return true }
 		if (action == "adminHouseCapture") { phoenix.admin.Model.houseCapture(payload); return true }
 		if (action == "adminHouseBoundaryToggle") { try { phoenix.house.Ground.toggleAdminBoundaries(); return true } catch (e) {}; return true }
+		if (action == "adminRoutineGhostStart") { phoenix.admin.Model.routineGhostStart(payload); return true }
+		if (action == "adminRoutineGhostSync") { phoenix.admin.Model.routineGhostSync(payload); return true }
+		if (action == "adminRoutineGhostStop") { phoenix.admin.Model.routineGhostStop(); return true }
 		return false
 	}
 
@@ -283,6 +307,7 @@ phoenix.admin.Model <- {
 		ui.locked = false
 		try { if (phoenix.ui.ActiveGui.is("admin")) phoenix.ui.ActiveGui.clear() } catch (e) {}
 		phoenix.admin.Model.previewStop()
+		phoenix.admin.Model.routineGhostStop()
 		try { disableControls(false) } catch (e) {}
 		try { setFreeze(false) } catch (e) {}
 		try { phoenix.camera.Structure.release() } catch (e) {}
@@ -870,6 +895,203 @@ phoenix.admin.Model <- {
 		} catch (e) {}
 	}
 
+	function routineGhostStart(payload) {
+		if (payload == null) payload = {}
+		if (!routineGhost.active) {
+			local pos = null
+			try { pos = getPlayerPosition(heroId) } catch (e) {}
+			if (pos != null) { routineGhost.x = pos.x; routineGhost.y = pos.y; routineGhost.z = pos.z }
+			try { routineGhost.rotY = getPlayerAngle(heroId) } catch (e2) {}
+		}
+		if ("spawnId" in payload) routineGhost.spawnId = payload.spawnId.tointeger()
+		if ("visual" in payload && payload.visual != null && payload.visual != "") {
+			routineGhost.visual = phoenix.admin.Model.normalizeVobVisual(payload.visual)
+		}
+		try { routineGhost.world = getPlayerWorld(heroId) } catch (e) {}
+		phoenix.admin.Model.routineGhostSync(payload)
+		if (routineGhost.obj == null) {
+			try { routineGhost.obj = Vob(routineGhost.visual) } catch (e3) { routineGhost.obj = null }
+			if (routineGhost.obj != null) {
+				try { routineGhost.obj.cdDynamic = false } catch (e4) {}
+				try { routineGhost.obj.cdStatic = false } catch (e5) {}
+				try { routineGhost.obj.visualAlpha = 0.65 } catch (e6) {}
+				try { routineGhost.obj.visible = true } catch (e7) {}
+			}
+		}
+		if (routineGhost.obj != null) {
+			try { routineGhost.obj.setPosition(routineGhost.x, routineGhost.y, routineGhost.z) } catch (e8) {}
+			try { routineGhost.obj.addToWorld() } catch (e9) {}
+		}
+		routineGhost.active = true
+		phoenix.admin.Model.routineGhostCameraStart(false)
+		phoenix.admin.Model.routineGhostEmit()
+	}
+
+	function routineGhostSync(payload) {
+		if (payload == null) return
+		if ("nodes" in payload && payload.nodes != null) {
+			routineGhost.nodes.clear()
+			foreach (n in payload.nodes) {
+				if (n == null) continue
+				local type = ("type" in n) ? n.type.tostring() : "waypoint"
+				local nx = ("x" in n) ? n.x.tofloat() : 0.0
+				local ny = ("y" in n) ? n.y.tofloat() : 0.0
+				local nz = ("z" in n) ? n.z.tofloat() : 0.0
+				routineGhost.nodes.append({ type = type, x = nx, y = ny, z = nz })
+			}
+			if (routineGhost.nodes.len() > 0 && !routineGhost.active) {
+				local last = routineGhost.nodes[routineGhost.nodes.len() - 1]
+				routineGhost.x = last.x; routineGhost.y = last.y; routineGhost.z = last.z
+			}
+		}
+		phoenix.admin.Model.routineGhostRebuildMarkers()
+	}
+
+	function routineGhostClearMarkers() {
+		foreach (obj in routineGhost.markers) {
+			try { obj.removeFromWorld() } catch (e) {}
+			try { obj.remove() } catch (e2) {}
+			try { obj.destroy() } catch (e3) {}
+		}
+		routineGhost.markers.clear()
+	}
+
+	function routineGhostRebuildMarkers() {
+		phoenix.admin.Model.routineGhostClearMarkers()
+		if (!routineGhost.active) return
+		foreach (n in routineGhost.nodes) {
+			if (n.type == "wait") continue
+			local obj = null
+			try { obj = Vob(routineGhost.visual) } catch (e) { obj = null }
+			if (obj == null) continue
+			try { obj.cdDynamic = false } catch (e2) {}
+			try { obj.cdStatic = false } catch (e3) {}
+			try { obj.visualAlpha = 0.75 } catch (e4) {}
+			try { obj.visible = true } catch (e5) {}
+			try { obj.setPosition(n.x, n.y, n.z) } catch (e6) {}
+			try { obj.addToWorld() } catch (e7) {}
+			routineGhost.markers.append(obj)
+		}
+	}
+
+	function routineGhostStop() {
+		phoenix.admin.Model.routineGhostCameraStop()
+		phoenix.admin.Model.routineGhostClearMarkers()
+		if (routineGhost.obj != null) {
+			try { routineGhost.obj.removeFromWorld() } catch (e) {}
+			try { routineGhost.obj.remove() } catch (e2) {}
+			try { routineGhost.obj.destroy() } catch (e3) {}
+		}
+		routineGhost.obj = null
+		routineGhost.active = false
+		routineGhost.camDragging = false
+		routineGhost.nodes.clear()
+	}
+
+	function routineGhostCameraStart(force) {
+		if (!routineGhost.active || routineGhost.obj == null) return
+		if (!force && routineGhost.cameraActive) return
+		routineGhost.cameraPaused = false
+		if (!ui.locked) {
+			try { phoenix.camera.Structure.freeze(); routineGhost.cameraPaused = true } catch (e) {}
+		}
+		try { Camera.movementEnabled = false } catch (e2) {}
+		try { Camera.modeChangeEnabled = false } catch (e3) {}
+		routineGhost.camDistance = 360.0
+		routineGhost.camPitch = 22.0
+		routineGhost.camYaw = routineGhost.rotY + 180.0
+		routineGhost.cameraActive = true
+	}
+
+	function routineGhostCameraStop() {
+		routineGhost.cameraActive = false
+		routineGhost.camDragging = false
+		if (routineGhost.cameraPaused) {
+			try { phoenix.camera.Structure.release() } catch (e) {}
+		}
+		routineGhost.cameraPaused = false
+	}
+
+	function routineGhostCameraTick() {
+		if (!routineGhost.cameraActive || !routineGhost.active) return
+		local angleRad = routineGhost.camYaw * 3.14159 / 180.0
+		local cx = routineGhost.x + sin(angleRad) * routineGhost.camDistance
+		local cy = routineGhost.y + 100.0 + routineGhost.camPitch
+		local cz = routineGhost.z + cos(angleRad) * routineGhost.camDistance
+		try { Camera.setPosition(cx, cy, cz) } catch (e) {}
+		local dx = routineGhost.x - cx
+		local dz = routineGhost.z - cz
+		local dy = (routineGhost.y + 90.0) - cy
+		local yaw = atan2(dx, dz) * 180.0 / 3.14159
+		local d2 = sqrt(dx * dx + dz * dz)
+		local pitch = -atan2(dy, d2) * 180.0 / 3.14159
+		try { Camera.setRotation(pitch, yaw, 0) } catch (e2) {}
+	}
+
+	function routineGhostKeyboard() {
+		if (!routineGhost.active || routineGhost.obj == null) return
+		if (ui.inputFocused) return
+		local now = getTickCount()
+		if (now - routineGhost.lastMoveAt < 30) return
+		routineGhost.lastMoveAt = now
+		local speed = 5.0
+		try { if (isKeyPressed(KEY_LSHIFT) || isKeyPressed(KEY_RSHIFT)) speed = 50.0 } catch (e) {}
+		try { if (isKeyPressed(KEY_LCONTROL) || isKeyPressed(KEY_RCONTROL)) speed = 0.5 } catch (e2) {}
+		local moved = false
+		try { if (isKeyPressed(KEY_W)) { routineGhost.x += speed * sin(routineGhost.camYaw * 3.14159 / 180.0); routineGhost.z += speed * cos(routineGhost.camYaw * 3.14159 / 180.0); moved = true } } catch (e3) {}
+		try { if (isKeyPressed(KEY_S)) { routineGhost.x -= speed * sin(routineGhost.camYaw * 3.14159 / 180.0); routineGhost.z -= speed * cos(routineGhost.camYaw * 3.14159 / 180.0); moved = true } } catch (e4) {}
+		try { if (isKeyPressed(KEY_A)) { routineGhost.x += speed * sin((routineGhost.camYaw - 90.0) * 3.14159 / 180.0); routineGhost.z += speed * cos((routineGhost.camYaw - 90.0) * 3.14159 / 180.0); moved = true } } catch (e5) {}
+		try { if (isKeyPressed(KEY_D)) { routineGhost.x += speed * sin((routineGhost.camYaw + 90.0) * 3.14159 / 180.0); routineGhost.z += speed * cos((routineGhost.camYaw + 90.0) * 3.14159 / 180.0); moved = true } } catch (e6) {}
+		try { if (isKeyPressed(KEY_Q)) { routineGhost.y += speed; moved = true } } catch (e7) {}
+		try { if (isKeyPressed(KEY_E)) { routineGhost.y -= speed; moved = true } } catch (e8) {}
+		try { if (isKeyPressed(KEY_LEFT)) { routineGhost.camYaw += 2.0; moved = true } } catch (e9) {}
+		try { if (isKeyPressed(KEY_RIGHT)) { routineGhost.camYaw -= 2.0; moved = true } } catch (e10) {}
+		if (!moved) return
+		try { routineGhost.obj.setPosition(routineGhost.x, routineGhost.y, routineGhost.z) } catch (e11) {}
+		phoenix.admin.Model.routineGhostEmit()
+	}
+
+	function routineGhostDraw() {
+		if (!routineGhost.active) return
+		try { if (!("drawLine3d" in getroottable())) return } catch (e) { return }
+		local count = routineGhost.nodes.len()
+		for (local i = 0; i < count; i += 1) {
+			local a = routineGhost.nodes[i]
+			if (a.type == "wait") continue
+			try { drawLine3d(a.x, a.y, a.z, a.x, a.y + 150.0, a.z, 255, 210, 90, true) } catch (e2) {}
+			if (i > 0) {
+				local prev = null
+				for (local j = i - 1; j >= 0; j -= 1) {
+					if (routineGhost.nodes[j].type != "wait") { prev = routineGhost.nodes[j]; break }
+				}
+				if (prev != null) {
+					try { drawLine3d(prev.x, prev.y + 40.0, prev.z, a.x, a.y + 40.0, a.z, 120, 200, 255, true) } catch (e3) {}
+				}
+			}
+		}
+		if (count > 0) {
+			local last = null
+			for (local k = count - 1; k >= 0; k -= 1) {
+				if (routineGhost.nodes[k].type != "wait") { last = routineGhost.nodes[k]; break }
+			}
+			if (last != null) {
+				try { drawLine3d(last.x, last.y + 40.0, last.z, routineGhost.x, routineGhost.y + 40.0, routineGhost.z, 90, 240, 170, true) } catch (e4) {}
+			}
+		}
+		try { drawLine3d(routineGhost.x, routineGhost.y, routineGhost.z, routineGhost.x, routineGhost.y + 200.0, routineGhost.z, 90, 240, 170, true) } catch (e5) {}
+	}
+
+	function routineGhostEmit() {
+		try {
+			phoenix.web.Manager.emit("phoenix:admin:response", {
+				action = "adminRoutineGhost",
+				success = true,
+				error = "",
+				payload = { active = routineGhost.active ? 1 : 0, posX = routineGhost.x, posY = routineGhost.y, posZ = routineGhost.z }
+			})
+		} catch (e) {}
+	}
+
 	function previewEmit() {
 		if (preview.npcId != phoenix.admin.Model.invalidNpcId) {
 			try { local p = getPlayerPosition(preview.npcId); if (p != null) { preview.x = p.x; preview.y = p.y; preview.z = p.z } } catch (e) {}
@@ -894,6 +1116,9 @@ phoenix.admin.Model <- {
 		phoenix.admin.Model.vobPreviewCameraTick()
 		phoenix.admin.Model.houseGhostCameraTick()
 		phoenix.admin.Model.houseGhostDraw()
+		phoenix.admin.Model.routineGhostKeyboard()
+		phoenix.admin.Model.routineGhostCameraTick()
+		phoenix.admin.Model.routineGhostDraw()
 		if (preview.active && preview.npcId != phoenix.admin.Model.invalidNpcId) phoenix.admin.Model.previewApplyAngle()
 	}
 

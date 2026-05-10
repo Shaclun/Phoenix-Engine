@@ -447,6 +447,11 @@ phoenix.npc.AI <- {
 		entry.ai.returnStartedAt <- 0
 		entry.ai.weaponSheathed <- true
 		entry.ai.nextWander <- getTickCount() + 6000 + (rand() % 6000)
+		if ("routine" in entry.ai && entry.ai.routine != null) {
+			entry.ai.routineIndex <- 0
+			entry.ai.routineWaitUntil <- 0
+			entry.ai.routineAnimApplied <- ""
+		}
 		phoenix.npc.AI._resetMoveWatch(entry)
 		phoenix.npc.AI._restoreHomeAngle(entry)
 		phoenix.npc.AI._ensureIdle(entry, forceIdle)
@@ -1123,6 +1128,9 @@ phoenix.npc.AI <- {
 		local wasReturning = ("returning" in entry.ai) && entry.ai.returning == true
 		if (phoenix.npc.AI._softReturn(entry, pos, now)) return
 		if (wasReturning) return
+		local hasRoutine = false
+		try { hasRoutine = phoenix.npc.Routines.tick(entry, now) } catch (eR) {}
+		if (hasRoutine) return
 		local isMonster = !phoenix.npc.AI._isHuman(row)
 		if (now >= entry.ai.nextWander) {
 			local radius = isMonster ? 1000 : 800
@@ -1161,6 +1169,71 @@ phoenix.npc.AI <- {
 			}
 			return
 		}
+		if (("dialogPartner" in entry.ai) && entry.ai.dialogPartner >= 0) {
+			local partner = entry.ai.dialogPartner
+			local valid = false
+			try {
+				if (isPlayerConnected(partner)) {
+					local pp = getPlayerPosition(partner)
+					local np = getPlayerPosition(entry.npcId)
+					if (pp != null && np != null) {
+						local dx = pp.x - np.x; local dy = pp.y - np.y; local dz = pp.z - np.z
+						local d = sqrt(dx * dx + dy * dy + dz * dz)
+						if (d <= 800.0) valid = true
+					}
+				}
+			} catch (eD) {}
+			if (!valid) {
+				entry.ai.dialogPartner <- -1
+				entry.ai.dialogPaused <- false
+			} else {
+				if (!("dialogPaused" in entry.ai) || entry.ai.dialogPaused != true) {
+					local npcId = entry.npcId
+					try { clearNpcActions(npcId) } catch (eCl) {}
+					try {
+						foreach (anim in [
+							"S_RUN", "S_WALK",
+							"S_FISTRUNL", "S_FISTWALKL",
+							"S_1HRUNL", "S_1HWALKL",
+							"S_2HRUNL", "S_2HWALKL",
+							"S_BOWRUNL", "S_BOWWALKL",
+							"S_CBOWRUNL", "S_CBOWWALKL"
+						]) {
+							try { stopAni(npcId, anim) } catch (eS) {}
+						}
+					} catch (eS2) {}
+					try {
+						local pos = getPlayerPosition(npcId)
+						if (pos != null) setPlayerPosition(npcId, pos.x, pos.y, pos.z)
+					} catch (eP) {}
+					local idle = "S_STAND"
+					try {
+						if ("idleAnimation" in entry.row && entry.row.idleAnimation != null && entry.row.idleAnimation != "") {
+							local up = entry.row.idleAnimation.tostring().toupper()
+							if (up.find("RUN") == null && up.find("WALK") == null && up.find("ATTACK") == null && up.find("WARN") == null) {
+								idle = entry.row.idleAnimation.tostring()
+							}
+						}
+					} catch (eI) {}
+					try { playAni(npcId, idle) } catch (eA) {}
+					entry.ai.idleApplied <- idle
+					entry.ai.dialogPaused <- true
+				}
+				try {
+					local npPos = getPlayerPosition(entry.npcId)
+					local ppPos = getPlayerPosition(partner)
+					if (npPos != null && ppPos != null) {
+						phoenix.npc.AI._setAngleTo(entry.npcId, npPos.x, npPos.z, ppPos.x, ppPos.z, entry.ai, now, false)
+					}
+				} catch (eA2) {}
+				entry.ai.state = "dialog"
+				return
+			}
+		}
+		if (("dialogPaused" in entry.ai) && entry.ai.dialogPaused == true) {
+			entry.ai.dialogPaused <- false
+			entry.ai.idleApplied <- ""
+		}
 		local row = entry.row
 		local npcId = entry.npcId
 		local enemyNearby = false
@@ -1174,6 +1247,9 @@ phoenix.npc.AI <- {
 			phoenix.npc.AI._tickMonster(entry, now)
 			return
 		}
+		local hasRoutine = false
+		try { hasRoutine = phoenix.npc.Routines.tick(entry, now) } catch (eR) {}
+		if (hasRoutine) return
 		if (now < entry.ai.nextTick) return
 		entry.ai.nextTick = now + 5000 + (rand() % 5000)
 		phoenix.npc.AI._ensureIdle(entry, false)

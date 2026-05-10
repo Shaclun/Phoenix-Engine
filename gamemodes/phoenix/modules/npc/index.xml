@@ -6,6 +6,7 @@
 	<script src="server/spawn.nut" type="server" />
 	<script src="server/preset.nut" type="server" />
 	<script src="server/ai.nut" type="server" />
+	<script src="server/routines.nut" type="server" />
 	<script src="server/bestiary.nut" type="server" />
 	<script src="server/handlers.nut" type="server" />
 	<script src="server/teacher.nut" type="server" />

@@ -185,11 +185,28 @@ phoenix.npc.Teacher <- {
 
 	function onInteract(playerId, message) {
 		phoenix.npc.Teacher.openRootDialog(playerId, message.npcId)
+		try {
+			local entry = phoenix.npc.Teacher._findByNpcId(message.npcId)
+			if (entry != null) {
+				entry.ai.dialogPartner <- playerId
+				entry.ai.dialogPartnerSince <- getTickCount()
+				entry.ai.routineWaitUntil <- 0
+			}
+		} catch (e) {}
 	}
 
 	function onAction(playerId, message) {
 		if (message.action == "teacher") { phoenix.npc.Teacher.openDialog(playerId, message.npcId); return }
 		if (message.action == "merchant") { phoenix.npc.Teacher.openMerchant(playerId, message.npcId); return }
+		if (message.action == "close") {
+			try {
+				local entry = phoenix.npc.Teacher._findByNpcId(message.npcId)
+				if (entry != null && ("dialogPartner" in entry.ai) && entry.ai.dialogPartner == playerId) {
+					entry.ai.dialogPartner <- -1
+				}
+			} catch (e) {}
+			return
+		}
 		phoenix.npc.Teacher.openRootDialog(playerId, message.npcId)
 	}
 

@@ -883,6 +883,64 @@ phoenix.admin.Server <- {
 		}
 	}
 
+	function dispatchNpcRoutineGet(playerId, payload) {
+		if (payload == null || !("spawnId" in payload)) {
+			phoenix.admin.Server.reply(playerId, "npcRoutineGet", false, "badSpawn", null); return
+		}
+		try {
+			local r = phoenix.npc.Routines.getBySpawnId(payload.spawnId)
+			local out = r != null ? r : { spawnId = payload.spawnId, enabled = 1, loop = 1, nodes = [] }
+			phoenix.admin.Server.reply(playerId, "npcRoutineGet", true, "", { spawnId = payload.spawnId, routine = out })
+		} catch (e) {
+			phoenix.admin.Server.reply(playerId, "npcRoutineGet", false, "exception", null)
+		}
+	}
+
+	function dispatchNpcRoutineSave(playerId, payload) {
+		if (payload == null || !("spawnId" in payload)) {
+			phoenix.admin.Server.reply(playerId, "npcRoutineSave", false, "badPayload", null); return
+		}
+		try {
+			local input = {
+				enabled = ("enabled" in payload) ? payload.enabled : 1,
+				loop = ("loop" in payload) ? payload.loop : 1,
+				nodes = ("nodes" in payload) ? payload.nodes : [],
+				createdBy = playerId
+			}
+			phoenix.npc.Routines.save(payload.spawnId, input, function (ok) {
+				phoenix.admin.Server.audit(playerId, "npcRoutineSave", "npcRoutine", null, "spawn=" + payload.spawnId, "nodes=" + input.nodes.len())
+				phoenix.admin.Server.reply(playerId, "npcRoutineSave", ok, ok ? "" : "saveFail", { spawnId = payload.spawnId })
+			})
+		} catch (e) {
+			phoenix.admin.Server.reply(playerId, "npcRoutineSave", false, "exception", null)
+		}
+	}
+
+	function dispatchNpcRoutineDelete(playerId, payload) {
+		if (payload == null || !("spawnId" in payload)) {
+			phoenix.admin.Server.reply(playerId, "npcRoutineDelete", false, "badSpawn", null); return
+		}
+		try {
+			phoenix.npc.Routines.remove(payload.spawnId, function (_) {
+				phoenix.admin.Server.audit(playerId, "npcRoutineDelete", "npcRoutine", null, "spawn=" + payload.spawnId, "")
+				phoenix.admin.Server.reply(playerId, "npcRoutineDelete", true, "", { spawnId = payload.spawnId })
+			})
+		} catch (e) {
+			phoenix.admin.Server.reply(playerId, "npcRoutineDelete", false, "exception", null)
+		}
+	}
+
+	function dispatchNpcRoutineCapturePos(playerId, _payload) {
+		try {
+			local p = getPlayerPosition(playerId)
+			local a = getPlayerAngle(playerId)
+			if (p == null) { phoenix.admin.Server.reply(playerId, "npcRoutineCapturePos", false, "noPos", null); return }
+			phoenix.admin.Server.reply(playerId, "npcRoutineCapturePos", true, "", { x = p.x, y = p.y, z = p.z, angle = a })
+		} catch (e) {
+			phoenix.admin.Server.reply(playerId, "npcRoutineCapturePos", false, "exception", null)
+		}
+	}
+
 	dispatchers = null
 
 	function onRequest(playerId, message) {
@@ -930,6 +988,10 @@ phoenix.admin.Server.dispatchers = {
 	npcPresetList = phoenix.admin.Server.dispatchNpcPresetList,
 	npcPresetSave = phoenix.admin.Server.dispatchNpcPresetSave,
 	npcPresetDelete = phoenix.admin.Server.dispatchNpcPresetDelete,
+	npcRoutineGet = phoenix.admin.Server.dispatchNpcRoutineGet,
+	npcRoutineSave = phoenix.admin.Server.dispatchNpcRoutineSave,
+	npcRoutineDelete = phoenix.admin.Server.dispatchNpcRoutineDelete,
+	npcRoutineCapturePos = phoenix.admin.Server.dispatchNpcRoutineCapturePos,
 	herbCatalog = phoenix.admin.Server.dispatchHerbCatalog,
 	herbList = phoenix.admin.Server.dispatchHerbList,
 	herbSave = phoenix.admin.Server.dispatchHerbSave,

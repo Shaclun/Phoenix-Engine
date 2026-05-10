@@ -128,6 +128,11 @@
         npcEditor: defaultNpcEditor(),
         humanCreator: defaultHumanCreator(),
         npcEditingId: 0,
+        npcRoutine: { spawnId: 0, enabled: 1, loop: 1, nodes: [] },
+        npcRoutineSelected: -1,
+        npcRoutineGhostActive: false,
+        npcRoutineGhostPos: { x: 0, y: 0, z: 0 },
+        npcSpawnEdit: null,
         status: null
     };
 
@@ -1140,6 +1145,8 @@
         else if (view === "human") html += renderHumanCreator();
         else if (view === "presets") html += renderNpcPresets(presets);
         else if (view === "editor") html += renderNpcEditor();
+        else if (view === "routine") html += renderNpcRoutine();
+        else if (view === "spawn-edit") html += renderNpcSpawnEditor();
         else if (view === "herbs") html += renderHerbs();
         else html += renderNpcActive(spawns);
         html += '</div>';
@@ -1451,6 +1458,47 @@
 
     function syncHouseGhost() {
         if (state.houseGhostActive) send("adminHouseGhostSync", houseGhostPayload());
+    }
+
+    function routineGhostPayload() {
+        return {
+            spawnId: state.npcRoutine.spawnId,
+            visual: "ITMI_HOLYHAMMER.3DS",
+            nodes: (state.npcRoutine.nodes || []).map(function (n) {
+                return {
+                    type: n.type || "waypoint",
+                    x: +n.x || 0, y: +n.y || 0, z: +n.z || 0
+                };
+            })
+        };
+    }
+
+    function syncRoutineGhost() {
+        if (state.npcRoutineGhostActive) send("adminRoutineGhostSync", routineGhostPayload());
+    }
+
+    function spawnEditPreviewPayload() {
+        var ed = state.npcSpawnEdit || {};
+        var isHuman = ed.kind === "humanoid" || ed.kind === "npc" || ed.kind === "merchant" || ed.kind === "guard";
+        return {
+            mode: isHuman ? "human" : "npc",
+            instance: ed.instance || "",
+            kind: ed.kind || "monster",
+            posX: +ed.posX || 0, posY: +ed.posY || 0, posZ: +ed.posZ || 0,
+            angle: +ed.angle || 0,
+            scaleX: +ed.scaleX || 1, scaleY: +ed.scaleY || 1, scaleZ: +ed.scaleZ || 1,
+            fatness: +ed.fatness || 0,
+            bodyModel: ed.bodyModel || "", bodyTex: +ed.bodyTex,
+            headModel: ed.headModel || "", headTex: +ed.headTex,
+            cameraMode: "orbital",
+            world: ed.world || ""
+        };
+    }
+
+    function syncSpawnEditPreview() {
+        if (state.npcView === "spawn-edit" && state.npcSpawnEdit) {
+            send("adminNpcPreviewUpdate", spawnEditPreviewPayload());
+        }
     }
 
     function renderHouses() {
@@ -1827,6 +1875,196 @@
         return html;
     }
 
+    function renderNpcSpawnEditor() {
+        var ed = state.npcSpawnEdit;
+        if (!ed) return '<div class="adm-empty">' + escapeHtml(t("admin.npc.spawnEdit.empty")) + '</div>';
+        var html = '<div class="adm-toolbar">';
+        html += '<button class="adm-btn" data-action="npc-edit-back">← ' + escapeHtml(t("admin.npc.btn.backToList")) + '</button>';
+        html += '<span class="adm-toolbar__sep"></span>';
+        html += '<strong>' + escapeHtml(t("admin.npc.spawnEdit.title")) + '</strong>&nbsp;<code>' + escapeHtml(ed.instance || "") + ' #' + ed.id + '</code>';
+        html += '</div>';
+
+        html += '<div class="adm-grid adm-grid--2">';
+
+        html += '<div class="adm-section adm-section--inline"><h4>' + escapeHtml(t("admin.npc.section.identity")) + '</h4>';
+        html += '<label>' + escapeHtml(t("admin.npc.field.label")) + '<input class="adm-input" data-sf="name" value="' + escapeHtml(ed.name || "") + '"></label>';
+        html += '<label>' + escapeHtml(t("admin.npc.field.instance")) + '<input class="adm-input" data-sf="instance" value="' + escapeHtml(ed.instance || "") + '"></label>';
+        html += '<label>' + escapeHtml(t("admin.npc.field.kind")) + '<select class="adm-input" data-sf="kind">';
+        [["monster", t("admin.npc.kind.monster")], ["npc", t("admin.npc.kind.npc")], ["humanoid", t("admin.npc.cat.humanoid")], ["merchant", t("admin.npc.cat.merchant")], ["guard", t("admin.npc.cat.guard")]].forEach(function (k) {
+            var s = (ed.kind || "") === k[0] ? " selected" : "";
+            html += '<option value="' + k[0] + '"' + s + '>' + escapeHtml(k[1]) + '</option>';
+        });
+        html += '</select></label>';
+        html += '<label>' + escapeHtml(t("admin.npc.field.hostile")) + '<select class="adm-input" data-sf="hostile">';
+        [["0", "—"], ["1", "✓ " + t("admin.npc.field.hostile")]].forEach(function (h) {
+            var s = String(ed.hostile) === h[0] ? " selected" : "";
+            html += '<option value="' + h[0] + '"' + s + '>' + escapeHtml(h[1]) + '</option>';
+        });
+        html += '</select></label>';
+        html += '<label>' + escapeHtml(t("admin.npc.field.respawn")) + '<input class="adm-input" type="number" min="0" data-sf="respawnSec" value="' + (ed.respawnSec || 0) + '"></label>';
+        html += '<label>Tag<input class="adm-input" data-sf="tag" value="' + escapeHtml(ed.tag || "") + '"></label>';
+        html += '</div>';
+
+        html += '<div class="adm-section adm-section--inline"><h4>' + escapeHtml(t("admin.npc.section.behavior")) + '</h4>';
+        html += '<label>' + escapeHtml(t("admin.npc.field.idleAnimation")) + '<input class="adm-input" data-sf="idleAnimation" value="' + escapeHtml(ed.idleAnimation || "") + '"></label>';
+        html += '<div class="adm-grid adm-grid--2">';
+        html += '<label>' + escapeHtml(t("admin.npc.field.aggroRadius")) + '<input class="adm-input" type="number" min="0" data-sf="aggroRadius" value="' + (ed.aggroRadius || 0) + '"></label>';
+        html += '<label>' + escapeHtml(t("admin.npc.field.attackRange")) + '<input class="adm-input" type="number" min="0" data-sf="attackRange" value="' + (ed.attackRange || 0) + '"></label>';
+        html += '<label>' + escapeHtml(t("admin.npc.field.attackDamage")) + '<input class="adm-input" type="number" min="0" data-sf="attackDamage" value="' + (ed.attackDamage || 0) + '"></label>';
+        html += '<label>' + escapeHtml(t("admin.npc.field.walkSpeed")) + '<input class="adm-input" type="number" min="0" data-sf="walkSpeed" value="' + (ed.walkSpeed || 0) + '"></label>';
+        html += '<label>Bazowy EXP<input class="adm-input" type="number" min="0" data-sf="baseExperience" value="' + (ed.baseExperience || 0) + '"></label>';
+        html += '</div>';
+        html += '</div>';
+
+        html += '<div class="adm-section adm-section--inline"><h4>' + escapeHtml(t("admin.npc.col.pos")) + '</h4>';
+        html += '<div class="adm-grid adm-grid--3">';
+        html += '<label>X<input class="adm-input" type="number" data-sf="posX" value="' + (ed.posX || 0) + '"></label>';
+        html += '<label>Y<input class="adm-input" type="number" data-sf="posY" value="' + (ed.posY || 0) + '"></label>';
+        html += '<label>Z<input class="adm-input" type="number" data-sf="posZ" value="' + (ed.posZ || 0) + '"></label>';
+        html += '</div>';
+        html += '<label>' + escapeHtml(t("admin.houses.heading")) + '<input class="adm-input" type="number" data-sf="angle" value="' + (ed.angle || 0) + '"></label>';
+        html += '<div class="adm-toolbar" style="margin-top:8px">';
+        html += '<button class="adm-btn" data-action="npc-edit-capture-pos">⌖ ' + escapeHtml(t("admin.npc.spawnEdit.capturePos")) + '</button>';
+        html += '</div>';
+        html += '<p class="adm-hint">' + escapeHtml(t("admin.npc.spawnEdit.controls")) + '</p>';
+        html += '</div>';
+
+        html += '<div class="adm-section adm-section--inline"><h4>' + escapeHtml(t("admin.npc.section.stats")) + '</h4>';
+        html += '<div class="adm-grid adm-grid--2">';
+        html += '<label>' + escapeHtml(t("admin.npc.field.hp")) + '<input class="adm-input" type="number" min="0" data-sf="hp" value="' + (ed.hp || 0) + '"></label>';
+        html += '<label>' + escapeHtml(t("admin.npc.field.level")) + '<input class="adm-input" type="number" min="0" data-sf="level" value="' + (ed.level || 0) + '"></label>';
+        html += '<label>' + escapeHtml(t("admin.npc.field.strength")) + '<input class="adm-input" type="number" min="0" data-sf="strength" value="' + (ed.strength || 0) + '"></label>';
+        html += '<label>' + escapeHtml(t("admin.npc.field.dexterity")) + '<input class="adm-input" type="number" min="0" data-sf="dexterity" value="' + (ed.dexterity || 0) + '"></label>';
+        html += '</div>';
+        html += '</div>';
+
+        html += '<div class="adm-section adm-section--inline"><h4>' + escapeHtml(t("admin.npc.section.visual")) + '</h4>';
+        html += '<div class="adm-grid adm-grid--3">';
+        html += '<label>' + escapeHtml(t("admin.npc.field.scaleX")) + '<input class="adm-input" type="number" step="0.05" min="0.1" max="5" data-sf="scaleX" value="' + (ed.scaleX || 1) + '"></label>';
+        html += '<label>' + escapeHtml(t("admin.npc.field.scaleY")) + '<input class="adm-input" type="number" step="0.05" min="0.1" max="5" data-sf="scaleY" value="' + (ed.scaleY || 1) + '"></label>';
+        html += '<label>' + escapeHtml(t("admin.npc.field.scaleZ")) + '<input class="adm-input" type="number" step="0.05" min="0.1" max="5" data-sf="scaleZ" value="' + (ed.scaleZ || 1) + '"></label>';
+        html += '</div>';
+        html += '<label>' + escapeHtml(t("admin.npc.field.fatness")) + '<input class="adm-input" type="number" step="0.1" min="-1" max="3" data-sf="fatness" value="' + (ed.fatness || 0) + '"></label>';
+        html += '<div class="adm-grid adm-grid--2">';
+        html += '<label>' + escapeHtml(t("admin.npc.field.bodyModel")) + '<input class="adm-input" data-sf="bodyModel" value="' + escapeHtml(ed.bodyModel || "") + '"></label>';
+        html += '<label>' + escapeHtml(t("admin.npc.field.bodyTex")) + '<input class="adm-input" type="number" data-sf="bodyTex" value="' + (ed.bodyTex == null ? -1 : ed.bodyTex) + '"></label>';
+        html += '<label>' + escapeHtml(t("admin.npc.field.headModel")) + '<input class="adm-input" data-sf="headModel" value="' + escapeHtml(ed.headModel || "") + '"></label>';
+        html += '<label>' + escapeHtml(t("admin.npc.field.headTex")) + '<input class="adm-input" type="number" data-sf="headTex" value="' + (ed.headTex == null ? -1 : ed.headTex) + '"></label>';
+        html += '<label>' + escapeHtml(t("admin.npc.field.voice")) + '<input class="adm-input" type="number" min="0" max="20" data-sf="voice" value="' + (ed.voice || 0) + '"></label>';
+        html += '</div>';
+        html += '</div>';
+
+        html += '</div>';
+
+        html += '<div class="adm-toolbar">';
+        html += '<button class="adm-btn adm-btn--primary" data-action="npc-edit-save">' + escapeHtml(t("admin.common.save")) + '</button>';
+        html += '<button class="adm-btn" data-action="npc-edit-back">' + escapeHtml(t("admin.npc.btn.cancel")) + '</button>';
+        html += '</div>';
+        return html;
+    }
+
+    function renderNpcRoutine() {
+        var r = state.npcRoutine || { spawnId: 0, enabled: 1, loop: 1, nodes: [] };
+        var sel = state.npcRoutineSelected == null ? -1 : state.npcRoutineSelected;
+        var spawn = (state.npcSpawns || []).filter(function (s) { return s.id === r.spawnId; })[0];
+        var spawnLabel = spawn ? (spawn.name || spawn.instance) + " #" + spawn.id : "#" + r.spawnId;
+        var ghostOn = !!state.npcRoutineGhostActive;
+        var html = '<div class="adm-toolbar">';
+        html += '<button class="adm-btn" data-action="npc-routine-back">← ' + escapeHtml(t("admin.npc.btn.backToList")) + '</button>';
+        html += '<span class="adm-toolbar__sep"></span>';
+        html += '<strong>' + escapeHtml(t("admin.npc.routine.editing")) + '</strong>&nbsp;<code>' + escapeHtml(spawnLabel) + '</code>';
+        html += '</div>';
+
+        html += '<div class="adm-grid adm-grid--2">';
+
+        html += '<div class="adm-section adm-section--inline"><h4>' + escapeHtml(t("admin.npc.routine.settings")) + '</h4>';
+        html += '<label class="adm-check"><input type="checkbox" data-rf="enabled"' + (r.enabled ? " checked" : "") + '> ' + escapeHtml(t("admin.npc.routine.enabled")) + '</label>';
+        html += '<label class="adm-check"><input type="checkbox" data-rf="loop"' + (r.loop ? " checked" : "") + '> ' + escapeHtml(t("admin.npc.routine.loop")) + '</label>';
+        html += '<div class="adm-toolbar" style="margin-top:8px">';
+        html += '<button class="adm-btn adm-btn--primary" data-action="npc-routine-save">' + escapeHtml(t("admin.npc.routine.save")) + '</button>';
+        html += '<button class="adm-btn adm-btn--danger" data-action="npc-routine-delete">' + escapeHtml(t("admin.npc.routine.delete")) + '</button>';
+        html += '</div>';
+        html += '</div>';
+
+        html += '<div class="adm-section adm-section--inline"><h4>' + escapeHtml(t("admin.npc.routine.builder")) + '</h4>';
+        html += '<div class="adm-toolbar">';
+        if (!ghostOn) {
+            html += '<button class="adm-btn adm-btn--primary" data-action="npc-routine-ghost-start">' + escapeHtml(t("admin.npc.routine.startBuilder")) + '</button>';
+        } else {
+            html += '<button class="adm-btn" data-action="npc-routine-ghost-stop">' + escapeHtml(t("admin.npc.routine.stopBuilder")) + '</button>';
+            html += '<button class="adm-btn adm-btn--primary" data-action="npc-routine-add-waypoint">+ ' + escapeHtml(t("admin.npc.routine.type.waypoint")) + '</button>';
+            html += '<button class="adm-btn" data-action="npc-routine-add-wait">+ ' + escapeHtml(t("admin.npc.routine.type.wait")) + '</button>';
+        }
+        html += '</div>';
+        html += '<p class="adm-hint">' + escapeHtml(t(ghostOn ? "admin.npc.routine.hintActive" : "admin.npc.routine.hintInactive")) + '</p>';
+        html += '</div>';
+
+        html += '</div>';
+
+        html += '<div class="adm-section"><h4>' + escapeHtml(t("admin.npc.routine.nodes")) + ' (' + r.nodes.length + ')</h4>';
+        if (!r.nodes.length) {
+            html += '<div class="adm-empty">' + escapeHtml(t("admin.npc.routine.empty")) + '</div>';
+        } else {
+            html += '<div class="adm-table-wrap"><table class="adm-table"><thead><tr>' +
+                '<th>#</th>' +
+                '<th>' + escapeHtml(t("admin.npc.routine.col.type")) + '</th>' +
+                '<th>' + escapeHtml(t("admin.npc.routine.col.pos")) + '</th>' +
+                '<th>' + escapeHtml(t("admin.npc.routine.col.wait")) + '</th>' +
+                '<th>' + escapeHtml(t("admin.npc.routine.col.animation")) + '</th>' +
+                '<th>' + escapeHtml(t("admin.npc.routine.col.walkMode")) + '</th>' +
+                '<th>' + escapeHtml(t("admin.npc.routine.col.label")) + '</th>' +
+                '<th></th>' +
+                '</tr></thead><tbody>';
+            r.nodes.forEach(function (n, idx) {
+                var typeKey = "admin.npc.routine.type." + (n.type || "waypoint");
+                var posTxt = n.type === "wait"
+                    ? "—"
+                    : '<input class="adm-input adm-input--xs" type="number" data-nf="x" data-nidx="' + idx + '" value="' + Math.round(n.x || 0) + '">' +
+                      '<input class="adm-input adm-input--xs" type="number" data-nf="y" data-nidx="' + idx + '" value="' + Math.round(n.y || 0) + '">' +
+                      '<input class="adm-input adm-input--xs" type="number" data-nf="z" data-nidx="' + idx + '" value="' + Math.round(n.z || 0) + '">';
+                html += "<tr>";
+                html += "<td><b>" + String.fromCharCode(65 + idx) + "</b></td>";
+                html += "<td>" + escapeHtml(t(typeKey)) + "</td>";
+                html += "<td>" + posTxt + "</td>";
+                html += '<td><input class="adm-input adm-input--sm" type="number" min="0" step="100" value="' + (n.waitMs || 0) + '" data-nf="waitMs" data-nidx="' + idx + '"></td>';
+                html += '<td><select class="adm-input adm-input--sm" data-nf="animation" data-nidx="' + idx + '">';
+                var anims = [
+                    ["", "—"],
+                    ["S_STAND", t("admin.npc.anim.idle.stand")],
+                    ["T_STAND_2_EAT", t("admin.npc.anim.idle.eat")],
+                    ["T_1HPARADE_0", t("admin.npc.anim.idle.parade")],
+                    ["T_FISTPARADEJUMPB", t("admin.npc.anim.idle.fistparade")],
+                    ["T_STAND_2_SIT", t("admin.npc.routine.anim.sit")],
+                    ["T_STAND_2_SLEEP", t("admin.npc.routine.anim.sleep")],
+                    ["T_STAND_2_PEE", t("admin.npc.routine.anim.pee")],
+                    ["T_STAND_2_LGUARD", t("admin.npc.routine.anim.guard")],
+                    ["T_PLUNDER", t("admin.npc.routine.anim.plunder")]
+                ];
+                anims.forEach(function (a) {
+                    var selAn = (n.animation || "") === a[0] ? " selected" : "";
+                    html += '<option value="' + escapeHtml(a[0]) + '"' + selAn + '>' + escapeHtml(a[1]) + '</option>';
+                });
+                html += '</select></td>';
+                html += '<td><select class="adm-input adm-input--sm" data-nf="walkMode" data-nidx="' + idx + '">';
+                [["walk", t("admin.npc.routine.walkMode.walk")], ["run", t("admin.npc.routine.walkMode.run")]].forEach(function (m) {
+                    var s = (n.walkMode || "walk") === m[0] ? " selected" : "";
+                    html += '<option value="' + m[0] + '"' + s + '>' + escapeHtml(m[1]) + '</option>';
+                });
+                html += '</select></td>';
+                html += '<td><input class="adm-input adm-input--sm" type="text" value="' + escapeHtml(n.label || "") + '" data-nf="label" data-nidx="' + idx + '" placeholder="' + escapeHtml(t("admin.npc.routine.labelPh")) + '"></td>';
+                html += '<td><div class="adm-actions">';
+                if (idx > 0) html += '<button class="adm-btn adm-btn--sm" data-action="npc-routine-move-up" data-idx="' + idx + '">↑</button>';
+                if (idx < r.nodes.length - 1) html += '<button class="adm-btn adm-btn--sm" data-action="npc-routine-move-down" data-idx="' + idx + '">↓</button>';
+                if (n.type !== "wait") html += '<button class="adm-btn adm-btn--sm" data-action="npc-routine-recapture" data-idx="' + idx + '" title="' + escapeHtml(t("admin.npc.routine.recapture")) + '">⌖</button>';
+                html += '<button class="adm-btn adm-btn--sm adm-btn--danger" data-action="npc-routine-remove" data-idx="' + idx + '">✕</button>';
+                html += "</div></td></tr>";
+            });
+            html += "</tbody></table></div>";
+        }
+        html += "</div>";
+        return html;
+    }
+
     function renderNpcActive(spawns) {
         var html = '<div class="adm-toolbar"><button class="adm-btn" data-action="refresh-npc">⟳</button></div>';
         if (!spawns.length) {
@@ -1855,7 +2093,11 @@
                 "<td>" + sc + "×</td>" +
                 "<td>" + s.respawnSec + "s</td>" +
                 "<td>" + alive + "</td>" +
-                '<td><button class="adm-btn adm-btn--danger" data-action="npc-delete" data-id="' + s.id + '">' + escapeHtml(t("admin.npc.btn.deleteSpawn")) + '</button></td></tr>';
+                '<td><div class="adm-actions">' +
+                '<button class="adm-btn" data-action="npc-edit" data-id="' + s.id + '">' + escapeHtml(t("admin.npc.btn.edit")) + '</button>' +
+                '<button class="adm-btn" data-action="npc-routine-edit" data-id="' + s.id + '">' + escapeHtml(t("admin.npc.btn.routine")) + '</button>' +
+                '<button class="adm-btn adm-btn--danger" data-action="npc-delete" data-id="' + s.id + '">' + escapeHtml(t("admin.npc.btn.deleteSpawn")) + '</button>' +
+                '</div></td></tr>';
         });
         html += "</tbody></table></div>";
         return html;
@@ -1913,6 +2155,38 @@
                 if (el.type === "number") v = parseFloat(v);
                 if (k === "instance" && typeof v === "string") v = v.trim().toUpperCase();
                 state.npcEditor[k] = v;
+            });
+        });
+        body.querySelectorAll("[data-rf]").forEach(function (el) {
+            el.addEventListener("change", function () {
+                var k = el.dataset.rf;
+                var v = el.type === "checkbox" ? (el.checked ? 1 : 0) : el.value;
+                state.npcRoutine[k] = v;
+            });
+        });
+        body.querySelectorAll("[data-sf]").forEach(function (el) {
+            var ev = el.tagName === "SELECT" ? "change" : "input";
+            el.addEventListener(ev, function () {
+                if (!state.npcSpawnEdit) return;
+                var k = el.dataset.sf;
+                var v = el.value;
+                if (el.type === "number") v = parseFloat(v) || 0;
+                if (k === "instance" && typeof v === "string") v = v.trim().toUpperCase();
+                if (k === "hostile") v = parseInt(v, 10) || 0;
+                state.npcSpawnEdit[k] = v;
+                syncSpawnEditPreview();
+            });
+        });
+        body.querySelectorAll("[data-nf]").forEach(function (el) {
+            var ev = el.tagName === "SELECT" ? "change" : "input";
+            el.addEventListener(ev, function () {
+                var k = el.dataset.nf;
+                var idx = parseInt(el.dataset.nidx, 10);
+                if (isNaN(idx) || !state.npcRoutine.nodes[idx]) return;
+                var v = el.value;
+                if (el.type === "number") v = parseFloat(v) || 0;
+                state.npcRoutine.nodes[idx][k] = v;
+                if (k === "x" || k === "y" || k === "z") syncRoutineGhost();
             });
         });
         body.querySelectorAll("[data-hf]").forEach(function (el) {
@@ -2447,6 +2721,139 @@
             send("npcDelete", { id: +el.dataset.id });
             return setStatus(tFmt("admin.status.deleting", el.dataset.id), "");
         }
+        if (a === "npc-edit") {
+            var sid3 = +el.dataset.id;
+            var sp = (state.npcSpawns || []).filter(function (x) { return +x.id === sid3; })[0];
+            if (!sp) return setStatus(t("admin.npc.spawnEdit.notFound"), "error");
+            state.npcSpawnEdit = JSON.parse(JSON.stringify(sp));
+            state.npcView = "spawn-edit";
+            send("adminNpcPreviewStart", spawnEditPreviewPayload());
+            return render();
+        }
+        if (a === "npc-edit-back") {
+            send("adminNpcPreviewStop", {});
+            state.npcSpawnEdit = null;
+            state.npcView = "active";
+            send("npcList");
+            return render();
+        }
+        if (a === "npc-edit-capture-pos") {
+            send("npcRoutineCapturePos", { purpose: "spawn-edit" });
+            return setStatus(t("admin.status.capturingPos"), "");
+        }
+        if (a === "npc-edit-save") {
+            var ed = state.npcSpawnEdit;
+            if (!ed || !ed.id) return;
+            var fields = {};
+            ["name","instance","kind","hostile","respawnSec","tag","idleAnimation","aggroRadius","attackRange","attackDamage","walkSpeed","baseExperience","posX","posY","posZ","angle","hp","level","strength","dexterity","scaleX","scaleY","scaleZ","fatness","bodyModel","bodyTex","headModel","headTex","voice"].forEach(function (k) {
+                if (ed[k] != null) fields[k] = ed[k];
+            });
+            send("adminNpcPreviewStop", {});
+            send("npcUpdate", { id: ed.id, fields: fields });
+            return setStatus(t("admin.npc.spawnEdit.saving"), "");
+        }
+        if (a === "npc-edit-nudge") {
+            send("adminNpcPreviewNudge", { axis: el.dataset.axis, delta: +el.dataset.delta || 0 });
+            return;
+        }
+        if (a === "npc-routine-edit") {
+            var sid = +el.dataset.id;
+            state.npcRoutine = { spawnId: sid, enabled: 1, loop: 1, nodes: [] };
+            state.npcRoutineSelected = -1;
+            state.npcRoutineGhostActive = false;
+            state.npcView = "routine";
+            send("npcRoutineGet", { spawnId: sid });
+            return render();
+        }
+        if (a === "npc-routine-back") {
+            if (state.npcRoutineGhostActive) {
+                send("adminRoutineGhostStop", {});
+                state.npcRoutineGhostActive = false;
+            }
+            state.npcView = "active";
+            send("npcList");
+            return render();
+        }
+        if (a === "npc-routine-ghost-start") {
+            state.npcRoutineGhostActive = true;
+            send("adminRoutineGhostStart", routineGhostPayload());
+            setStatus(t("admin.npc.routine.builderOn"), "ok");
+            return render();
+        }
+        if (a === "npc-routine-ghost-stop") {
+            state.npcRoutineGhostActive = false;
+            send("adminRoutineGhostStop", {});
+            return render();
+        }
+        if (a === "npc-routine-add-waypoint") {
+            if (!state.npcRoutineGhostActive) {
+                state.npcRoutineGhostActive = true;
+                send("adminRoutineGhostStart", routineGhostPayload());
+            }
+            var ghost = state.npcRoutineGhostPos || {};
+            state.npcRoutine.nodes.push({
+                type: "waypoint",
+                x: ghost.x || 0, y: ghost.y || 0, z: ghost.z || 0, angle: 0,
+                waitMs: 0, animation: "", walkMode: "walk", label: ""
+            });
+            syncRoutineGhost();
+            return render();
+        }
+        if (a === "npc-routine-add-wait") {
+            state.npcRoutine.nodes.push({ type: "wait", x: 0, y: 0, z: 0, angle: 0, waitMs: 3000, animation: "S_STAND", walkMode: "walk", label: "" });
+            syncRoutineGhost();
+            return render();
+        }
+        if (a === "npc-routine-remove") {
+            var idx = +el.dataset.idx;
+            state.npcRoutine.nodes.splice(idx, 1);
+            syncRoutineGhost();
+            return render();
+        }
+        if (a === "npc-routine-move-up") {
+            var idx = +el.dataset.idx;
+            if (idx > 0) {
+                var tmp = state.npcRoutine.nodes[idx - 1];
+                state.npcRoutine.nodes[idx - 1] = state.npcRoutine.nodes[idx];
+                state.npcRoutine.nodes[idx] = tmp;
+                syncRoutineGhost();
+            }
+            return render();
+        }
+        if (a === "npc-routine-move-down") {
+            var idx = +el.dataset.idx;
+            if (idx < state.npcRoutine.nodes.length - 1) {
+                var tmp = state.npcRoutine.nodes[idx + 1];
+                state.npcRoutine.nodes[idx + 1] = state.npcRoutine.nodes[idx];
+                state.npcRoutine.nodes[idx] = tmp;
+                syncRoutineGhost();
+            }
+            return render();
+        }
+        if (a === "npc-routine-recapture") {
+            if (!state.npcRoutineGhostActive) {
+                state.npcRoutineGhostActive = true;
+                send("adminRoutineGhostStart", routineGhostPayload());
+            }
+            var ghost2 = state.npcRoutineGhostPos || {};
+            var ridx = +el.dataset.idx;
+            var rn = state.npcRoutine.nodes[ridx];
+            if (rn) { rn.x = ghost2.x || 0; rn.y = ghost2.y || 0; rn.z = ghost2.z || 0; }
+            syncRoutineGhost();
+            return render();
+        }
+        if (a === "npc-routine-save") {
+            var rr = state.npcRoutine;
+            if (!rr.spawnId) return setStatus(t("admin.npc.routine.noSpawn"), "error");
+            send("npcRoutineSave", { spawnId: rr.spawnId, enabled: rr.enabled ? 1 : 0, loop: rr.loop ? 1 : 0, nodes: rr.nodes });
+            return setStatus(t("admin.npc.routine.saving"), "");
+        }
+        if (a === "npc-routine-delete") {
+            var rr2 = state.npcRoutine;
+            if (!rr2.spawnId) return;
+            send("npcRoutineDelete", { spawnId: rr2.spawnId });
+            return setStatus(t("admin.npc.routine.deleting"), "");
+        }
         if (a === "npc-catalog-save") {
             var base = catalogEditRow();
             if (!base) return setStatus(t("admin.status.pickInstance"), "error");
@@ -2838,6 +3245,18 @@
             return;
         }
         if (p.action === "adminNpcPreview" && p.success) {
+            if (state.npcView === "spawn-edit" && state.npcSpawnEdit) {
+                state.npcSpawnEdit.posX = Math.round(pl.posX || 0);
+                state.npcSpawnEdit.posY = Math.round(pl.posY || 0);
+                state.npcSpawnEdit.posZ = Math.round(pl.posZ || 0);
+                state.npcSpawnEdit.angle = Math.round(pl.angle || 0);
+                if (pl.world) state.npcSpawnEdit.world = pl.world;
+                ["posX","posY","posZ","angle"].forEach(function (k) {
+                    var inp = body.querySelector('[data-sf="' + k + '"]');
+                    if (inp) inp.value = state.npcSpawnEdit[k];
+                });
+                return;
+            }
             var target = pl.mode === "npc" ? state.npcForm : state.humanCreator;
             target.posX = Math.round(pl.posX || 0);
             target.posY = Math.round(pl.posY || 0);
@@ -2852,6 +3271,64 @@
             state.npcEditor = defaultNpcEditor();
             send("npcPresetList");
             return;
+        }
+        if (p.action === "npcRoutineGet" && p.success) {
+            var rr = pl.routine || { spawnId: pl.spawnId || 0, enabled: 1, loop: 1, nodes: [] };
+            state.npcRoutine = {
+                spawnId: rr.spawnId || pl.spawnId || 0,
+                enabled: rr.enabled == null ? 1 : rr.enabled,
+                loop: rr.loop == null ? 1 : rr.loop,
+                nodes: rr.nodes || []
+            };
+            if (state.npcRoutineGhostActive) send("adminRoutineGhostSync", routineGhostPayload());
+            return render();
+        }
+        if (p.action === "adminRoutineGhost" && p.success) {
+            state.npcRoutineGhostPos = { x: pl.posX || 0, y: pl.posY || 0, z: pl.posZ || 0 };
+            return;
+        }
+        if (p.action === "npcRoutineCapturePos" && p.success) {
+            if (state.npcView === "spawn-edit" && state.npcSpawnEdit) {
+                state.npcSpawnEdit.posX = pl.x || 0;
+                state.npcSpawnEdit.posY = pl.y || 0;
+                state.npcSpawnEdit.posZ = pl.z || 0;
+                state.npcSpawnEdit.angle = pl.angle || 0;
+                return render();
+            }
+            if (state.npcRoutineSelected != null && state.npcRoutineSelected >= 0) {
+                var n = state.npcRoutine.nodes[state.npcRoutineSelected];
+                if (n) { n.x = pl.x || 0; n.y = pl.y || 0; n.z = pl.z || 0; n.angle = pl.angle || 0; }
+                state.npcRoutineSelected = -1;
+            } else {
+                state.npcRoutine.nodes.push({
+                    type: "waypoint",
+                    x: pl.x || 0, y: pl.y || 0, z: pl.z || 0, angle: pl.angle || 0,
+                    waitMs: 0, animation: "", walkMode: "walk", label: ""
+                });
+            }
+            syncRoutineGhost();
+            return render();
+        }
+        if (p.action === "npcRoutineSave" && p.success) {
+            setStatus(t("admin.npc.routine.saved"), "ok");
+            return;
+        }
+        if (p.action === "npcRoutineDelete" && p.success) {
+            if (state.npcRoutineGhostActive) {
+                send("adminRoutineGhostStop", {});
+                state.npcRoutineGhostActive = false;
+            }
+            state.npcRoutine = { spawnId: 0, enabled: 1, loop: 1, nodes: [] };
+            state.npcView = "active";
+            send("npcList");
+            return render();
+        }
+        if (p.action === "npcUpdate" && p.success && state.npcView === "spawn-edit") {
+            state.npcSpawnEdit = null;
+            state.npcView = "active";
+            send("npcList");
+            setStatus(t("admin.npc.spawnEdit.saved"), "ok");
+            return render();
         }
         if (p.action === "vanish" && p.success) {
             try { bridge.emit("phoenix:account:vanish", { vanished: !!pl.vanished }); } catch (e) {}

@@ -484,6 +484,7 @@ phoenix.npc.Spawn <- {
 				}
 			}
 			phoenix.npc.Spawn.broadcastNameplates()
+			try { phoenix.npc.Routines.onSpawnBound(row.id, phoenix.npc.Spawn.live[row.id]) } catch (e) {}
 			return npcId
 		} catch (e) {
 			return -1
