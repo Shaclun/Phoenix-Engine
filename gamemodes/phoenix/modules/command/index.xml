@@ -1,0 +1,5 @@
+<server>
+	<script src="shared/namespace.nut" type="shared" />
+	<script src="server/dispatcher.nut" type="server" />
+	<script src="server/handlers.nut" type="server" />
+</server>

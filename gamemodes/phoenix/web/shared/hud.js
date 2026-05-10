@@ -306,6 +306,7 @@
 		buildHud();
 		state.visible = true;
 		nodes.root.classList.add("is-visible");
+		if (worldClockNodes) worldClockNodes.root.classList.add("is-visible");
 		renderHotbar();
 	}
 
@@ -316,6 +317,7 @@
 		if (weaponNodes) weaponNodes.root.classList.remove("is-visible", "is-hiding", "is-notify", "is-updated");
 		if (knockdownNodes) knockdownNodes.root.classList.remove("is-visible");
 		if (herbNodes) herbNodes.root.classList.remove("is-visible");
+		if (worldClockNodes) worldClockNodes.root.classList.remove("is-visible");
 		if (knockdownInterval) { clearInterval(knockdownInterval); knockdownInterval = null; }
 		if (herbTimer) { clearInterval(herbTimer); herbTimer = null; }
 	}
@@ -515,6 +517,67 @@
 		return window.PhoenixI18n ? PhoenixI18n.t(key) : key;
 	}
 
+	let worldClockNodes = null;
+	let worldClockState = { weather: "clear" };
+	let worldClockTicker = null;
+
+	function buildWorldClock() {
+		if (worldClockNodes) return worldClockNodes;
+		const root = document.createElement("div");
+		root.className = "phoenix-worldclock";
+		root.id = "phoenix-worldclock";
+		root.innerHTML =
+			'<span class="phoenix-worldclock__time" data-role="time">00:00</span>' +
+			'<span class="phoenix-worldclock__sep">·</span>' +
+			'<span class="phoenix-worldclock__icon" data-role="icon">☀</span>' +
+			'<span class="phoenix-worldclock__label" data-role="label">Clear</span>';
+		document.body.appendChild(root);
+		worldClockNodes = {
+			root: root,
+			time: root.querySelector('[data-role="time"]'),
+			icon: root.querySelector('[data-role="icon"]'),
+			label: root.querySelector('[data-role="label"]')
+		};
+		if (!worldClockTicker) worldClockTicker = setInterval(renderWorldClock, 1000);
+		return worldClockNodes;
+	}
+
+	function weatherMeta(kind) {
+		switch (kind) {
+			case "rain": return { icon: "🌧", label: "Deszcz", cls: "is-rain" };
+			case "snow": return { icon: "❄", label: "Śnieg", cls: "is-snow" };
+			case "storm": return { icon: "⛈", label: "Burza", cls: "is-storm" };
+			case "stop": return { icon: "☁", label: "Pochmurno", cls: "is-clear" };
+			case "clear":
+			default: return { icon: "☀", label: "Pogodnie", cls: "is-clear" };
+		}
+	}
+
+	function applyWorldClock(payload) {
+		buildWorldClock();
+		if (payload && payload.weather) worldClockState.weather = String(payload.weather);
+		renderWorldClock();
+	}
+
+	function renderWorldClock() {
+		if (!worldClockNodes) return;
+		const now = new Date();
+		const hour = now.getHours();
+		const minute = now.getMinutes();
+		const hh = hour < 10 ? "0" + hour : String(hour);
+		const mm = minute < 10 ? "0" + minute : String(minute);
+		worldClockNodes.time.textContent = hh + ":" + mm;
+		const meta = weatherMeta(worldClockState.weather);
+		worldClockNodes.icon.textContent = meta.icon;
+		worldClockNodes.label.textContent = meta.label;
+		worldClockNodes.root.classList.remove("is-clear", "is-rain", "is-snow", "is-storm");
+		worldClockNodes.root.classList.add(meta.cls);
+		const night = hour >= 21 || hour < 6;
+		worldClockNodes.root.classList.toggle("is-night", night);
+		if (state.visible) worldClockNodes.root.classList.add("is-visible");
+		else worldClockNodes.root.classList.remove("is-visible");
+	}
+
 	function notifyHerb(payload, ok, error) {
 		if (!window.PhoenixNotify) return;
 		const label = payload && payload.label ? payload.label : tr("herb.defaultLabel");
@@ -546,6 +609,7 @@
 		PhoenixBridge.on("phoenix:item:inventory", onInventoryUpdate);
 		PhoenixBridge.on("phoenix:hud:hide", hide);
 		PhoenixBridge.on("phoenix:hud:show", show);
+		PhoenixBridge.on("phoenix:worldclock:update", applyWorldClock);
 	}
 
 	let blocked = false;
@@ -557,6 +621,8 @@
 		if (target) target.classList.toggle("is-blocked", blocked);
 		const weapon = document.querySelector(".phoenix-weapon-progress");
 		if (weapon) weapon.classList.toggle("is-blocked", blocked);
+		const worldClock = document.querySelector(".phoenix-worldclock");
+		if (worldClock) worldClock.classList.toggle("is-blocked", blocked);
 	}
 
 	window.PhoenixHud = {

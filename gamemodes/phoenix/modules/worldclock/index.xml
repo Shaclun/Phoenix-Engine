@@ -1,0 +1,12 @@
+<server>
+	<script src="shared/namespace.nut" type="shared" />
+	<script src="shared/messages.nut" type="shared" />
+
+	<script src="server/clock.nut" type="server" />
+	<script src="server/weather.nut" type="server" />
+	<script src="server/persistence.nut" type="server" />
+	<script src="server/broadcast.nut" type="server" />
+	<script src="server/bootstrap.nut" type="server" />
+
+	<script src="client/hud.nut" type="client" />
+</server>

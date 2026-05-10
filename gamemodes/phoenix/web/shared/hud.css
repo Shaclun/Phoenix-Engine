@@ -386,3 +386,62 @@
 }
 .phoenix-herb-progress.is-cancelled .phoenix-herb-progress__state { color: #ffb0a8; }
 .phoenix-herb-progress.is-error .phoenix-herb-progress__state { color: #e58c84; }
+
+
+/* Phoenix Worldclock (time + weather) */
+.phoenix-worldclock {
+	position: fixed;
+	top: 14px;
+	right: 22px;
+	z-index: 35;
+	display: none;
+	align-items: center;
+	gap: 8px;
+	color: #f5e6c4;
+	font-family: "Cinzel", "Trajan Pro", serif;
+	font-size: 14px;
+	letter-spacing: 1px;
+	pointer-events: none;
+	user-select: none;
+	text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85), 0 0 6px rgba(0, 0, 0, 0.55);
+	opacity: 0.88;
+}
+
+.phoenix-worldclock.is-visible { display: inline-flex; }
+.phoenix-worldclock.is-blocked { display: none !important; }
+
+.phoenix-worldclock__time {
+	font-size: 16px;
+	font-weight: 600;
+	color: #f7c66a;
+	line-height: 1;
+}
+
+.phoenix-worldclock__sep {
+	opacity: 0.45;
+	font-size: 14px;
+}
+
+.phoenix-worldclock__icon {
+	font-size: 16px;
+	line-height: 1;
+	filter: drop-shadow(0 0 4px rgba(247, 198, 106, 0.35));
+}
+
+.phoenix-worldclock__label {
+	font-size: 13px;
+	color: #d9c89d;
+	opacity: 0.85;
+}
+
+.phoenix-worldclock.is-night .phoenix-worldclock__time { color: #a9c4ff; }
+.phoenix-worldclock.is-night .phoenix-worldclock__icon { filter: drop-shadow(0 0 4px rgba(169, 196, 255, 0.45)); }
+
+.phoenix-worldclock.is-rain .phoenix-worldclock__icon { color: #8fbce6; filter: drop-shadow(0 0 5px rgba(143, 188, 230, 0.5)); }
+.phoenix-worldclock.is-snow .phoenix-worldclock__icon { color: #dff0ff; filter: drop-shadow(0 0 5px rgba(223, 240, 255, 0.5)); }
+.phoenix-worldclock.is-storm .phoenix-worldclock__icon { color: #e6c968; filter: drop-shadow(0 0 7px rgba(230, 201, 104, 0.65)); animation: phx-lightning 2.4s infinite ease-in-out; }
+
+@keyframes phx-lightning {
+	0%, 40%, 60%, 100% { opacity: 1; }
+	45%, 55% { opacity: 0.35; }
+}

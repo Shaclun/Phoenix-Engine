@@ -83,28 +83,8 @@ phoenix.chat.Server <- {
 		local text = phoenix.chat.Server.sanitize(message.text)
 		if (text == "") return
 
-		if (text.len() >= 4 && text.slice(0, 4) == "/pos") {
-			if (!phoenix.account.Auth.requireAdmin(playerId)) return
-			phoenix.chat.Server.savePos(playerId, (text.len() > 5) ? text.slice(5) : "")
-			return
-		}
-
-		if (text == "/vanish" || (text.len() >= 8 && text.slice(0, 8) == "/vanish ")) {
-			if (!phoenix.account.Auth.requireAdmin(playerId)) return
-			phoenix.chat.Server.toggleVanish(playerId, null)
-			return
-		}
-
-		if (text == "/revive" || text == "/respawn") {
-			try { phoenix.player.Gate.revive(playerId) } catch (e) {}
-			return
-		}
-
 		try {
-			if (phoenix.item.Handlers.tryAdminCommand(playerId, text)) return
-		} catch (e) {}
-		try {
-			if (phoenix.herb.Handlers.tryAdminCommand(playerId, text)) return
+			if (phoenix.command.Dispatcher.dispatch(playerId, text)) return
 		} catch (e) {}
 		phoenix.chat.Server.dispatch(playerId, message.channel, text)
 	}
@@ -208,16 +188,9 @@ phoenix.chat.Server <- {
 		if (message == null || message == "") return
 		local text = message.tostring()
 
-		if (text.len() >= 4 && text.slice(0, 4) == "/pos") {
-			if (!phoenix.account.Auth.requireAdmin(playerId)) return
-			phoenix.chat.Server.savePos(playerId, (text.len() > 5) ? text.slice(5) : "")
-			return
-		}
-		if (text == "/vanish" || (text.len() >= 8 && text.slice(0, 8) == "/vanish ")) {
-			if (!phoenix.account.Auth.requireAdmin(playerId)) return
-			phoenix.chat.Server.toggleVanish(playerId, null)
-			return
-		}
+		try {
+			if (phoenix.command.Dispatcher.dispatch(playerId, text)) return
+		} catch (e) {}
 		local channel = phoenix.chat.Channel.LOCAL
 
 		if (text.len() >= 3 && text.slice(0, 3) == "/g ") {
