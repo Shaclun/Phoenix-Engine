@@ -193,11 +193,14 @@ phoenix.npc.AI <- {
 		if (("combatCleared" in entry.ai) && entry.ai.combatCleared == true) return
 		entry.ai.combatCleared <- true
 		local npcId = entry.npcId
+		local human = phoenix.npc.AI._isHuman(entry.row)
 		try { clearNpcActions(npcId) } catch (e) {}
-		try {
-			local p = getPlayerPosition(npcId)
-			if (p != null) setPlayerPosition(npcId, p.x, p.y, p.z)
-		} catch (ep) {}
+		if (human) {
+			try {
+				local p = getPlayerPosition(npcId)
+				if (p != null) setPlayerPosition(npcId, p.x, p.y, p.z)
+			} catch (ep) {}
+		}
 		phoenix.npc.AI._stopCombatAnims(entry)
 		try { stopAni(npcId, phoenix.npc.AI._runAnimFor(entry.row)) } catch (e2) {}
 		try { stopAni(npcId, phoenix.npc.AI._walkAnimFor(entry.row)) } catch (e3) {}
@@ -205,7 +208,7 @@ phoenix.npc.AI <- {
 		local fistWalk = phoenix.npc.AI._walkAnimFor(entry.row, WEAPONMODE_FIST)
 		try { stopAni(npcId, fistRun) } catch (e4) {}
 		try { stopAni(npcId, fistWalk) } catch (e5) {}
-		phoenix.npc.AI._sheatheWeapon(entry)
+		if (human) phoenix.npc.AI._sheatheWeapon(entry)
 	}
 
 	function _pinPosition(entry, pos) {
@@ -442,7 +445,6 @@ phoenix.npc.AI <- {
 		entry.ai.lastReturnDist <- 0.0
 		entry.ai.lastReturnAt <- 0
 		entry.ai.returnStartedAt <- 0
-		entry.ai.combatCleared <- false
 		entry.ai.weaponSheathed <- true
 		entry.ai.nextWander <- getTickCount() + 6000 + (rand() % 6000)
 		phoenix.npc.AI._resetMoveWatch(entry)
@@ -525,13 +527,15 @@ phoenix.npc.AI <- {
 				return true
 			}
 			if (!hasTarget) {
-				try {
-					if (phoenix.npc.AI._angleDiff(getPlayerAngle(entry.npcId), entry.row.angle) > 5.0) {
-						phoenix.npc.AI._restoreHomeAngle(entry)
-						phoenix.npc.AI._ensureIdle(entry, true)
-						return true
-					}
-				} catch (e) {}
+				if (phoenix.npc.AI._isHuman(entry.row)) {
+					try {
+						if (phoenix.npc.AI._angleDiff(getPlayerAngle(entry.npcId), entry.row.angle) > 5.0) {
+							phoenix.npc.AI._restoreHomeAngle(entry)
+							phoenix.npc.AI._ensureIdle(entry, true)
+							return true
+						}
+					} catch (e) {}
+				}
 			}
 			return false
 		}
@@ -563,7 +567,9 @@ phoenix.npc.AI <- {
 		local row = entry.row
 		local dist = phoenix.npc.AI._distFlat(pos.x, pos.z, entry.ai.anchorX, entry.ai.anchorZ)
 		if (dist < 80.0) {
-			phoenix.npc.AI._finishReturn(entry, true)
+			if (("returning" in entry.ai) && entry.ai.returning == true) {
+				phoenix.npc.AI._finishReturn(entry, true)
+			}
 			return false
 		}
 		if (!("returning" in entry.ai) || entry.ai.returning != true) {
@@ -685,7 +691,15 @@ phoenix.npc.AI <- {
 		}
 		try {
 			if (!isPlayerConnected(target)) return false
-			return phoenix.player.Gate.applyDamage(target, damage, attackerNpcId)
+			local killed = phoenix.player.Gate.applyDamage(target, damage, attackerNpcId)
+			if (killed) {
+				local attackerEntry = phoenix.npc.AI._liveNpcEntry(attackerNpcId)
+				if (attackerEntry != null) {
+					attackerEntry.ai.killedPlayer <- target
+					attackerEntry.ai.killedPlayerAt <- getTickCount()
+				}
+			}
+			return killed
 		} catch (e3) {}
 		return false
 	}
@@ -764,13 +778,21 @@ phoenix.npc.AI <- {
 		entry.ai.state = "attack"
 	}
 
-	function _onTargetLost(entry) {
+	function _onTargetLost(entry, lostTarget = -1) {
 		local now = getTickCount()
-		local previousTarget = ("targetPid" in entry.ai) ? entry.ai.targetPid : -1
+		local previousTarget = lostTarget >= 0 ? lostTarget : (("targetPid" in entry.ai) ? entry.ai.targetPid : -1)
 		if (phoenix.npc.AI._liveNpcEntry(previousTarget) != null) {
 			phoenix.npc.AI._teleportHome(entry, true)
 			entry.ai.combatCooldownUntil <- now + phoenix.npc.AI.homeReturnTimeoutMs
 			return
+		}
+		if (previousTarget >= 0 && phoenix.npc.AI._isHuman(entry.row)) {
+			try {
+				if (isPlayerConnected(previousTarget) && (previousTarget in phoenix.player.Gate.reviving)) {
+					phoenix.npc.AI._startLoot(entry, previousTarget, now)
+					return
+				}
+			} catch (e) {}
 		}
 		phoenix.npc.AI._clearCombatMovement(entry)
 		entry.ai.targetPid = -1
@@ -785,6 +807,100 @@ phoenix.npc.AI <- {
 		entry.ai.lastReturnDist <- 999999.0
 		entry.ai.lastReturnAt <- now
 		entry.ai.returnStartedAt <- entry.ai.lastReturnAt
+		phoenix.npc.AI._resetMoveWatch(entry)
+	}
+
+	function _startLoot(entry, victimPid, now) {
+		entry.ai.state = "loot"
+		entry.ai.lootTarget <- victimPid
+		entry.ai.lootPhase <- "approach"
+		entry.ai.lootStart <- now
+		entry.ai.lootDone <- false
+		entry.ai.combatCleared <- false
+		phoenix.npc.AI._sheatheWeapon(entry)
+		try { clearNpcActions(entry.npcId) } catch (e) {}
+		phoenix.npc.AI._stopCombatAnims(entry)
+	}
+
+	function _tickLoot(entry, pos, now) {
+		if (entry.ai.state != "loot") return false
+		local victimPid = ("lootTarget" in entry.ai) ? entry.ai.lootTarget : -1
+		if (victimPid < 0) {
+			phoenix.npc.AI._endLoot(entry, now)
+			return true
+		}
+		try { if (!isPlayerConnected(victimPid)) { phoenix.npc.AI._endLoot(entry, now); return true } } catch (e) {}
+		try { if (!(victimPid in phoenix.player.Gate.reviving)) { phoenix.npc.AI._endLoot(entry, now); return true } } catch (e) {}
+		if (now - entry.ai.lootStart > 8000) {
+			phoenix.npc.AI._endLoot(entry, now)
+			return true
+		}
+		local vp = null
+		try { vp = getPlayerPosition(victimPid) } catch (e) {}
+		if (vp == null) { phoenix.npc.AI._endLoot(entry, now); return true }
+		local npcId = entry.npcId
+		local d = phoenix.npc.AI._distFlat(pos.x, pos.z, vp.x, vp.z)
+		local phase = ("lootPhase" in entry.ai) ? entry.ai.lootPhase : "approach"
+		if (phase == "approach") {
+			if (d < 120.0) {
+				entry.ai.lootPhase <- "search"
+				entry.ai.lootSearchStart <- now
+				phoenix.npc.AI._setAngleTo(npcId, pos.x, pos.z, vp.x, vp.z, entry.ai, now, true)
+				try { stopAni(npcId, phoenix.npc.AI._walkAnimFor(entry.row, WEAPONMODE_FIST)) } catch (e) {}
+				try {
+					if (getPlayerWeaponMode(npcId) != WEAPONMODE_NONE) drawWeapon(npcId, WEAPONMODE_NONE)
+				} catch (e) {}
+				try { playAni(npcId, "T_PLUNDER") } catch (e) {}
+				return true
+			}
+			phoenix.npc.AI._setAngleTo(npcId, pos.x, pos.z, vp.x, vp.z, entry.ai, now, true)
+			local walkAnim = phoenix.npc.AI._walkAnimFor(entry.row, WEAPONMODE_FIST)
+			try {
+				if (getPlayerAni(npcId) != walkAnim) playAni(npcId, walkAnim)
+			} catch (e) {}
+			return true
+		}
+		if (phase == "search") {
+			local elapsed = now - (("lootSearchStart" in entry.ai) ? entry.ai.lootSearchStart : now)
+			if (elapsed >= 3000 && !entry.ai.lootDone) {
+				entry.ai.lootDone <- true
+				try {
+					local gold = phoenix.social.Structure.goldOf(victimPid)
+					if (gold > 0) {
+						local stolen = (gold * 10) / 100
+						if (stolen < 1) stolen = 1
+						local newGold = gold - stolen
+						if (newGold < 0) newGold = 0
+						phoenix.social.Structure.setGold(victimPid, newGold)
+					}
+				} catch (e) {}
+			}
+			if (elapsed >= 4000) {
+				phoenix.npc.AI._endLoot(entry, now)
+				return true
+			}
+			return true
+		}
+		phoenix.npc.AI._endLoot(entry, now)
+		return true
+	}
+
+	function _endLoot(entry, now) {
+		entry.ai.lootTarget <- -1
+		entry.ai.lootPhase <- ""
+		entry.ai.lootDone <- false
+		entry.ai.targetPid = -1
+		entry.ai.warnStart = 0
+		entry.ai.waitAction = -1
+		entry.ai.lastAttack = 0
+		entry.ai.idleApplied <- ""
+		entry.ai.returning <- true
+		entry.ai.postCombatReturn <- true
+		entry.ai.postCombatSettleUntil <- now + phoenix.npc.AI.postCombatSettleMs
+		entry.ai.lastReturnDist <- 999999.0
+		entry.ai.lastReturnAt <- now
+		entry.ai.returnStartedAt <- now
+		entry.ai.state = "return"
 		phoenix.npc.AI._resetMoveWatch(entry)
 	}
 
@@ -854,6 +970,17 @@ phoenix.npc.AI <- {
 		if (pos == null) return
 		local world = ""
 		try { world = getPlayerWorld(npcId) } catch (e) {}
+		if (phoenix.npc.AI._tickLoot(entry, pos, now)) return
+		if (phoenix.npc.AI._isHuman(row) && entry.ai.state != "loot" && ("killedPlayer" in entry.ai) && entry.ai.killedPlayer >= 0) {
+			local victimPid = entry.ai.killedPlayer
+			entry.ai.killedPlayer <- -1
+			try {
+				if (isPlayerConnected(victimPid) && (victimPid in phoenix.player.Gate.reviving)) {
+					phoenix.npc.AI._startLoot(entry, victimPid, now)
+					return
+				}
+			} catch (e) {}
+		}
 		if (phoenix.npc.AI._postCombatReturn(entry, pos, world, now)) return
 		if (phoenix.npc.AI._superviseHome(entry, pos, world, now)) return
 		if (("returning" in entry.ai) && entry.ai.returning == true && (!("targetPid" in entry.ai) || entry.ai.targetPid < 0)) {
@@ -861,6 +988,7 @@ phoenix.npc.AI <- {
 		}
 
 		local hasLockedTarget = (("targetPid" in entry.ai) && entry.ai.targetPid >= 0)
+		local hasLockedTargetPid = ("targetPid" in entry.ai) ? entry.ai.targetPid : -1
 		local inReturn = (("returning" in entry.ai) && entry.ai.returning == true) || (("postCombatReturn" in entry.ai) && entry.ai.postCombatReturn == true)
 		local inCooldown = (("combatCooldownUntil" in entry.ai) && now < entry.ai.combatCooldownUntil)
 		local canAcquire = !inReturn && !inCooldown
@@ -987,7 +1115,7 @@ phoenix.npc.AI <- {
 				return
 			}
 			if (hasLockedTarget) {
-				phoenix.npc.AI._onTargetLost(entry)
+				phoenix.npc.AI._onTargetLost(entry, hasLockedTargetPid)
 				return
 			}
 		}
@@ -995,23 +1123,30 @@ phoenix.npc.AI <- {
 		local wasReturning = ("returning" in entry.ai) && entry.ai.returning == true
 		if (phoenix.npc.AI._softReturn(entry, pos, now)) return
 		if (wasReturning) return
+		local isMonster = !phoenix.npc.AI._isHuman(row)
 		if (now >= entry.ai.nextWander) {
-			entry.ai.nextWander = now + 6000 + (rand() % 6000)
-			local rx = entry.ai.anchorX + ((rand() % 800) - 400).tofloat()
-			local rz = entry.ai.anchorZ + ((rand() % 800) - 400).tofloat()
+			local radius = isMonster ? 1000 : 800
+			local wait = isMonster ? (8000 + (rand() % 7000)) : (6000 + (rand() % 6000))
+			entry.ai.nextWander = now + wait
+			local rx = entry.ai.anchorX + ((rand() % (radius * 2)) - radius).tofloat()
+			local rz = entry.ai.anchorZ + ((rand() % (radius * 2)) - radius).tofloat()
 			entry.ai.wanderTargetX <- rx
 			entry.ai.wanderTargetZ <- rz
+			entry.ai.wanderAngleSet <- false
 			entry.ai.state = "wander"
 		}
 		if (entry.ai.state == "wander" && ("wanderTargetX" in entry.ai)) {
 			local d = phoenix.npc.AI._distFlat(pos.x, pos.z, entry.ai.wanderTargetX, entry.ai.wanderTargetZ)
-			if (d < 60.0) {
+			if (d < 80.0) {
 				entry.ai.state = "idle"
 				try { stopAni(npcId, phoenix.npc.AI._walkAnimFor(entry.row, WEAPONMODE_FIST)) } catch (e) {}
 				phoenix.npc.AI._ensureIdle(entry, true)
 				return
 			}
-			phoenix.npc.AI._setAngleTo(npcId, pos.x, pos.z, entry.ai.wanderTargetX, entry.ai.wanderTargetZ, entry.ai, now, true)
+			if (!("wanderAngleSet" in entry.ai) || entry.ai.wanderAngleSet != true) {
+				phoenix.npc.AI._setAngleTo(npcId, pos.x, pos.z, entry.ai.wanderTargetX, entry.ai.wanderTargetZ, entry.ai, now, true)
+				entry.ai.wanderAngleSet <- true
+			}
 			local walkAnim = phoenix.npc.AI._walkAnimFor(entry.row, WEAPONMODE_FIST)
 			try {
 				if (getPlayerAni(npcId) != walkAnim) playAni(npcId, walkAnim)
