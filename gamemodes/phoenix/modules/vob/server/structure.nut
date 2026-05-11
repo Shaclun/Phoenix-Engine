@@ -271,6 +271,8 @@ phoenix.vob.Structure <- {
 			rotY = ("rotY" in row) ? row.rotY.tofloat() : 0.0,
 			rotZ = ("rotZ" in row) ? row.rotZ.tofloat() : 0.0,
 			interactive = ("interactive" in row) ? phoenix.vob.Structure.boolInt(row.interactive) == 1 : false,
+			noCollision = ("noCollision" in row) ? phoenix.vob.Structure.boolInt(row.noCollision) == 1 : false,
+			craftInteraction = ("craftInteraction" in row) ? phoenix.vob.Structure.boolInt(row.craftInteraction) == 1 : false,
 			entryKind = "vob",
 			itemInstance = "",
 			itemAmount = 0,
@@ -287,7 +289,28 @@ phoenix.vob.Structure <- {
 
 	function snapshotList() {
 		local out = []
-		foreach (_id, entry in phoenix.vob.Structure.entries) out.append(entry)
+		local craftVisuals = null
+		try {
+			if ("crafting" in phoenix && "Structure" in phoenix.crafting) {
+				craftVisuals = phoenix.crafting.Structure.stationByVisual
+			}
+		} catch (e) {}
+		foreach (_id, entry in phoenix.vob.Structure.entries) {
+			local copy = {
+				vobId = entry.vobId, name = entry.name, visual = entry.visual, world = entry.world,
+				x = entry.x, y = entry.y, z = entry.z, rotX = entry.rotX, rotY = entry.rotY, rotZ = entry.rotZ,
+				interactive = entry.interactive, entryKind = entry.entryKind,
+				noCollision = ("noCollision" in entry) ? entry.noCollision : false,
+				craftInteraction = ("craftInteraction" in entry) ? entry.craftInteraction : false,
+				itemInstance = entry.itemInstance, itemAmount = entry.itemAmount, itemQuality = entry.itemQuality
+			}
+			if (copy.craftInteraction) copy.interactive = true
+			if (craftVisuals != null && copy.visual != null && copy.visual != "") {
+				local key = copy.visual.tostring().toupper()
+				if (key in craftVisuals && craftVisuals[key].len() > 0) copy.interactive = true
+			}
+			out.append(copy)
+		}
 		return out
 	}
 
@@ -305,8 +328,25 @@ phoenix.vob.Structure <- {
 	}
 
 	function ensureSchema(callback) {
-		local sql = "CREATE TABLE IF NOT EXISTS `phoenix_world_vobs` (`id` INT(11) NOT NULL AUTO_INCREMENT, `vobId` VARCHAR(96) NOT NULL, `name` VARCHAR(128) DEFAULT '', `visual` VARCHAR(128) NOT NULL, `world` VARCHAR(96) NOT NULL DEFAULT 'NEWWORLD', `posX` FLOAT NOT NULL DEFAULT 0, `posY` FLOAT NOT NULL DEFAULT 0, `posZ` FLOAT NOT NULL DEFAULT 0, `rotX` FLOAT NOT NULL DEFAULT 0, `rotY` FLOAT NOT NULL DEFAULT 0, `rotZ` FLOAT NOT NULL DEFAULT 0, `interactive` TINYINT(1) NOT NULL DEFAULT 0, `active` TINYINT(1) NOT NULL DEFAULT 1, `createdBy` INT(11) NULL, `createdAt` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (`id`), UNIQUE KEY `vob_unique` (`vobId`), KEY `world_idx` (`world`), KEY `visual_idx` (`visual`)) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci"
-		try { ORM.engine.executeAsync(sql, function(_) { if (callback != null) callback() }) } catch (e) { if (callback != null) callback() }
+		local sql = "CREATE TABLE IF NOT EXISTS `phoenix_world_vobs` (`id` INT(11) NOT NULL AUTO_INCREMENT, `vobId` VARCHAR(96) NOT NULL, `name` VARCHAR(128) DEFAULT '', `visual` VARCHAR(128) NOT NULL, `world` VARCHAR(96) NOT NULL DEFAULT 'NEWWORLD', `posX` FLOAT NOT NULL DEFAULT 0, `posY` FLOAT NOT NULL DEFAULT 0, `posZ` FLOAT NOT NULL DEFAULT 0, `rotX` FLOAT NOT NULL DEFAULT 0, `rotY` FLOAT NOT NULL DEFAULT 0, `rotZ` FLOAT NOT NULL DEFAULT 0, `interactive` TINYINT(1) NOT NULL DEFAULT 0, `noCollision` TINYINT(1) NOT NULL DEFAULT 0, `craftInteraction` TINYINT(1) NOT NULL DEFAULT 0, `active` TINYINT(1) NOT NULL DEFAULT 1, `createdBy` INT(11) NULL, `createdAt` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (`id`), UNIQUE KEY `vob_unique` (`vobId`), KEY `world_idx` (`world`), KEY `visual_idx` (`visual`)) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci"
+		try {
+			ORM.engine.executeAsync(sql, function(_) {
+				ORM.engine.executeAsync("SHOW COLUMNS FROM `phoenix_world_vobs` LIKE 'noCollision'", function(rows) {
+					local hasNoCol = rows != null && rows.len() > 0
+					local addCraft = function () {
+						ORM.engine.executeAsync("SHOW COLUMNS FROM `phoenix_world_vobs` LIKE 'craftInteraction'", function(rows2) {
+							local hasCraft = rows2 != null && rows2.len() > 0
+							if (hasCraft) { if (callback != null) callback(); return }
+							try { ORM.engine.executeAsync("ALTER TABLE `phoenix_world_vobs` ADD COLUMN `craftInteraction` TINYINT(1) NOT NULL DEFAULT 0 AFTER `noCollision`", function(_3) { if (callback != null) callback() }) }
+							catch (eC) { if (callback != null) callback() }
+						})
+					}
+					if (hasNoCol) { addCraft(); return }
+					try { ORM.engine.executeAsync("ALTER TABLE `phoenix_world_vobs` ADD COLUMN `noCollision` TINYINT(1) NOT NULL DEFAULT 0 AFTER `interactive`", function(_2) { addCraft() }) }
+					catch (e) { addCraft() }
+				})
+			})
+		} catch (e) { if (callback != null) callback() }
 	}
 
 	function bootLoad() {
@@ -381,10 +421,13 @@ phoenix.vob.Structure <- {
 		local name = ("name" in payload && payload.name != null) ? payload.name.tostring() : ""
 		local vobId = ("vobId" in payload && payload.vobId != null && payload.vobId != "") ? payload.vobId.tostring() : ("vob_" + getTickCount())
 		local interactive = ("interactive" in payload) ? phoenix.vob.Structure.boolInt(payload.interactive) : 0
-		local entry = { vobId = vobId, name = name, visual = visual, world = world, x = x, y = y, z = z, rotX = rotX, rotY = rotY, rotZ = rotZ, interactive = interactive == 1, entryKind = "vob", itemInstance = "", itemAmount = 0, itemQuality = 0 }
+		local noCollision = ("noCollision" in payload) ? phoenix.vob.Structure.boolInt(payload.noCollision) : 0
+		local craftInteraction = ("craftInteraction" in payload) ? phoenix.vob.Structure.boolInt(payload.craftInteraction) : 0
+		if (craftInteraction == 1) interactive = 1
+		local entry = { vobId = vobId, name = name, visual = visual, world = world, x = x, y = y, z = z, rotX = rotX, rotY = rotY, rotZ = rotZ, interactive = interactive == 1, noCollision = noCollision == 1, craftInteraction = craftInteraction == 1, entryKind = "vob", itemInstance = "", itemAmount = 0, itemQuality = 0 }
 		local adminId = "NULL"
 		try { local s = phoenix.account.Structure.get(playerId); if (s != null && s.id() > 0) adminId = s.id().tostring() } catch (e) {}
-		local sql = "INSERT INTO `phoenix_world_vobs` (`vobId`,`name`,`visual`,`world`,`posX`,`posY`,`posZ`,`rotX`,`rotY`,`rotZ`,`interactive`,`active`,`createdBy`) VALUES ('" + phoenix.vob.Structure.esc(vobId) + "','" + phoenix.vob.Structure.esc(name) + "','" + phoenix.vob.Structure.esc(visual) + "','" + phoenix.vob.Structure.esc(world) + "'," + x + "," + y + "," + z + "," + rotX + "," + rotY + "," + rotZ + "," + interactive + ",1," + adminId + ") ON DUPLICATE KEY UPDATE `name`=VALUES(`name`),`visual`=VALUES(`visual`),`world`=VALUES(`world`),`posX`=VALUES(`posX`),`posY`=VALUES(`posY`),`posZ`=VALUES(`posZ`),`rotX`=VALUES(`rotX`),`rotY`=VALUES(`rotY`),`rotZ`=VALUES(`rotZ`),`interactive`=VALUES(`interactive`),`active`=1"
+		local sql = "INSERT INTO `phoenix_world_vobs` (`vobId`,`name`,`visual`,`world`,`posX`,`posY`,`posZ`,`rotX`,`rotY`,`rotZ`,`interactive`,`noCollision`,`craftInteraction`,`active`,`createdBy`) VALUES ('" + phoenix.vob.Structure.esc(vobId) + "','" + phoenix.vob.Structure.esc(name) + "','" + phoenix.vob.Structure.esc(visual) + "','" + phoenix.vob.Structure.esc(world) + "'," + x + "," + y + "," + z + "," + rotX + "," + rotY + "," + rotZ + "," + interactive + "," + noCollision + "," + craftInteraction + ",1," + adminId + ") ON DUPLICATE KEY UPDATE `name`=VALUES(`name`),`visual`=VALUES(`visual`),`world`=VALUES(`world`),`posX`=VALUES(`posX`),`posY`=VALUES(`posY`),`posZ`=VALUES(`posZ`),`rotX`=VALUES(`rotX`),`rotY`=VALUES(`rotY`),`rotZ`=VALUES(`rotZ`),`interactive`=VALUES(`interactive`),`noCollision`=VALUES(`noCollision`),`craftInteraction`=VALUES(`craftInteraction`),`active`=1"
 		phoenix.vob.Structure.ensureSchema(function() {
 			try {
 				ORM.engine.executeAsync(sql, function(_) {

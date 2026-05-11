@@ -4,8 +4,10 @@ phoenix.vob.Ground <- {
 	labels = []
 	labelStacks = {}
 	selected = ""
+	focus = -1
 	lastInteractAt = 0
 	range = 360.0
+	labelRange = 480.0
 
 	function onSnapshot(message) {
 		phoenix.vob.Ground.clearObjects()
@@ -15,6 +17,7 @@ phoenix.vob.Ground <- {
 			phoenix.vob.Ground.entries[entry.vobId] <- entry
 			phoenix.vob.Ground.createObject(entry)
 		}
+		try { if ("crafting" in phoenix && "Client" in phoenix.crafting) phoenix.crafting.Client.refreshVobInteractive() } catch (e) {}
 	}
 
 	function clearObjects() {
@@ -41,12 +44,27 @@ phoenix.vob.Ground <- {
 		return false
 	}
 
+	function isInteractive(entry) {
+		if (entry == null) return false
+		if (entry.interactive == true) return true
+		if (entry.entryKind == "item") return true
+		try { if ("craftInteraction" in entry && entry.craftInteraction == true) return true } catch (e0) {}
+		local v = ""
+		try { v = entry.visual != null ? entry.visual.tostring().toupper() : "" } catch (e) {}
+		if (v == "") return false
+		try {
+			if ("crafting" in phoenix && "Client" in phoenix.crafting) {
+				if (v in phoenix.crafting.Client.stationVisuals) return true
+			}
+		} catch (e2) {}
+		return false
+	}
+
 	function createObject(entry) {
 		if (!phoenix.vob.Ground.worldMatches(entry)) return
 		local visual = entry.visual != null ? entry.visual.tostring() : ""
 		if (visual == "") return
 		local obj = null
-		if (entry.interactive == true && entry.entryKind != "item") { try { obj = MobInter(visual) } catch (e) { obj = null } }
 		local candidates = [visual]
 		local up = visual.toupper()
 		if (up.find(".3DS") != null) candidates.append(up.slice(0, up.find(".3DS")) + ".MRM")
@@ -64,11 +82,14 @@ phoenix.vob.Ground <- {
 			try { obj = Vob(candidate) } catch (e2) { obj = null }
 		}
 		if (obj == null) return
-		try { if (entry.name != null && entry.name != "") obj.name = entry.name } catch (en) {}
+		try { obj.name = phoenix.vob.Ground.label(entry) } catch (en) {}
 		try { obj.setPosition(entry.x, entry.y, entry.z) } catch (e3) {}
 		try { obj.setRotation(entry.rotX, entry.rotY, entry.rotZ) } catch (e4) {}
-		try { obj.cdDynamic = true } catch (e5) {}
-		try { obj.cdStatic = true } catch (e6) {}
+		local noCollision = false
+		try { noCollision = entry.noCollision == true } catch (eC) {}
+		if (entry.entryKind == "item") noCollision = true
+		try { obj.cdDynamic = false } catch (e5) {}
+		try { obj.cdStatic = !noCollision } catch (e6) {}
 		try { obj.visualAlpha = 1.0 } catch (e7) {}
 		try { obj.visible = true } catch (e8) {}
 		try { obj.addToWorld() } catch (e9) {}
@@ -104,7 +125,14 @@ phoenix.vob.Ground <- {
 
 	function label(entry) {
 		if (entry.name != null && entry.name != "") return entry.name
-		return entry.visual
+		local v = entry.visual != null ? entry.visual.tostring() : ""
+		if (v == "") return "VOB"
+		local upper = v.toupper()
+		local at = upper.find(".3DS")
+		if (at != null) return upper.slice(0, at)
+		at = upper.find(".MRM")
+		if (at != null) return upper.slice(0, at)
+		return upper
 	}
 
 	function qualityColor(quality, selected) {
@@ -118,47 +146,57 @@ phoenix.vob.Ground <- {
 		return Color(216, 211, 193, alpha)
 	}
 
+	function labelColor(entry, selected) {
+		if (entry.entryKind == "item") return phoenix.vob.Ground.qualityColor(entry.itemQuality, selected)
+		if (selected) return Color(255, 210, 80, 250)
+		return Color(210, 220, 235, 215)
+	}
+
 	function renderLabel(entry, heroPos, selected) {
-		if (entry.interactive != true && entry.entryKind != "item") return 999999.0
 		local pos = { x = entry.x, y = entry.y, z = entry.z }
 		local d = phoenix.vob.Ground.dist(heroPos, pos)
-		if (d > phoenix.vob.Ground.range) return 999999.0
+		if (d > phoenix.vob.Ground.labelRange) return
 		local project = null
 		local height = entry.entryKind == "item" ? 6.0 : 34.0
 		try { project = Camera.project(entry.x, entry.y + height, entry.z) } catch (e) { project = null }
-		if (project == null) return 999999.0
+		if (project == null) return
+		local text = phoenix.text.Encoding.forLabel(phoenix.vob.Ground.label(entry))
 		local draw = null
-		try { draw = Label(0, 0, phoenix.text.Encoding.forLabel(phoenix.vob.Ground.label(entry))) } catch (e2) { return 999999.0 }
-		local sx = project.x - 4096.0
-		local sy = project.y - 4096.0
-		local score = sqrt(sx * sx + sy * sy) + d * 0.15
-		local scale = selected ? 0.75 : 0.58
+		try { draw = Label(0, 0, text) } catch (e2) { return }
+		local scale = selected ? 0.85 : 0.60
 		try { draw.setScale(scale, scale) } catch (e3) {}
-		try { draw.color = entry.entryKind == "item" ? phoenix.vob.Ground.qualityColor(entry.itemQuality, selected) : (selected ? Color(255, 210, 80, 245) : Color(210, 220, 235, 205)) } catch (e4) {}
+		try { draw.color = phoenix.vob.Ground.labelColor(entry, selected) } catch (e4) {}
 		local offset = phoenix.vob.Ground.stackIndex(entry) * 18
 		try { draw.setPositionPx(project.x - draw.widthPx / 2, project.y - 2 - offset); draw.visible = true } catch (e5) {}
 		try { draw.top() } catch (e6) {}
 		phoenix.vob.Ground.labels.push(draw)
-		return score
 	}
 
-	function findSelected(heroPos) {
+	function findFocused(heroPos) {
+		local pointer = phoenix.vob.Ground.focus
+		if (pointer == null || pointer < 0) return ""
+		foreach (vobId, obj in phoenix.vob.Ground.objects) {
+			try {
+				if (obj == null || obj.ptr != pointer) continue
+				if (!(vobId in phoenix.vob.Ground.entries)) continue
+				local entry = phoenix.vob.Ground.entries[vobId]
+				if (!phoenix.vob.Ground.isInteractive(entry)) continue
+				if (!phoenix.vob.Ground.worldMatches(entry)) continue
+				local d = phoenix.vob.Ground.dist(heroPos, { x = entry.x, y = entry.y, z = entry.z })
+				if (d <= phoenix.vob.Ground.range) return vobId
+			} catch (e) {}
+		}
+		return ""
+	}
+
+	function findNearest(heroPos) {
 		local best = ""
-		local bestScore = 1800.0
+		local bestDist = phoenix.vob.Ground.range
 		foreach (vobId, entry in phoenix.vob.Ground.entries) {
-			if (entry.interactive != true) continue
+			if (!phoenix.vob.Ground.isInteractive(entry)) continue
 			if (!phoenix.vob.Ground.worldMatches(entry)) continue
-			local pos = { x = entry.x, y = entry.y, z = entry.z }
-			local d = phoenix.vob.Ground.dist(heroPos, pos)
-			if (d > phoenix.vob.Ground.range) continue
-			local project = null
-			local height = entry.entryKind == "item" ? 6.0 : 34.0
-			try { project = Camera.project(entry.x, entry.y + height, entry.z) } catch (e) { project = null }
-			if (project == null) continue
-			local sx = project.x - 4096.0
-			local sy = project.y - 4096.0
-			local score = sqrt(sx * sx + sy * sy) + d * 0.15
-			if (score < bestScore) { bestScore = score; best = vobId }
+			local d = phoenix.vob.Ground.dist(heroPos, { x = entry.x, y = entry.y, z = entry.z })
+			if (d < bestDist) { bestDist = d; best = vobId }
 		}
 		return best
 	}
@@ -171,22 +209,20 @@ phoenix.vob.Ground <- {
 		local hide = false
 		try { hide = phoenix.ui.ActiveGui.isAnyOpen() } catch (e2) {}
 		if (hide) { phoenix.vob.Ground.selected = ""; return }
-		local selected = phoenix.vob.Ground.findSelected(heroPos)
+		local selected = phoenix.vob.Ground.findFocused(heroPos)
+		if (selected == "") selected = phoenix.vob.Ground.findNearest(heroPos)
 		phoenix.vob.Ground.selected = selected
 		foreach (vobId, entry in phoenix.vob.Ground.entries) {
 			if (!phoenix.vob.Ground.worldMatches(entry)) continue
+			if (!phoenix.vob.Ground.isInteractive(entry)) continue
 			phoenix.vob.Ground.renderLabel(entry, heroPos, vobId == selected)
 		}
 	}
 
 	function tryInteract() {
 		local id = phoenix.vob.Ground.selected
-		if (id == "") {
-			local heroPos = null
-			try { heroPos = getPlayerPosition(heroId) } catch (e0) { heroPos = null }
-			if (heroPos != null) id = phoenix.vob.Ground.findNearestItem(heroPos)
-		}
 		if (id == "") return
+		try { if (phoenix.ui.ActiveGui.isAnyOpen()) return } catch (e) {}
 		local now = getTickCount()
 		if (now - phoenix.vob.Ground.lastInteractAt < 350) return
 		phoenix.vob.Ground.lastInteractAt = now
@@ -195,16 +231,15 @@ phoenix.vob.Ground <- {
 		try { msg.serialize().send(RELIABLE_ORDERED) } catch (e) {}
 	}
 
-	function findNearestItem(heroPos) {
-		local best = ""
-		local bestDist = phoenix.vob.Ground.range
-		foreach (vobId, entry in phoenix.vob.Ground.entries) {
-			if (entry.interactive != true || entry.entryKind != "item") continue
-			if (!phoenix.vob.Ground.worldMatches(entry)) continue
-			local d = phoenix.vob.Ground.dist(heroPos, { x = entry.x, y = entry.y, z = entry.z })
-			if (d < bestDist) { bestDist = d; best = vobId }
-		}
-		return best
+	function onFocus(newFocus, _oldFocus) {
+		phoenix.vob.Ground.focus = newFocus == null ? -1 : newFocus
+	}
+
+	function onMouseDown(button) {
+		local left = 0
+		try { left = MOUSE_BUTTONLEFT } catch (e) { left = 0 }
+		if (button != left && button != 0) return
+		phoenix.vob.Ground.tryInteract()
 	}
 
 	function onKey(key) {
@@ -216,4 +251,6 @@ phoenix.vob.Ground <- {
 
 phoenix.vob.Message.Snapshot.bind(phoenix.vob.Ground.onSnapshot)
 addEventHandler("onRender", function() { phoenix.vob.Ground.onRender() })
+addEventHandler("onMouseDown", function(button) { phoenix.vob.Ground.onMouseDown(button) })
 addEventHandler("onKeyDown", function(key) { phoenix.vob.Ground.onKey(key) })
+addEventHandler("onFocus", function(newFocus, oldFocus) { phoenix.vob.Ground.onFocus(newFocus, oldFocus) })

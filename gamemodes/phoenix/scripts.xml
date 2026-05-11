@@ -28,4 +28,5 @@
 	<import src="modules/admin/index.xml" />
 	<import src="modules/worldclock/index.xml" />
 	<import src="modules/command/index.xml" />
+	<import src="modules/crafting/index.xml" />
 </server>

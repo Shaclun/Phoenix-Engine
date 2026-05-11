@@ -21,6 +21,7 @@
         { id: "herbs",   labelKey: "admin.tab.herbs",   fallback: "Zioła" },
         { id: "vobs",    labelKey: "admin.tab.vobs",    fallback: "VOB-y" },
         { id: "houses",  labelKey: "admin.tab.houses",  fallback: "Domy" },
+        { id: "craft",   labelKey: "admin.tab.craft",   fallback: "Crafty" },
         { id: "debug",   labelKey: "admin.tab.debug",   fallback: "Debug" },
         { id: "log",     labelKey: "admin.tab.log",     fallback: "Historia" }
     ];
@@ -133,7 +134,15 @@
         npcRoutineGhostActive: false,
         npcRoutineGhostPos: { x: 0, y: 0, z: 0 },
         npcSpawnEdit: null,
-        status: null
+        status: null,
+        craftRecipes: [],
+        craftStations: [],
+        craftEditorId: 0,
+        craftEditor: null,
+        craftFilter: "",
+        craftStationVob: "",
+        craftStationPicked: {},
+        craftView: "list"
     };
 
     function defaultHumanCreator() {
@@ -231,7 +240,7 @@
     }
 
     function defaultVobForm() {
-        return { instance: "", name: "", visual: "", vobId: "", filter: "", posX: 0, posY: 0, posZ: 0, rotX: 0, rotY: 0, rotZ: 0, world: "", interactive: 0, step: 50 };
+        return { instance: "", name: "", visual: "", vobId: "", filter: "", posX: 0, posY: 0, posZ: 0, rotX: 0, rotY: 0, rotZ: 0, world: "", interactive: 0, noCollision: 0, craftInteraction: 0, step: 50 };
     }
 
     function defaultHouseForm() {
@@ -705,6 +714,7 @@
                 if (tab.id === "herbs") { send("herbCatalog"); send("herbList"); }
                 if (tab.id === "vobs") { requestVobCatalog(); send("vobList"); }
                 if (tab.id === "houses") send("houseList");
+                if (tab.id === "craft") { send("craftingList"); send("schemes"); requestVobCatalog(); send("vobList"); }
                 render();
             });
             tabsEl.appendChild(b);
@@ -728,6 +738,7 @@
         else if (activeTab === "herbs") html = renderHerbs();
         else if (activeTab === "vobs") html = renderVobs();
         else if (activeTab === "houses") html = renderHouses();
+        else if (activeTab === "craft") html = renderCraft();
         else if (activeTab === "debug") html = renderDebug();
         else if (activeTab === "log") html = renderLog();
 
@@ -737,7 +748,7 @@
         }
         body.innerHTML = html;
         bindHandlers();
-        if (activeTab === "items" || activeTab === "npc" || activeTab === "vobs") populateItemMeshes();
+        if (activeTab === "items" || activeTab === "npc" || activeTab === "vobs" || activeTab === "craft") populateItemMeshes();
     }
 
     function renderPlayers() {
@@ -998,14 +1009,11 @@
 
     function populateItemMeshes() {
         meshQueue.reset();
-        var grids = body.querySelectorAll("[data-role='itemgrid'],[data-role='vobgrid']");
-        grids.forEach(function (grid) {
-            var cells = grid.querySelectorAll(".adm-itemcell");
-            cells.forEach(function (cell) {
-                var v = cell.dataset.previewVisual || cell.dataset.visual;
-                if (!v) return;
-                meshQueue.schedule(cell, v);
-            });
+        var cells = body.querySelectorAll(".adm-itemcell");
+        cells.forEach(function (cell) {
+            var v = cell.dataset.previewVisual || cell.dataset.visual;
+            if (!v) return;
+            meshQueue.schedule(cell, v);
         });
     }
 
@@ -1364,7 +1372,16 @@
         html += '<label>' + escapeHtml(t("admin.vobs.field.world")) + '<input class="adm-input" data-vob="world" value="' + escapeHtml(form.world) + '" placeholder="' + escapeHtml(t("admin.vobs.placeholder.adminPosition")) + '"></label>';
         html += '<label>' + escapeHtml(t("admin.vobs.field.instance")) + '<input class="adm-input" data-vob="instance" value="' + escapeHtml(form.instance) + '" placeholder="' + escapeHtml(t("admin.vobs.placeholder.dataXml")) + '"></label>';
         html += '<label>' + escapeHtml(t("admin.vobs.field.visual")) + '<input class="adm-input" data-vob="visual" value="' + escapeHtml(form.visual) + '" placeholder="MODEL.3DS"></label>';
+        var currentVisualUpper = String(form.visual || "").toUpperCase();
+        var craftRecipesForVisual = 0;
+        if (currentVisualUpper) {
+            (state.craftStations || []).forEach(function (s) {
+                if (String(s.visual || "").toUpperCase() === currentVisualUpper) craftRecipesForVisual += (s.recipeIds || []).length;
+            });
+        }
         html += '<label>' + escapeHtml(t("admin.vobs.field.interactive")) + '<select class="adm-input" data-vob="interactive"><option value="0"' + (+form.interactive ? '' : ' selected') + '>' + escapeHtml(t("admin.common.no")) + '</option><option value="1"' + (+form.interactive ? ' selected' : '') + '>' + escapeHtml(t("admin.common.yes")) + '</option></select></label>';
+        html += '<label>Kolizja<select class="adm-input" data-vob="collision"><option value="1"' + (+form.noCollision ? '' : ' selected') + '>Tak</option><option value="0"' + (+form.noCollision ? ' selected' : '') + '>Nie</option></select></label>';
+        html += '<label>Interakcja craftu<select class="adm-input" data-vob="craft"><option value="0"' + (+form.craftInteraction ? '' : ' selected') + '>Nie</option><option value="1"' + (+form.craftInteraction ? ' selected' : '') + '>Tak</option></select><small style="color:#8b7550">' + (currentVisualUpper ? ('Receptury dla tego modelu: ' + craftRecipesForVisual) : 'Wybierz najpierw model') + '</small></label>';
         html += '<label>X<input class="adm-input" type="number" data-vob="posX" value="' + form.posX + '"></label>';
         html += '<label>Y<input class="adm-input" type="number" data-vob="posY" value="' + form.posY + '"></label>';
         html += '<label>Z<input class="adm-input" type="number" data-vob="posZ" value="' + form.posZ + '"></label>';
@@ -2120,6 +2137,7 @@
         body.querySelectorAll("[data-action]").forEach(function (el) {
             el.addEventListener("click", onAction);
         });
+        if (activeTab === "craft") bindCraftHandlers();
         body.querySelectorAll("[data-bind]").forEach(function (el) {
             el.addEventListener("input", function () {
                 var k = el.dataset.bind;
@@ -2239,6 +2257,12 @@
                     syncVobPreview(true);
                 } else if (k === "interactive") {
                     state.vobForm.interactive = +v || 0;
+                } else if (k === "collision") {
+                    state.vobForm.noCollision = (+v === 0) ? 1 : 0;
+                } else if (k === "craft") {
+                    state.vobForm.craftInteraction = +v || 0;
+                    if (state.vobForm.craftInteraction) state.vobForm.interactive = 1;
+                    render();
                 }
             });
         });
@@ -2416,6 +2440,10 @@
     function onAction(e) {
         var el = e.currentTarget;
         var a = el.dataset.action;
+        if (a && a.indexOf("craft") === 0) {
+            handleCraftAction(a, el);
+            return;
+        }
         if (a === "select-player") {
             if (e.target.closest("[data-stop]")) { e.stopPropagation(); return; }
             state.playerSelectedPid = +el.dataset.pid;
@@ -2992,7 +3020,6 @@
         if (a === "vob-pick") {
             state.vobForm.instance = el.dataset.instance || "";
             state.vobForm.visual = el.dataset.visual || "";
-            state.vobForm.name = el.dataset.name || state.vobForm.instance || state.vobForm.visual;
             send("adminVobPreviewStart", vobPreviewPayload(false));
             return render();
         }
@@ -3012,14 +3039,14 @@
         if (a === "vob-edit") {
             var vs = (state.vobs || []).filter(function (x) { return x.vobId === el.dataset.id; })[0];
             if (!vs) return;
-            state.vobForm = { instance: "", name: vs.name || "", visual: vs.visual || "", vobId: vs.vobId || "", filter: state.vobForm.filter || "", posX: Math.round(vs.x || 0), posY: Math.round(vs.y || 0), posZ: Math.round(vs.z || 0), rotX: Math.round(vs.rotX || 0), rotY: Math.round(vs.rotY || 0), rotZ: Math.round(vs.rotZ || 0), world: vs.world || "", interactive: vs.interactive ? 1 : 0, step: state.vobForm.step || 50 };
+            state.vobForm = { instance: "", name: vs.name || "", visual: vs.visual || "", vobId: vs.vobId || "", filter: state.vobForm.filter || "", posX: Math.round(vs.x || 0), posY: Math.round(vs.y || 0), posZ: Math.round(vs.z || 0), rotX: Math.round(vs.rotX || 0), rotY: Math.round(vs.rotY || 0), rotZ: Math.round(vs.rotZ || 0), world: vs.world || "", interactive: vs.interactive ? 1 : 0, noCollision: vs.noCollision ? 1 : 0, craftInteraction: vs.craftInteraction ? 1 : 0, step: state.vobForm.step || 50 };
             send("adminVobPreviewStart", vobPreviewPayload(true));
             return render();
         }
         if (a === "vob-save-here" || a === "vob-save-pos") {
             var vf = state.vobForm;
             if (!vf.visual && !vf.instance) return setStatus(t("admin.status.pickInstance"), "error");
-            var vPayload = { instance: vf.instance || "", visual: vf.visual || "", name: vf.name || "", vobId: vf.vobId || "", interactive: +vf.interactive || 0, rotX: +vf.rotX || 0, rotY: +vf.rotY || 0, rotZ: +vf.rotZ || 0 };
+            var vPayload = { instance: vf.instance || "", visual: vf.visual || "", name: vf.name || "", vobId: vf.vobId || "", interactive: +vf.interactive || 0, noCollision: +vf.noCollision || 0, craftInteraction: +vf.craftInteraction || 0, rotX: +vf.rotX || 0, rotY: +vf.rotY || 0, rotZ: +vf.rotZ || 0 };
             if (a === "vob-save-pos") {
                 vPayload.posX = +vf.posX || 0; vPayload.posY = +vf.posY || 0; vPayload.posZ = +vf.posZ || 0;
                 vPayload.rotX = +vf.rotX || 0; vPayload.rotY = +vf.rotY || 0; vPayload.rotZ = +vf.rotZ || 0;
@@ -3172,7 +3199,9 @@
             state.schemes = pl.schemes || [];
             state.schemesById = {};
             state.schemes.forEach(function (s) { state.schemesById[s.instance] = s; });
-            return render();
+            if (activeTab === "craft") render(true);
+            else render();
+            return;
         }
         if (p.action === "schemeDetails" && p.success) {
             state.details[pl.instance] = pl;
@@ -3199,6 +3228,11 @@
         }
         if (p.action === "vobList" && p.success) { state.vobs = pl.vobs || []; return render(); }
         if (p.action === "houseList" && p.success) { state.houses = pl.houses || []; return render(); }
+        if (p.action === "craftingList" && p.success) {
+            state.craftRecipes = pl.recipes || [];
+            state.craftStations = pl.stations || [];
+            return render();
+        }
         if (p.action === "adminHouseGhost" && p.success) {
             state.houseGhostActive = !!(+pl.active || 0);
             return render(true);
@@ -3345,6 +3379,7 @@
             if (p.action === "herbSave" || p.action === "herbDelete") send("herbList");
             if (p.action === "vobSave" || p.action === "vobDelete") send("vobList");
             if (p.action === "houseSave" || p.action === "houseDelete") send("houseList");
+            if (p.action === "craftingSave" || p.action === "craftingDelete") send("craftingList");
             if (p.action === "kick" || p.action === "tpTo" || p.action === "tpHere" || p.action === "vanish") {
                 if (activeTab === "log") send("log", { limit: 100 });
             }
@@ -3362,6 +3397,537 @@
             else btn.setAttribute("hidden", "");
         }
     });
+
+    function renderCraft() {
+        if (!state.schemes || state.schemes.length === 0) send("schemes");
+        if (state.craftView === "editor") return renderCraftEditor();
+        return renderCraftList();
+    }
+
+    function renderCraftList() {
+        var list = state.craftRecipes || [];
+        var q = (state.craftFilter || "").toLowerCase();
+        var filtered = q ? list.filter(function (r) {
+            return String(r.name || "").toLowerCase().indexOf(q) !== -1 ||
+                String(r.resultInstance || "").toLowerCase().indexOf(q) !== -1;
+        }) : list;
+        var html = '<div class="adm-section">';
+        html += '<div class="adm-toolbar">';
+        html += '<input class="adm-input" type="search" placeholder="Szukaj receptury..." data-craft-filter value="' + escapeHtml(state.craftFilter || "") + '">';
+        html += '<button class="adm-btn adm-btn--primary" data-action="craft-new">+ Nowa receptura</button>';
+        html += '</div>';
+        html += '<div class="adm-craft-list" data-role="itemgrid">';
+        if (filtered.length === 0) {
+            html += '<div class="adm-empty">Brak receptur. Dodaj nową.</div>';
+        } else {
+            filtered.forEach(function (r) {
+                var ings = r.ingredients || [];
+                var ingCount = ings.filter(function (i) { return i.role !== "tool"; }).length;
+                var toolCount = ings.filter(function (i) { return i.role === "tool"; }).length;
+                var outsCount = (r.outputs || []).length;
+                var instanceUp = String(r.resultInstance || "").toUpperCase();
+                var scheme = instanceUp ? state.schemesById[instanceUp] : null;
+                var displayName = r.name && r.name !== r.resultInstance ? r.name : (scheme ? itemName(scheme) : instanceUp);
+                if (!displayName) displayName = instanceUp || "?";
+                var cardVisual = (scheme && scheme.visual) ? scheme.visual : (instanceUp + ".3DS");
+                html += '<div class="adm-craft-card">';
+                html += '<div class="adm-craft-card__visual adm-itemcell" data-instance="' + escapeHtml(instanceUp) + '" data-visual="' + escapeHtml(cardVisual) + '">';
+                html += '<div class="adm-itemcell__fallback"><span class="adm-itemcell__label">' + escapeHtml(displayName.slice(0, 14)) + '</span></div>';
+                html += '</div>';
+                html += '<div class="adm-craft-card__body">';
+                html += '<h4>' + escapeHtml(displayName) + '</h4>';
+                html += '<small>' + escapeHtml(instanceUp) + (r.resultAmount > 1 ? " x" + r.resultAmount : "") + ' · ' + escapeHtml(r.category || "") + '</small>';
+                html += '<div class="adm-craft-card__meta">' + ingCount + ' skł. · ' + toolCount + ' narz. · ' + outsCount + ' dod. · ' + (+r.craftTimeMs || 0) + 'ms</div>';
+                html += '</div>';
+                html += '<div class="adm-craft-card__actions">';
+                html += '<button class="adm-btn" data-action="craft-edit" data-id="' + (+r.id || 0) + '">Edytuj</button>';
+                html += '<button class="adm-btn adm-btn--danger" data-action="craft-delete" data-id="' + (+r.id || 0) + '">Usuń</button>';
+                html += '</div>';
+                html += '</div>';
+            });
+        }
+        html += '</div>';
+        html += '</div>';
+        return html;
+    }
+
+    function resolveSchemes() {
+        return (state.schemes || []).filter(function (s) { return s && s.instance; });
+    }
+
+    function renderCraftEditor() {
+        var ed = state.craftEditor || defaultCraftEditor();
+        var html = '<div class="adm-section">';
+        html += '<div class="adm-toolbar">';
+        html += '<button class="adm-btn" data-action="craft-back">← Powrót</button>';
+        html += '<span class="adm-craft-title">' + (ed.id > 0 ? "Edycja receptury #" + ed.id : "Nowa receptura") + '</span>';
+        html += '</div>';
+
+        html += '<div class="adm-craft-editor">';
+        html += '<div class="adm-craft-editor__left">';
+        if (ed.resultInstance) {
+            var resultScheme = state.schemesById[ed.resultInstance];
+            var resultLabel = resultScheme ? itemName(resultScheme) : ed.resultInstance;
+            var resultVisual = (resultScheme && resultScheme.visual) ? resultScheme.visual : (ed.resultInstance + ".3DS");
+            html += '<div class="adm-craft-preview adm-itemcell" data-instance="' + escapeHtml(ed.resultInstance) + '" data-visual="' + escapeHtml(resultVisual) + '">';
+            html += '<div class="adm-itemcell__fallback"><span class="adm-itemcell__label">' + escapeHtml(resultLabel.slice(0, 18)) + '</span></div>';
+            html += '</div>';
+            html += '<div class="adm-craft-preview__label"><strong>' + escapeHtml(resultLabel) + '</strong><small>' + escapeHtml(ed.resultInstance) + '</small></div>';
+        } else {
+            html += '<div class="adm-craft-preview adm-craft-preview--empty">Wybierz przedmiot</div>';
+        }
+        html += '<button class="adm-btn adm-btn--ghost" data-action="craft-pick-open" data-role="result">' + (ed.resultInstance ? "Zmień przedmiot" : "Wybierz przedmiot") + '</button>';
+        html += '</div>';
+
+        html += '<div class="adm-craft-editor__right">';
+        html += '<div class="adm-grid adm-grid--2">';
+        html += '<label>Nazwa <input class="adm-input" data-craft-f="name" value="' + escapeHtml(ed.name || "") + '" placeholder="np. Zwykły miecz"></label>';
+        html += '<label>Kategoria <select class="adm-input" data-craft-f="category">' +
+            ["misc", "weapon", "armor", "food", "potion", "alchemy", "smithing"].map(function (c) {
+                return '<option value="' + c + '"' + (ed.category === c ? " selected" : "") + '>' + c + '</option>';
+            }).join("") + '</select></label>';
+        html += '</div>';
+        html += '<div class="adm-grid adm-grid--3">';
+        html += '<label>Ilość <input class="adm-input" type="number" min="1" data-craft-f="resultAmount" value="' + (ed.resultAmount || 1) + '"></label>';
+        html += '<label>Czas (ms) <input class="adm-input" type="number" min="100" step="100" data-craft-f="craftTimeMs" value="' + (ed.craftTimeMs || 1500) + '"></label>';
+        html += '<label>Wymagany lv <input class="adm-input" type="number" min="0" data-craft-f="requiredLevel" value="' + (ed.requiredLevel || 0) + '"></label>';
+        html += '</div>';
+        html += '<label>Opis <textarea class="adm-input" data-craft-f="description" rows="2">' + escapeHtml(ed.description || "") + '</textarea></label>';
+        html += '</div>';
+        html += '</div>';
+
+        html += '<h4 class="adm-craft-section-title">Składniki (zużywane)</h4>';
+        html += renderCraftIngredients(ed, "consume");
+        html += '<button class="adm-btn" data-action="craft-pick-open" data-role="consume">+ Dodaj składnik</button>';
+
+        html += '<h4 class="adm-craft-section-title">Narzędzia (wymagane, nie zużywane)</h4>';
+        html += renderCraftIngredients(ed, "tool");
+        html += '<button class="adm-btn" data-action="craft-pick-open" data-role="tool">+ Dodaj narzędzie</button>';
+
+        html += '<h4 class="adm-craft-section-title">Dodatkowe produkty (bonusowe itemy obok głównego)</h4>';
+        html += renderCraftOutputs(ed);
+        html += '<button class="adm-btn" data-action="craft-pick-open" data-role="output">+ Dodaj dodatkowy produkt</button>';
+
+        html += '<h4 class="adm-craft-section-title">Stacje / VOB-y otwierające tę recepturę</h4>';
+        html += renderCraftEditorVobsSummary(ed);
+
+        html += '<div class="adm-toolbar adm-craft-actions">';
+        html += '<button class="adm-btn adm-btn--primary" data-action="craft-save">Zapisz recepturę</button>';
+        html += '</div>';
+        html += '</div>';
+
+        if (state.craftPicker) {
+            html += renderCraftPickerModal(state.craftPicker);
+        }
+        if (state.craftVobPickerOpen) {
+            html += renderCraftVobPickerModal();
+        }
+        return html;
+    }
+
+    function renderCraftEditorVobsSummary(ed) {
+        var picked = (ed.visuals || []).map(function (v) { return String(v).toUpperCase(); });
+        var html = '<div class="adm-craft-vob-summary">';
+        if (picked.length === 0) {
+            html += '<div class="adm-empty">Brak przypisań. Dodaj typ VOB-a aby receptura była dostępna.</div>';
+        } else {
+            html += '<div class="adm-craft-vob-picked">';
+            picked.forEach(function (v) {
+                html += '<span class="adm-craft-vob-chip">' + escapeHtml(v) + ' <button class="adm-craft-vob-chip__x" data-action="craft-vob-remove" data-visual="' + escapeHtml(v) + '">×</button></span>';
+            });
+            html += '</div>';
+        }
+        html += '<button class="adm-btn adm-btn--ghost" data-action="craft-vob-picker-open">+ Wybierz typ VOB-a</button>';
+        html += '</div>';
+        return html;
+    }
+
+    function renderCraftPickerModal(mode) {
+        var schemes = resolveSchemes();
+        var filter = (state.craftPickerFilter || "").toLowerCase();
+        var catFilter = +state.craftPickerCat || 0;
+        var filtered = schemes.filter(function (s) {
+            if (catFilter > 0 && (+s.category || 0) !== catFilter) return false;
+            if (!filter) return true;
+            var nm = itemName(s).toLowerCase();
+            if (nm.indexOf(filter) !== -1) return true;
+            if (String(s.instance || "").toLowerCase().indexOf(filter) !== -1) return true;
+            return false;
+        });
+        var title = mode === "result" ? "Wybierz przedmiot wynikowy" : (mode === "tool" ? "Wybierz narzędzie" : "Wybierz składnik");
+
+        var html = '<div class="adm-craft-modal" data-craft-modal-bg>';
+        html += '<div class="adm-craft-modal__panel" data-craft-modal>';
+        html += '<header class="adm-craft-modal__head"><h3>' + escapeHtml(title) + '</h3>';
+        html += '<button class="adm-btn" data-action="craft-pick-close">✕</button></header>';
+        html += '<div class="adm-craft-modal__tools">';
+        html += '<input class="adm-input" type="search" placeholder="Szukaj..." data-craft-picker-filter value="' + escapeHtml(state.craftPickerFilter || "") + '">';
+        html += '<select class="adm-input" data-craft-picker-cat>';
+        html += '<option value="0">Wszystkie kategorie</option>';
+        Object.keys(CATEGORY_LABELS).forEach(function (k) {
+            var kk = +k;
+            if (kk === 0) return;
+            html += '<option value="' + kk + '"' + (catFilter === kk ? " selected" : "") + '>' + escapeHtml(CATEGORY_LABELS[k]) + '</option>';
+        });
+        html += '</select>';
+        html += '</div>';
+        html += '<div class="adm-craft-modal__body"><div class="adm-itemgrid" data-role="itemgrid">';
+        filtered.slice(0, 400).forEach(function (s) {
+            var nm = itemName(s);
+            html += '<div class="adm-itemcell" data-action="craft-pick-choose" data-instance="' + escapeHtml(s.instance) +
+                '" data-visual="' + escapeHtml(s.visual || "") + '" title="' + escapeHtml(nm) + '">';
+            html += '<div class="adm-itemcell__fallback"><span class="adm-itemcell__label">' + escapeHtml(nm.slice(0, 18)) + '</span></div>';
+            html += '<span class="adm-itemcell__cat">' + escapeHtml(catLabel(s.category)) + '</span>';
+            html += '</div>';
+        });
+        if (filtered.length === 0) html += '<div class="adm-empty">Brak wyników.</div>';
+        html += '</div></div>';
+        html += '</div></div>';
+        return html;
+    }
+
+    function renderCraftVobPickerModal() {
+        var catalog = state.vobCatalog || [];
+        var filter = (state.craftVobPickerFilter || "").toLowerCase();
+        var cat = state.craftVobPickerCat || "";
+        var categories = {};
+        catalog.forEach(function (v) { if (v.category) categories[v.category] = true; });
+        var catList = Object.keys(categories).sort();
+        var filtered = catalog.filter(function (v) {
+            if (cat && String(v.category || "") !== cat) return false;
+            if (!filter) return true;
+            var a = String(v.visual || "").toLowerCase();
+            var b = String(v.name || "").toLowerCase();
+            var c = String(v.instance || "").toLowerCase();
+            return a.indexOf(filter) !== -1 || b.indexOf(filter) !== -1 || c.indexOf(filter) !== -1;
+        });
+        var pickedUpper = ((state.craftEditor || {}).visuals || []).map(function (v) { return String(v).toUpperCase(); });
+        var source = state.vobSource || "data.xml";
+
+        var html = '<div class="adm-craft-modal" data-craft-modal-bg>';
+        html += '<div class="adm-craft-modal__panel adm-craft-modal__panel--wide" data-craft-modal>';
+        html += '<header class="adm-craft-modal__head"><h3>Wybierz typ VOB-a</h3>';
+        html += '<button class="adm-btn" data-action="craft-vob-picker-close">✕</button></header>';
+        html += '<div class="adm-craft-modal__tools">';
+        html += '<div class="adm-tabs adm-tabs--sub adm-vob-source-tabs">';
+        VOB_SOURCE_TABS.forEach(function (tab) {
+            var active = source === tab.id ? " is-active" : "";
+            html += '<button class="adm-tab' + active + '" data-action="craft-vob-source" data-src="' + escapeHtml(tab.id) + '">' + escapeHtml(t(tab.labelKey, tab.fallback)) + '</button>';
+        });
+        html += '</div>';
+        html += '<input class="adm-input" type="search" placeholder="Szukaj modelu..." data-craft-vob-filter value="' + escapeHtml(state.craftVobPickerFilter || "") + '">';
+        html += '<select class="adm-input" data-craft-vob-cat>';
+        html += '<option value="">Wszystkie kategorie</option>';
+        catList.forEach(function (c) {
+            html += '<option value="' + escapeHtml(c) + '"' + (cat === c ? " selected" : "") + '>' + escapeHtml(c) + '</option>';
+        });
+        html += '</select>';
+        html += '</div>';
+        html += '<div class="adm-craft-modal__body"><div class="adm-itemgrid adm-vob-grid" data-role="vobgrid">';
+        filtered.slice(0, 400).forEach(function (v) {
+            var vis = String(v.visual || "").toUpperCase();
+            var isPicked = pickedUpper.indexOf(vis) !== -1;
+            var label = vobLabel(v);
+            html += '<div class="adm-itemcell adm-vob-cell' + (isPicked ? " is-selected" : "") + '" data-action="craft-vob-toggle" data-visual="' + escapeHtml(v.visual || "") + '" data-preview-visual="' + escapeHtml(v.previewVisual || vobPreviewVisual(v.visual || "")) + '" title="' + escapeHtml(label) + '">';
+            html += '<div class="adm-itemcell__fallback"><span class="adm-itemcell__label">' + escapeHtml(label.slice(0, 18)) + '</span></div>';
+            html += '<span class="adm-itemcell__cat">' + escapeHtml(v.category || v.source || "VOB") + '</span>';
+            html += '<span class="adm-vob-cell__visual">' + escapeHtml(v.visual || "") + '</span>';
+            html += '</div>';
+        });
+        if (filtered.length === 0) html += '<div class="adm-empty">Brak wyników w tym katalogu.</div>';
+        html += '</div></div>';
+        html += '<footer class="adm-craft-modal__foot"><button class="adm-btn adm-btn--primary" data-action="craft-vob-picker-close">Gotowe</button></footer>';
+        html += '</div></div>';
+        return html;
+    }
+
+    function renderCraftOutputs(ed) {
+        var outs = ed.outputs || [];
+        if (outs.length === 0) return '<div class="adm-empty">Brak. Główny produkt jest wystarczający.</div>';
+        var html = '<div class="adm-craft-ing-list" data-role="itemgrid">';
+        outs.forEach(function (o, idx) {
+            var scheme = state.schemesById[o.instance];
+            var label = scheme ? itemName(scheme) : o.instance;
+            var vis = (scheme && scheme.visual) ? scheme.visual : (o.instance + ".3DS");
+            html += '<div class="adm-craft-ing">';
+            html += '<div class="adm-craft-ing__visual adm-itemcell" data-instance="' + escapeHtml(o.instance) + '" data-visual="' + escapeHtml(vis) + '">';
+            html += '<div class="adm-itemcell__fallback"><span class="adm-itemcell__label">' + escapeHtml(label.slice(0, 12)) + '</span></div>';
+            html += '</div>';
+            html += '<div class="adm-craft-ing__body">';
+            html += '<strong>' + escapeHtml(label) + '</strong>';
+            html += '<small>' + escapeHtml(o.instance) + '</small>';
+            html += '</div>';
+            html += '<input class="adm-input adm-input--sm" type="number" min="1" data-craft-out="' + idx + '" value="' + (o.amount || 1) + '">';
+            html += '<button class="adm-btn adm-btn--danger" data-action="craft-out-remove" data-idx="' + idx + '">×</button>';
+            html += '</div>';
+        });
+        html += '</div>';
+        return html;
+    }
+
+    function renderCraftIngredients(ed, role) {
+        var ings = (ed.ingredients || []).map(function (i, idx) { return { idx: idx, role: i.role, instance: i.instance, amount: i.amount }; });
+        var filtered = ings.filter(function (i) { return i.role === role; });
+        if (filtered.length === 0) return '<div class="adm-empty">Brak. Kliknij przycisk poniżej.</div>';
+        var html = '<div class="adm-craft-ing-list" data-role="itemgrid">';
+        filtered.forEach(function (i) {
+            var scheme = state.schemesById[i.instance];
+            var label = scheme ? itemName(scheme) : i.instance;
+            var iVisual = (scheme && scheme.visual) ? scheme.visual : (i.instance + ".3DS");
+            html += '<div class="adm-craft-ing">';
+            html += '<div class="adm-craft-ing__visual adm-itemcell" data-instance="' + escapeHtml(i.instance) + '" data-visual="' + escapeHtml(iVisual) + '">';
+            html += '<div class="adm-itemcell__fallback"><span class="adm-itemcell__label">' + escapeHtml(label.slice(0, 12)) + '</span></div>';
+            html += '</div>';
+            html += '<div class="adm-craft-ing__body">';
+            html += '<strong>' + escapeHtml(label) + '</strong>';
+            html += '<small>' + escapeHtml(i.instance) + '</small>';
+            html += '</div>';
+            html += '<input class="adm-input adm-input--sm" type="number" min="1" data-craft-ing="' + i.idx + '" data-field="amount" value="' + (i.amount || 1) + '">';
+            html += '<button class="adm-btn adm-btn--danger" data-action="craft-ing-remove" data-idx="' + i.idx + '">×</button>';
+            html += '</div>';
+        });
+        html += '</div>';
+        return html;
+    }
+
+    function defaultCraftEditor() {
+        return { id: 0, name: "", resultInstance: "", resultAmount: 1, category: "misc", craftTimeMs: 1500, requiredLevel: 0, description: "", ingredients: [], outputs: [], visuals: [] };
+    }
+
+    function findCraftRecipe(id) {
+        var list = state.craftRecipes || [];
+        var target = +id;
+        for (var i = 0; i < list.length; i += 1) if (+list[i].id === target) return list[i];
+        return null;
+    }
+
+    function cloneCraftRecipe(src) {
+        var visuals = [];
+        var srcId = +src.id;
+        if (state.craftStations) {
+            state.craftStations.forEach(function (s) {
+                var rids = (s.recipeIds || []).map(function (x) { return +x; });
+                if (rids.indexOf(srcId) !== -1 && s.visual) visuals.push(String(s.visual).toUpperCase());
+            });
+        }
+        return {
+            id: +src.id || 0, name: src.name || "", resultInstance: src.resultInstance || "",
+            resultAmount: +src.resultAmount || 1, category: src.category || "misc",
+            craftTimeMs: +src.craftTimeMs || 1500, requiredLevel: +src.requiredLevel || 0,
+            description: src.description || "",
+            ingredients: (src.ingredients || []).map(function (i) {
+                return { role: i.role || "consume", instance: i.instance, amount: +i.amount || 1 };
+            }),
+            outputs: (src.outputs || []).map(function (o) {
+                return { instance: o.instance, amount: +o.amount || 1 };
+            }),
+            visuals: visuals
+        };
+    }
+
+    function handleCraftAction(action, el) {
+        console.log("[craft]", action, el ? el.dataset : null);
+        if (action === "craft-new") { state.craftEditor = defaultCraftEditor(); state.craftView = "editor"; state.craftPicker = ""; return render(true); }
+        if (action === "craft-back") { state.craftView = "list"; state.craftEditor = null; state.craftPicker = ""; return render(true); }
+        if (action === "craft-edit") {
+            var id = +el.dataset.id || 0;
+            console.log("[craft] edit", id);
+            var rec = findCraftRecipe(id);
+            if (rec) {
+                state.craftEditor = cloneCraftRecipe(rec);
+                state.craftView = "editor";
+                state.craftPicker = "";
+                return render(true);
+            }
+            console.log("[craft] edit: recipe not found for id", id, "recipes:", state.craftRecipes);
+            return;
+        }
+        if (action === "craft-delete") {
+            var dId = +el.dataset.id || 0;
+            console.log("[craft] delete", dId);
+            if (!dId) return;
+            if (!confirm("Usunąć recepturę #" + dId + "?")) return;
+            send("craftingDelete", { id: dId });
+            return;
+        }
+        if (action === "craft-pick-open") {
+            state.craftPicker = el.dataset.role || "consume";
+            state.craftPickerFilter = "";
+            state.craftPickerCat = 0;
+            return render(true);
+        }
+        if (action === "craft-pick-close") {
+            state.craftPicker = "";
+            state.craftVobPickerOpen = false;
+            return render(true);
+        }
+        if (action === "craft-pick-choose") {
+            var inst = String(el.dataset.instance || "").toUpperCase();
+            var mode = state.craftPicker || "";
+            if (!inst || !mode) return;
+            if (!state.craftEditor) state.craftEditor = defaultCraftEditor();
+            if (mode === "result") {
+                state.craftEditor.resultInstance = inst;
+                var schemePick = state.schemesById[inst];
+                state.craftEditor.name = schemePick ? itemName(schemePick) : inst;
+            } else if (mode === "output") {
+                if (!state.craftEditor.outputs) state.craftEditor.outputs = [];
+                state.craftEditor.outputs.push({ instance: inst, amount: 1 });
+            } else {
+                state.craftEditor.ingredients.push({ role: mode, instance: inst, amount: 1 });
+            }
+            state.craftPicker = "";
+            return render(true);
+        }
+        if (action === "craft-out-remove") {
+            var oIdx = +el.dataset.idx;
+            if (state.craftEditor && state.craftEditor.outputs && !isNaN(oIdx)) {
+                state.craftEditor.outputs.splice(oIdx, 1);
+                return render(true);
+            }
+            return;
+        }
+        if (action === "craft-vob-picker-open") {
+            state.craftVobPickerOpen = true;
+            state.craftVobPickerFilter = "";
+            state.craftVobPickerCat = "";
+            state.vobCategory = "";
+            state.vobPage = 0;
+            state.vobForm.filter = "";
+            requestVobCatalog();
+            return render(true);
+        }
+        if (action === "craft-vob-picker-close") {
+            state.craftVobPickerOpen = false;
+            return render(true);
+        }
+        if (action === "craft-vob-source") {
+            state.vobSource = el.dataset.src || "data.xml";
+            state.vobPage = 0;
+            state.vobCategory = "";
+            state.craftVobPickerCat = "";
+            requestVobCatalog();
+            return render(true);
+        }
+        if (action === "craft-ing-remove") {
+            var idx = +el.dataset.idx;
+            if (state.craftEditor && !isNaN(idx)) {
+                state.craftEditor.ingredients.splice(idx, 1);
+                return render(true);
+            }
+            return;
+        }
+        if (action === "craft-save") {
+            if (!state.craftEditor) return;
+            if (!state.craftEditor.resultInstance) { setStatus("Wybierz przedmiot wynikowy", "error"); return; }
+            if (!state.craftEditor.name) {
+                var scheme = state.schemesById[state.craftEditor.resultInstance];
+                state.craftEditor.name = scheme ? itemName(scheme) : state.craftEditor.resultInstance;
+            }
+            send("craftingSave", state.craftEditor);
+            state.craftView = "list";
+            state.craftEditor = null;
+            state.craftPicker = "";
+            return render(true);
+        }
+        if (action === "craft-vob-toggle") {
+            var vis = String(el.dataset.visual || "").toUpperCase();
+            if (!vis || !state.craftEditor) return;
+            if (!state.craftEditor.visuals) state.craftEditor.visuals = [];
+            var pos = state.craftEditor.visuals.map(function (x) { return String(x).toUpperCase(); }).indexOf(vis);
+            if (pos !== -1) state.craftEditor.visuals.splice(pos, 1);
+            else state.craftEditor.visuals.push(vis);
+            return render(true);
+        }
+        if (action === "craft-vob-remove") {
+            var visR = String(el.dataset.visual || "").toUpperCase();
+            if (!visR || !state.craftEditor || !state.craftEditor.visuals) return;
+            var posR = state.craftEditor.visuals.map(function (x) { return String(x).toUpperCase(); }).indexOf(visR);
+            if (posR !== -1) state.craftEditor.visuals.splice(posR, 1);
+            return render(true);
+        }
+    }
+
+    function bindCraftHandlers() {
+        var filter = body.querySelector("[data-craft-filter]");
+        if (filter) {
+            filter.addEventListener("input", function () {
+                state.craftFilter = filter.value;
+                var list = body.querySelector(".adm-craft-list");
+                if (list) list.outerHTML = renderCraftList().replace(/.*<div class="adm-craft-list">/, '<div class="adm-craft-list">').replace(/<\/div>\s*<\/div>$/, "</div>");
+            });
+        }
+        var picker = body.querySelector("[data-craft-picker-filter]");
+        if (picker) {
+            picker.addEventListener("input", function () {
+                state.craftPickerFilter = picker.value;
+                render(true);
+            });
+        }
+        var pickerCat = body.querySelector("[data-craft-picker-cat]");
+        if (pickerCat) {
+            pickerCat.addEventListener("change", function () {
+                state.craftPickerCat = +pickerCat.value || 0;
+                render(true);
+            });
+        }
+        var vobFilter = body.querySelector("[data-craft-vob-filter]");
+        if (vobFilter) {
+            var vobFilterDebounce = null;
+            vobFilter.addEventListener("input", function () {
+                state.craftVobPickerFilter = vobFilter.value;
+                state.vobForm.filter = vobFilter.value;
+                state.vobPage = 0;
+                clearTimeout(vobFilterDebounce);
+                vobFilterDebounce = setTimeout(function () { requestVobCatalog(); render(true); }, 200);
+            });
+        }
+        var vobCat = body.querySelector("[data-craft-vob-cat]");
+        if (vobCat) {
+            vobCat.addEventListener("change", function () {
+                state.craftVobPickerCat = vobCat.value;
+                state.vobCategory = vobCat.value;
+                state.vobPage = 0;
+                requestVobCatalog();
+                render(true);
+            });
+        }
+        body.querySelectorAll("[data-craft-modal-bg]").forEach(function (bg) {
+            bg.addEventListener("click", function (ev) {
+                if (ev.target !== bg) return;
+                state.craftPicker = "";
+                state.craftVobPickerOpen = false;
+                render(true);
+            });
+        });
+        body.querySelectorAll("[data-craft-f]").forEach(function (el) {
+            var evName = el.tagName === "TEXTAREA" || el.type === "text" || el.type === "search" ? "input" : "change";
+            el.addEventListener(evName, function () {
+                if (!state.craftEditor) state.craftEditor = defaultCraftEditor();
+                var k = el.dataset.craftF;
+                var v = el.value;
+                if (k === "resultAmount" || k === "craftTimeMs" || k === "requiredLevel") v = +v || 0;
+                state.craftEditor[k] = v;
+            });
+        });
+        body.querySelectorAll("[data-craft-ing]").forEach(function (el) {
+            el.addEventListener("change", function () {
+                var idx = +el.dataset.craftIng;
+                var field = el.dataset.field;
+                if (!state.craftEditor || !state.craftEditor.ingredients[idx]) return;
+                var val = el.value;
+                if (field === "amount") val = Math.max(1, +val || 1);
+                state.craftEditor.ingredients[idx][field] = val;
+            });
+        });
+        body.querySelectorAll("[data-craft-out]").forEach(function (el) {
+            el.addEventListener("change", function () {
+                var idx = +el.dataset.craftOut;
+                if (!state.craftEditor || !state.craftEditor.outputs || !state.craftEditor.outputs[idx]) return;
+                state.craftEditor.outputs[idx].amount = Math.max(1, +el.value || 1);
+            });
+        });
+    }
 
     function init() {
         loadRenderDebug();

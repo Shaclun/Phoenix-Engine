@@ -696,7 +696,7 @@ phoenix.npc.Spawn <- {
 						} else {
 							local rec = phoenix.character.Structure.getActive(killerId)
 							if (rec != null) {
-								phoenix.npc.Bestiary.bump(rec.id, row.instance, null)
+								phoenix.npc.Bestiary.bumpFromEntry(rec.id, entry)
 								if (xp > 0) phoenix.player.Progression.awardExperience(killerId, xp)
 							}
 						}

@@ -12,4 +12,5 @@
 	<script src="server/teacher.nut" type="server" />
 	<script src="client/nameplates.nut" type="client" />
 	<script src="client/interaction.nut" type="client" />
+	<script src="client/bestiary.nut" type="client" />
 </server>

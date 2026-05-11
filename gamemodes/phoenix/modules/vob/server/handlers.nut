@@ -27,8 +27,21 @@ phoenix.vob.Handlers.onInteractRequest <- function(playerId, message) {
 	local id = message.vobId.tostring()
 	if (!(id in phoenix.vob.Structure.entries)) return
 	local entry = phoenix.vob.Structure.entries[id]
-	if (entry.interactive != true) return
+	local entryVisual = ""
+	try { entryVisual = ("visual" in entry && entry.visual != null) ? entry.visual.tostring().toupper() : "" } catch (eV) {}
+	local isStation = false
+	try {
+		if ("crafting" in phoenix && phoenix.crafting != null && "Structure" in phoenix.crafting) {
+			if (entryVisual != "" && entryVisual in phoenix.crafting.Structure.stationByVisual && phoenix.crafting.Structure.stationByVisual[entryVisual].len() > 0) isStation = true
+		}
+	} catch (eC) {}
+	local wantsCraft = false
+	try { if ("craftInteraction" in entry && entry.craftInteraction == true) wantsCraft = true } catch (eCi) {}
+	if (entry.interactive != true && !isStation && !wantsCraft && entry.entryKind != "item") return
 	if (phoenix.vob.Structure.pickupDroppedItem(playerId, id)) return
+	if (isStation || wantsCraft) {
+		try { phoenix.crafting.Crafter.open(playerId, id); return } catch (eS) {}
+	}
 	try { phoenix.notification.notify(playerId, "info", "VOB", phoenix.vob.GroundLabel(entry), 2500) } catch (e) {}
 }
 

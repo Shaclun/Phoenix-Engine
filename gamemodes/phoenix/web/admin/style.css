@@ -1178,3 +1178,425 @@ body.phoenix-admin-open .phoenix-chat {
     color: #dccca8;
     letter-spacing: 0.04em;
 }
+
+
+/* --- Crafting admin --- */
+.adm-craft-title {
+	font-weight: 700;
+	color: #f7c66a;
+	letter-spacing: 1.5px;
+}
+
+.adm-craft-list {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(380px, 1fr));
+	gap: 12px;
+	margin-top: 12px;
+}
+
+.adm-craft-card {
+	display: grid;
+	grid-template-columns: 72px 1fr auto;
+	align-items: center;
+	gap: 12px;
+	padding: 12px;
+	background: rgba(0, 0, 0, 0.28);
+	border: 1px solid rgba(214, 177, 105, 0.25);
+	border-radius: 8px;
+}
+
+.adm-craft-card__visual {
+	width: 72px;
+	height: 72px;
+	background: radial-gradient(120% 90% at 50% 35%, rgba(247, 198, 106, 0.12) 0%, rgba(0, 0, 0, 0.45) 80%);
+	border: 1px solid rgba(214, 177, 105, 0.25);
+	border-radius: 6px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	overflow: hidden;
+}
+
+.adm-craft-card__visual gothic-render {
+	width: 100% !important;
+	height: 100% !important;
+}
+
+.adm-craft-card__body {
+	display: flex;
+	flex-direction: column;
+	gap: 3px;
+	min-width: 0;
+}
+
+.adm-craft-card__body h4 {
+	margin: 0;
+	font-size: 15px;
+	color: #f6e6c8;
+	letter-spacing: 0.8px;
+}
+
+.adm-craft-card__body small {
+	color: #8b7550;
+	font-size: 11px;
+	letter-spacing: 1.3px;
+	text-transform: uppercase;
+}
+
+.adm-craft-card__meta {
+	color: #c9b58a;
+	font-size: 11px;
+	letter-spacing: 0.8px;
+}
+
+.adm-craft-card__actions {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+}
+
+.adm-craft-empty {
+	color: #8b7550;
+	font-size: 24px;
+	font-weight: 700;
+}
+
+.adm-craft-editor {
+	display: grid;
+	grid-template-columns: 220px 1fr;
+	gap: 16px;
+	margin-top: 12px;
+	padding: 14px;
+	background: rgba(0, 0, 0, 0.26);
+	border: 1px solid rgba(214, 177, 105, 0.22);
+	border-radius: 8px;
+}
+
+.adm-craft-editor__left {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	align-items: center;
+}
+
+.adm-craft-preview {
+	width: 180px;
+	height: 180px;
+	background: radial-gradient(120% 90% at 50% 35%, rgba(247, 198, 106, 0.14) 0%, rgba(0, 0, 0, 0.55) 80%);
+	border: 1px solid rgba(214, 177, 105, 0.3);
+	border-radius: 8px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	overflow: hidden;
+}
+
+.adm-craft-preview gothic-render {
+	width: 100% !important;
+	height: 100% !important;
+}
+
+.adm-craft-preview__label {
+	font-size: 12px;
+	color: #8b7550;
+	letter-spacing: 1.3px;
+	text-transform: uppercase;
+}
+
+.adm-craft-editor__right {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+.adm-craft-section-title {
+	margin: 20px 0 8px;
+	font-size: 12px;
+	letter-spacing: 2px;
+	text-transform: uppercase;
+	color: #c9b58a;
+	border-bottom: 1px solid rgba(214, 177, 105, 0.22);
+	padding-bottom: 6px;
+}
+
+.adm-craft-ing-list {
+	display: flex;
+	flex-direction: column;
+	gap: 6px;
+	margin-bottom: 8px;
+}
+
+.adm-craft-ing {
+	display: grid;
+	grid-template-columns: 48px 1fr 80px auto;
+	gap: 8px;
+	align-items: center;
+	padding: 6px 8px;
+	background: rgba(0, 0, 0, 0.28);
+	border: 1px solid rgba(214, 177, 105, 0.22);
+	border-radius: 6px;
+}
+
+.adm-craft-ing__visual {
+	width: 48px;
+	height: 48px;
+	background: radial-gradient(120% 90% at 50% 35%, rgba(247, 198, 106, 0.1) 0%, rgba(0, 0, 0, 0.4) 80%);
+	border: 1px solid rgba(214, 177, 105, 0.22);
+	border-radius: 4px;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	overflow: hidden;
+}
+
+.adm-craft-ing__visual gothic-render {
+	width: 100% !important;
+	height: 100% !important;
+}
+
+.adm-input--sm {
+	max-width: 80px;
+}
+
+.adm-craft-actions {
+	margin-top: 16px;
+	justify-content: flex-end;
+}
+
+.adm-craft-station-grid {
+	display: grid;
+	grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+	gap: 12px;
+	margin-top: 12px;
+}
+
+.adm-craft-station {
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+	padding: 12px;
+	background: rgba(0, 0, 0, 0.28);
+	border: 1px solid rgba(214, 177, 105, 0.24);
+	border-radius: 8px;
+}
+
+.adm-craft-station__head {
+	display: flex;
+	flex-direction: column;
+	gap: 2px;
+}
+
+.adm-craft-station__head strong {
+	color: #f7c66a;
+	letter-spacing: 0.8px;
+}
+
+.adm-craft-station__head small {
+	color: #8b7550;
+	font-size: 11px;
+	letter-spacing: 1.3px;
+}
+
+.adm-craft-station__list {
+	display: flex;
+	flex-direction: column;
+	gap: 4px;
+	max-height: 200px;
+	overflow-y: auto;
+	padding-right: 4px;
+}
+
+.adm-craft-station__chk {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+	padding: 4px 6px;
+	cursor: pointer;
+	color: #c9b58a;
+	font-size: 13px;
+	border-radius: 4px;
+}
+
+.adm-craft-station__chk:hover {
+	background: rgba(247, 198, 106, 0.08);
+	color: #f6e6c8;
+}
+
+.adm-help {
+	color: #8b7550;
+	font-size: 12px;
+	margin: 8px 0 12px;
+	letter-spacing: 0.5px;
+}
+
+
+.adm-craft-picker {
+	margin-top: 12px;
+	padding: 12px;
+	background: rgba(0, 0, 0, 0.35);
+	border: 1px solid rgba(214, 177, 105, 0.3);
+	border-radius: 8px;
+}
+
+.adm-craft-picker__head {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	margin-bottom: 10px;
+}
+
+.adm-craft-picker__head strong {
+	color: #f7c66a;
+	letter-spacing: 1.5px;
+}
+
+.adm-itemgrid--picker {
+	max-height: 360px;
+	overflow-y: auto;
+	padding-right: 4px;
+}
+
+.adm-craft-vob-picked {
+	padding: 10px;
+	background: rgba(0, 0, 0, 0.32);
+	border: 1px solid rgba(214, 177, 105, 0.25);
+	border-radius: 6px;
+	margin-bottom: 8px;
+	font-size: 12px;
+	color: #c9b58a;
+}
+
+.adm-craft-vob-picked strong {
+	color: #f7c66a;
+	margin-right: 8px;
+	letter-spacing: 1.2px;
+}
+
+.adm-craft-vob-chip {
+	display: inline-flex;
+	align-items: center;
+	gap: 6px;
+	padding: 4px 8px 4px 10px;
+	margin: 4px 4px 0 0;
+	background: rgba(247, 198, 106, 0.15);
+	border: 1px solid rgba(247, 198, 106, 0.45);
+	border-radius: 14px;
+	color: #f6e6c8;
+	font-size: 11px;
+	letter-spacing: 1px;
+}
+
+.adm-craft-vob-chip__x {
+	appearance: none;
+	background: transparent;
+	border: 0;
+	color: #e08878;
+	font-size: 14px;
+	cursor: pointer;
+	padding: 0 2px;
+	line-height: 1;
+}
+
+.adm-craft-vob-chip__x:hover { color: #ff5b3a; }
+
+.adm-vob-grid {
+	max-height: 380px;
+	overflow-y: auto;
+	padding-right: 4px;
+}
+
+
+.adm-craft-modal {
+	position: fixed;
+	inset: 0;
+	z-index: 9999;
+	background: rgba(0, 0, 0, 0.72);
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	backdrop-filter: blur(3px);
+}
+
+.adm-craft-modal__panel {
+	width: min(900px, 92vw);
+	max-height: 86vh;
+	display: flex;
+	flex-direction: column;
+	background: linear-gradient(180deg, rgba(14, 10, 7, 0.98), rgba(8, 6, 4, 0.98));
+	border: 1px solid rgba(214, 177, 105, 0.5);
+	border-radius: 10px;
+	box-shadow: 0 24px 70px rgba(0, 0, 0, 0.7), inset 0 0 80px rgba(40, 22, 12, 0.4);
+	color: #f6e6c8;
+}
+
+.adm-craft-modal__panel--wide {
+	width: min(1100px, 95vw);
+}
+
+.adm-craft-modal__head {
+	display: flex;
+	justify-content: space-between;
+	align-items: center;
+	padding: 14px 20px;
+	border-bottom: 1px solid rgba(214, 177, 105, 0.25);
+}
+
+.adm-craft-modal__head h3 {
+	margin: 0;
+	color: #f7c66a;
+	letter-spacing: 1.6px;
+	font-size: 17px;
+}
+
+.adm-craft-modal__tools {
+	display: flex;
+	gap: 10px;
+	padding: 12px 20px;
+	align-items: center;
+	border-bottom: 1px solid rgba(214, 177, 105, 0.18);
+	flex-wrap: wrap;
+}
+
+.adm-craft-modal__tools .adm-input {
+	flex: 1;
+	min-width: 200px;
+}
+
+.adm-craft-modal__body {
+	padding: 14px 20px;
+	overflow-y: auto;
+	flex: 1 1 auto;
+	min-height: 0;
+}
+
+.adm-craft-modal__foot {
+	padding: 12px 20px;
+	border-top: 1px solid rgba(214, 177, 105, 0.25);
+	display: flex;
+	justify-content: flex-end;
+	gap: 10px;
+}
+
+.adm-vob-source-tabs {
+	flex-shrink: 0;
+}
+
+.adm-craft-vob-summary {
+	padding: 12px;
+	background: rgba(0, 0, 0, 0.3);
+	border: 1px solid rgba(214, 177, 105, 0.25);
+	border-radius: 8px;
+	display: flex;
+	flex-direction: column;
+	gap: 10px;
+}
+
+
+.adm-craft-preview--empty {
+	color: #8b7550;
+	font-size: 12px;
+	letter-spacing: 1.3px;
+	text-transform: uppercase;
+	padding: 12px;
+	text-align: center;
+}

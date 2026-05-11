@@ -1,0 +1,11 @@
+<server>
+	<script src="shared/namespace.nut" type="shared" />
+	<script src="shared/messages.nut" type="shared" />
+
+	<script src="server/models.nut" type="server" />
+	<script src="server/structure.nut" type="server" />
+	<script src="server/crafter.nut" type="server" />
+	<script src="server/admin.nut" type="server" />
+
+	<script src="client/interface.nut" type="client" />
+</server>
