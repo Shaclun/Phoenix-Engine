@@ -224,9 +224,15 @@ phoenix.crafting.Crafter <- {
 		if (queue.len() == 0) { if (callback != null) callback(true); return }
 		local first = queue[0]
 		local rest = queue.slice(1)
-		phoenix.item.Structure.takeInstance(PhoenixInventoryOwner.Player, characterId, first.instance, first.amount, function (ok) {
+		local instUp = first.instance != null ? first.instance.tostring().toupper() : ""
+		print("[craft] consume " + instUp + " x" + first.amount + " charId=" + characterId + "\n")
+		local have = phoenix.item.Structure.countInstance(PhoenixInventoryOwner.Player, characterId, instUp)
+		print("[craft] have=" + have + "\n")
+		phoenix.item.Structure.takeInstance(PhoenixInventoryOwner.Player, characterId, instUp, first.amount, function (ok) {
+			print("[craft] takeInstance ok=" + (ok ? 1 : 0) + "\n")
 			if (!ok) { if (callback != null) callback(false); return }
-			try { ::removeItem(playerId, first.instance, first.amount) } catch (e) {}
+			try { ::removeItem(playerId, instUp, first.amount) } catch (e) {}
+			try { phoenix.item.Structure.sendInventorySnapshot(playerId, characterId) } catch (eSn) {}
 			phoenix.crafting.Crafter._consumeAll(characterId, playerId, rest, callback)
 		})
 	}

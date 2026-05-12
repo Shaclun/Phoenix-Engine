@@ -40,9 +40,12 @@
 		{ id: "all",         labelKey: "inv.tab.all",         icon: "✦",  cats: null },
 		{ id: "weapons",     labelKey: "inv.tab.weapons",     icon: "⚔",  cats: [1, 2, 3, 4, 15] },
 		{ id: "armor",       labelKey: "inv.tab.armor",       icon: "🛡", cats: [5, 6, 7] },
+		{ id: "jewelry",     labelKey: "inv.tab.jewelry",     icon: "💍", cats: [8, 9, 10] },
 		{ id: "magic",       labelKey: "inv.tab.magic",       icon: "📜", cats: [11, 12] },
 		{ id: "consumables", labelKey: "inv.tab.consumables", icon: "🧪", cats: [13, 14] },
-		{ id: "other",       labelKey: "inv.tab.other",       icon: "◆",  cats: [8, 9, 10, 16, 17, 18, 19] }
+		{ id: "materials",   labelKey: "inv.tab.materials",   icon: "⛏",  cats: [16] },
+		{ id: "docs",        labelKey: "inv.tab.docs",        icon: "📖", cats: [17, 18] },
+		{ id: "other",       labelKey: "inv.tab.other",       icon: "◆",  cats: [19] }
 	];
 
 	let state = {

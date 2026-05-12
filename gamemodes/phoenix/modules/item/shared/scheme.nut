@@ -5,6 +5,8 @@ class phoenix.item.Scheme {
 	category     = 0
 	name         = ""
 	description  = ""
+	labels       = null
+	descriptions = null
 
 	value        = 0
 
@@ -33,6 +35,8 @@ class phoenix.item.Scheme {
 		category    = PhoenixItemCategory.Misc
 		name        = instanceId
 		description = ""
+		labels      = { pl = "", en = "", de = "", ru = "" }
+		descriptions = { pl = "", en = "", de = "", ru = "" }
 		value       = 0
 		visual      = null
 		weight      = 0.0
@@ -47,12 +51,42 @@ class phoenix.item.Scheme {
 		slot        = PhoenixItemSlot.None
 
 		if (data != null) merge(data)
+
+		if (labels == null) labels = { pl = "", en = "", de = "", ru = "" }
+		if (descriptions == null) descriptions = { pl = "", en = "", de = "", ru = "" }
+		if (labels.pl == "" && name != instanceId) labels.pl = name
+		if (descriptions.pl == "" && description != "") descriptions.pl = description
 	}
 
 	function merge(data) {
 		foreach (k, v in data) {
 			if (k in this) this[k] = v
 		}
+	}
+
+	function labelFor(lang) {
+		if (lang != null && labels != null) {
+			try {
+				if (lang == "en" && labels.en != "") return labels.en
+				if (lang == "de" && labels.de != "") return labels.de
+				if (lang == "ru" && labels.ru != "") return labels.ru
+				if (labels.pl != "") return labels.pl
+			} catch (e) {}
+		}
+		if (name != null && name != "") return name
+		return instance
+	}
+
+	function descriptionFor(lang) {
+		if (lang != null && descriptions != null) {
+			try {
+				if (lang == "en" && descriptions.en != "") return descriptions.en
+				if (lang == "de" && descriptions.de != "") return descriptions.de
+				if (lang == "ru" && descriptions.ru != "") return descriptions.ru
+				if (descriptions.pl != "") return descriptions.pl
+			} catch (e) {}
+		}
+		return description != null ? description : ""
 	}
 
 	function isStackable() {

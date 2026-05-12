@@ -1,0 +1,351 @@
+﻿instance ItMw_1h_Vlk_Dagger(C_Item)
+name = "Sztylet";
+visual = "Itmw_005_1h_dagger_01.3DS";
+instance ItMw_1H_Mace_L_01(C_Item)
+name = "Pogrzebacz";
+visual = "Itmw_005_1h_poker_01.3DS";
+instance ItMw_1h_Bau_Axe(C_Item)
+name = "Sierp";
+visual = "Itmw_007_1h_sickle_01.3DS";
+instance ItMw_1h_Vlk_Mace(C_Item)
+name = "Laska";
+visual = "Itmw_008_1h_pole_01.3ds";
+instance ItMw_1H_Mace_L_03(C_Item)
+name = "Pałka";
+visual = "ItMw_008_1h_mace_light_01.3DS";
+instance ItMw_1h_Bau_Mace(C_Item)
+name = "Laga";
+visual = "ItMw_010_1h_Club_01.3DS";
+instance ItMw_1h_Vlk_Axe(C_Item)
+name = "Topór";
+visual = "Itmw_010_1h_vlk_hatchet_01.3DS";
+instance ItMw_1H_Mace_L_04(C_Item)
+name = "Młot kowalski";
+visual = "ItMw_010_1h_sledgehammer_01.3DS";
+instance ItMw_ShortSword1(C_Item)
+name = "Krótki miecz straży";
+visual = "ItMw_010_1h_Sword_short_01.3DS";
+instance ItMw_Nagelknueppel(C_Item)
+name = "Maczuga z kolcami";
+visual = "ItMw_012_1h_Nailmace_01.3DS";
+instance ItMw_1H_Sword_L_03(C_Item)
+name = "Nóż na wilki";
+visual = "ItMw_012_1h_Knife_02.3DS";
+instance ItMw_ShortSword2(C_Item)
+name = "Kiepski krótki miecz";
+visual = "ItMw_012_1h_Sword_short_02.3DS";
+instance ItMw_Sense(C_Item)
+name = "Mała kosa";
+visual = "ItMw_012_1h_Scythe_01.3DS";
+instance ItMw_1h_Vlk_Sword(C_Item)
+name = "Miecz";
+visual = "ItMw_018_1h_SwordCane_01.3ds";
+instance ItMw_1h_Nov_Mace(C_Item)
+name = "Pika bojowa";
+visual = "ItMw_020_2h_Nov_Staff_01.3DS";
+instance ItMw_2h_Bau_Axe(C_Item)
+name = "Topór drwala";
+visual = "ItMw_020_2h_Axe_Lumberjack_01.3ds";
+instance ItMw_2H_Axe_L_01(C_Item)
+name = "Kilof";
+visual = "ItMw_020_2h_Pickaxe_01.3DS";
+instance ItMw_1h_MISC_Sword(C_Item)
+name = "Zardzewiały krótki miecz";
+visual = "ItMw_020_1h_sword_old_01.3DS";
+instance ItMw_1h_Misc_Axe(C_Item)
+name = "Zardzewiały topór";
+visual = "ItMw_025_2h_Misc_Axe_old_01.3DS";
+instance ItMw_2H_Sword_M_01(C_Item)
+name = "Zardzewiały miecz dwuręczny";
+visual = "ItMw_025_2h_Sword_old_01.3DS";
+instance ItMw_1h_Mil_Sword(C_Item)
+name = "Kiepski szeroki miecz";
+visual = "Itmw_025_1h_Mil_Sword_broad_01.3DS";
+instance ItMw_1h_Sld_Axe(C_Item)
+name = "Kiepski tasak";
+visual = "ItMw_025_1h_sld_axe_01.3DS";
+instance ItMw_1h_Sld_Sword(C_Item)
+name = "Kiepski miecz";
+visual = "ItMw_025_1h_sld_sword_01.3DS";
+instance ItMw_2h_Sld_Axe(C_Item)
+name = "Kiepski topór bojowy";
+visual = "ItMw_035_2h_sld_axe_01.3DS";
+instance ItMw_2h_Sld_Sword(C_Item)
+name = "Kiepski miecz dwuręczny";
+visual = "ItMw_035_2h_sld_sword_01.3DS";
+instance ItMw_1h_Pal_Sword(C_Item)
+name = "Miecz paladyna";
+visual = "ItMw_030_1h_PAL_Sword_02.3DS";
+instance ItMw_2h_Pal_Sword(C_Item)
+name = "Miecz dwuręczny paladyna";
+visual = "ItMw_040_2h_PAL_Sword_03.3DS";
+instance ItMw_2H_OrcAxe_01(C_Item)
+name = "Lekki orkowy topór";
+visual = "ItMw_2H_OrcAxe_01.3DS";
+instance ItMw_2H_OrcAxe_02(C_Item)
+name = "Średni orkowy topór";
+visual = "ItMw_2H_OrcAxe_02.3DS";
+instance ItMw_2H_OrcAxe_03(C_Item)
+name = "Ciężki orkowy topór";
+visual = "ItMw_2H_OrcAxe_03.3DS";
+instance ItMw_2H_OrcAxe_04(C_Item)
+name = "Ogromny orkowy topór";
+visual = "ItMw_2H_OrcAxe_04.3DS";
+instance ItMw_2H_OrcSword_01(C_Item)
+name = "Jaszczurzy miecz";
+visual = "ItMw_2H_OrcSword_01.3DS";
+instance ItMw_2H_OrcSword_02(C_Item)
+name = "Orkowy miecz wojenny";
+visual = "ItMw_2H_OrcSword_02.3DS";
+instance ItMw_ShortSword3(C_Item)
+name = "Krótki miecz";
+visual = "ItMw_016_1h_Sword_short_03.3DS";
+instance ItMw_Nagelkeule(C_Item)
+name = "Pałka z kolcami";
+visual = "ItMw_018_1h_Mace_01.3DS";
+instance ItMw_ShortSword4(C_Item)
+name = "Wilczy kieł";
+visual = "ItMw_020_1h_Sword_short_04.3DS";
+instance ItMw_Kriegskeule(C_Item)
+name = "Pałka bojowa";
+visual = "ItMw_022_1h_mace_war_01.3DS";
+instance ItMw_Richtstab(C_Item)
+name = "Kostur sędziego";
+visual = "ItMw_025_2h_Staff_02.3DS";
+instance ItMw_ShortSword5(C_Item)
+name = "Dobry krótki miecz";
+visual = "ItMw_025_1h_Sword_short_05.3DS";
+instance ItMw_Kriegshammer1(C_Item)
+name = "Młot wojenny";
+visual = "ItMw_028_1h_warhammer_01.3DS";
+instance ItMw_Hellebarde(C_Item)
+name = "Halabarda";
+visual = "itmw_028_2h_halberd_01.3DS";
+instance ItMw_Nagelkeule2(C_Item)
+name = "Ciężka pałka z kolcami";
+visual = "ItMw_018_1h_Mace_01.3DS";
+instance ItMw_Schiffsaxt(C_Item)
+name = "Topór marynarski";
+visual = "ItMw_030_1h_axe_01.3DS";
+instance ItMw_Piratensaebel(C_Item)
+name = "Piracki kordelas";
+visual = "ItMw_030_1h_sword_03.3DS";
+instance ItMw_Schwert(C_Item)
+name = "Kiepski długi miecz";
+visual = "ItMw_030_1h_sword_long_01.3DS";
+instance ItMw_1H_Common_01(C_Item)
+visual = "ItMw_030_1h_Common_Sword_01.3DS";
+instance ItMw_Stabkeule(C_Item)
+name = "Buława drzewcowa";
+visual = "ItMw_032_2h_staff_03.3DS";
+instance ItMw_Zweihaender1(C_Item)
+name = "Lekki miecz dwuręczny";
+visual = "ItMw_032_2h_sword_light_01.3DS";
+instance ItMw_Steinbrecher(C_Item)
+name = "Oskard";
+visual = "ItMw_035_1h_mace_war_02.3DS";
+instance ItMw_Spicker(C_Item)
+name = "Rębiczerep";
+visual = "ItMw_035_1h_mace_03.3DS";
+instance ItMw_Streitaxt1(C_Item)
+name = "Lekki topór bojowy";
+visual = "ItMw_035_2h_Axe_light_03.3DS";
+instance ItMw_Schwert1(C_Item)
+name = "Dobry miecz";
+visual = "ItMw_035_1h_Sword_04.3DS";
+instance ItMw_Schwert2(C_Item)
+name = "Długi miecz";
+visual = "ItMw_037_1h_sword_long_02.3DS";
+instance ItMw_Doppelaxt(C_Item)
+name = "Topór obosieczny";
+visual = "ItMw_040_1h_Axe_02.3DS";
+instance ItMw_Bartaxt(C_Item)
+name = "Wielki topór";
+visual = "ItMw_040_1h_axe_03.3DS";
+instance ItMw_Morgenstern(C_Item)
+name = "Buława i łańcuch";
+visual = "ItMW_045_1h_mace_04.3DS";
+instance ItMw_Schwert3(C_Item)
+name = "Kiepski miecz półtoraręczny";
+visual = "ItMw_045_1h_Sword_Bastard_01.3DS";
+instance ItMw_Schwert4(C_Item)
+name = "Dobry długi miecz";
+visual = "ItMw_045_1h_Sword_long_04.3DS";
+instance ItMw_1H_Special_01(C_Item)
+visual = "ItMw_045_1h_Sword_smith_02.3DS";
+instance ItMw_2H_Special_01(C_Item)
+visual = "ItMw_050_2h_Sword_smith_02.3DS";
+instance ItMw_Rapier(C_Item)
+name = "Rapier";
+visual = "ItMw_050_1h_Sword_Rapier_01.3ds";
+instance ItMw_Rubinklinge(C_Item)
+name = "Rubinowe ostrze";
+visual = "ItMw_050_1h_sword_05.3DS";
+instance ItMw_Streitkolben(C_Item)
+name = "Buława";
+visual = "ItMw_050_1h_mace_war_03.3DS";
+instance ItMw_Zweihaender2(C_Item)
+name = "Miecz dwuręczny";
+visual = "ItMw_055_2h_sword_light_05.3DS";
+instance ItMw_Runenschwert(C_Item)
+name = "Miecz runiczny";
+visual = "ItMw_055_1h_sword_long_05.3DS";
+instance ItMw_Rabenschnabel(C_Item)
+name = "Kruczy Dziób";
+visual = "ItMw_058_1h_warhammer_02.3DS";
+instance ItMw_Schwert5(C_Item)
+name = "Dobry miecz półtoraręczny";
+visual = "ItMw_058_1h_Sword_Bastard_02.3DS";
+instance ItMw_Inquisitor(C_Item)
+name = "Inkwizytor";
+visual = "ItMw_060_1h_mace_war_04.3DS";
+instance ItMw_Streitaxt2(C_Item)
+name = "Topór bojowy";
+visual = "ItMw_060_2h_axe_heavy_01.3DS";
+instance ItMw_Zweihaender3(C_Item)
+name = "Runa mocy";
+visual = "ItMw_060_2h_sword_01.3DS";
+instance ItMw_1H_Special_02(C_Item)
+visual = "ItMw_060_1h_Sword_smith_03.3DS";
+instance ItMw_2H_Special_02(C_Item)
+visual = "ItMw_070_2h_Sword_smith_03.3DS";
+instance ItMw_ElBastardo(C_Item)
+name = "El Bastardo";
+visual = "ItMw_065_1h_sword_bastard_03.3DS";
+instance ItMw_Kriegshammer2(C_Item)
+name = "Ciężki młot wojenny";
+visual = "ItMw_065_1h_warhammer_03.3DS";
+instance ItMw_Meisterdegen(C_Item)
+name = "Miecz mistrzowski";
+visual = "ItMw_065_1h_SwordCane_02.3ds";
+instance ItMw_Folteraxt(C_Item)
+name = "Katowski topór";
+visual = "ItMw_065_2h_greataxe_01.3DS";
+instance ItMw_Orkschlaechter(C_Item)
+name = "Orkowa Zguba";
+visual = "ItMw_065_1h_sword_bastard_04.3DS";
+instance ItMw_Zweihaender4(C_Item)
+name = "Ciężki miecz dwuręczny";
+visual = "ItMw_068_2h_sword_02.3DS";
+instance ItMw_Schlachtaxt(C_Item)
+name = "Topór wojenny";
+visual = "ItMw_070_2h_axe_heavy_03.3DS";
+instance ItMw_Krummschwert(C_Item)
+name = "Kordelas";
+visual = "ItMw_070_2h_sword_09.3DS";
+instance ItMw_Barbarenstreitaxt(C_Item)
+name = "Barbarzyński topór bojowy";
+visual = "ItMw_075_2h_axe_heavy_04.3DS";
+instance ItMw_Sturmbringer(C_Item)
+name = "Ostrze Burzy";
+visual = "ItMw_075_2h_sword_heavy_03.3DS";
+instance ItMw_1H_Special_03(C_Item)
+visual = "ItMw_075_1h_sword_smith_04.3DS";
+instance ItMw_2H_Special_03(C_Item)
+visual = "ItMw_090_2h_sword_smith_04.3DS";
+instance ItMw_Berserkeraxt(C_Item)
+name = "Topór berserkera";
+visual = "ItMw_080_2h_axe_heavy_02.3DS";
+instance ItMw_Drachenschneide(C_Item)
+name = "Smocza Zguba";
+visual = "itMw_080_2h_sword_heavy_04.3DS";
+instance ItMw_1H_Special_04(C_Item)
+visual = "ItMw_090_1h_sword_smith_05.3DS";
+instance ItMw_2H_Special_04(C_Item)
+visual = "ItMw_110_2h_sword_smith_05.3DS";
+instance ItMw_1H_Blessed_01(C_Item)
+name = "Kiepskie ostrze magiczne";
+visual = "itmw_030_1h_PAL_sword_bastard_RAW_01.3ds";
+instance ItMw_1H_Blessed_02(C_Item)
+name = "Błogosławione ostrze magiczne";
+visual = "ItMw_030_1h_PAL_sword_bastard_RAW_01.3DS";
+instance ItMw_1H_Blessed_03(C_Item)
+name = "Gniew Innosa";
+visual = "ItMw_030_1h_PAL_sword_bastard_RAW_01.3DS";
+instance ItMw_2H_Blessed_01(C_Item)
+name = "Kiepskie ostrze magiczne";
+visual = "ItMw_040_2h_PAL_sword_heavy_RAW_01.3DS";
+instance ItMw_2H_Blessed_02(C_Item)
+name = "Miecz Zakonu";
+visual = "ItMw_040_2h_PAL_sword_heavy_RAW_01.3DS";
+instance ItMw_2H_Blessed_03(C_Item)
+name = "Święty Kat";
+visual = "ItMw_040_2h_PAL_sword_heavy_RAW_01.3DS";
+instance ItMW_Addon_Knife01(C_Item)
+name = "Nóż na wilki";
+visual = "ItMw_012_1h_Knife_02.3DS";
+instance ItMW_Addon_Stab01(C_Item)
+name = "Kostur maga";
+visual = "ItMW_MageStaff_Good_2H_01.3DS";
+instance ItMW_Addon_Stab02(C_Item)
+name = "Magiczna różdżka";
+visual = "ItMW_MageStaff_Good_2H_02.3DS";
+instance ItMW_Addon_Stab03(C_Item)
+name = "Wodny kostur";
+visual = "ItMW_MageStaff_Blades_2H_01.3DS";
+instance ItMW_Addon_Stab04(C_Item)
+name = "Kostur Ulthara";
+visual = "ItMW_MageStaff_Good_2H_02.3DS";
+instance ItMW_Addon_Stab05(C_Item)
+name = "Tajfun";
+visual = "ItMW_MageStaff_Blades_2H_01.3DS";
+instance ItMW_Addon_Hacker_1h_01(C_Item)
+name = "Maczeta";
+visual = "ItMw_1H_Machete_02.3DS";
+instance ItMW_Addon_Hacker_1h_02(C_Item)
+name = "Stara maczeta";
+visual = "ItMw_1H_Machete_01.3DS";
+instance ItMW_Addon_Hacker_2h_01(C_Item)
+name = "Wielka maczeta";
+visual = "ItMw_2H_Machete_02.3DS";
+instance ItMW_Addon_Hacker_2h_02(C_Item)
+name = "Wielka, stara maczeta";
+visual = "ItMw_2H_Machete_01.3DS";
+instance ItMW_Addon_Keule_1h_01(C_Item)
+name = "Sługa Wiatru";
+visual = "ItMW_Club_1H_01.3DS";
+instance ItMW_Addon_Keule_2h_01(C_Item)
+name = "Sługa Burzy";
+visual = "ItMW_Club_2H_01.3DS";
+instance ItMw_FrancisDagger_Mis(C_Item)
+name = "Złoty sztylet";
+visual = "Itmw_005_1h_dagger_01.3DS";
+instance ItMw_RangerStaff_Addon(C_Item)
+name = "Pika bojowa Wodnego Kręgu";
+visual = "ItMw_020_2h_Nov_Staff_01.3DS";
+instance ItMw_Addon_PIR2hAxe(C_Item)
+name = "Miażdżydeska";
+visual = "ItMw_070_2h_axe_heavy_03.3DS";
+instance ItMw_Addon_PIR2hSword(C_Item)
+name = "Miecz pokładowy";
+visual = "ItMw_070_2h_sword_09.3DS";
+instance ItMw_Addon_PIR1hAxe(C_Item)
+name = "Topór pokładowy";
+visual = "ItMw_030_1h_axe_01.3DS";
+instance ItMw_Addon_PIR1hSword(C_Item)
+name = "Kordelas";
+visual = "ItMw_030_1h_sword_03.3DS";
+instance ItMw_Addon_BanditTrader(C_Item)
+name = "Pałasz bandytów";
+visual = "ItMw_018_1h_SwordCane_01.3ds";
+instance ItMw_Addon_Betty(C_Item)
+name = "Betty";
+visual = "ItMw_065_1h_sword_bastard_03.3DS";
+instance ItRw_Addon_MagicArrow(C_Item)
+name = "Magiczna strzała";
+visual = "ItRw_Arrow.3ds";
+instance ItRw_Addon_FireArrow(C_Item)
+name = "Ognista strzała";
+visual = "ItRw_Arrow.3ds";
+instance ItRw_Addon_MagicBow(C_Item)
+name = "Magiczny łuk";
+visual = "ItRw_Bow_H_04.mms";
+instance ItRw_Addon_FireBow(C_Item)
+name = "Ognisty łuk";
+visual = "ItRw_Bow_H_04.mms";
+instance ItRw_Addon_MagicBolt(C_Item)
+name = "Magiczny bełt";
+visual = "ItRw_Bolt.3ds";
+instance ItRw_Addon_MagicCrossbow(C_Item)
+name = "Magiczna kusza";
+visual = "ItRw_Crossbow_H_01.mms";
