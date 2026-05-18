@@ -190,13 +190,28 @@ phoenix.vob.Ground <- {
 	}
 
 	function findNearest(heroPos) {
+		// Only select a VOB the player is actually looking at (within ±35 degrees
+		// of their facing direction). This prevents accidental interaction with
+		// nearby VOBs the player doesn't intend to use.
+		local heroAngle = 0.0
+		try { heroAngle = getPlayerAngle(heroId) } catch (e) { return "" }
 		local best = ""
 		local bestDist = phoenix.vob.Ground.range
 		foreach (vobId, entry in phoenix.vob.Ground.entries) {
 			if (!phoenix.vob.Ground.isInteractive(entry)) continue
 			if (!phoenix.vob.Ground.worldMatches(entry)) continue
 			local d = phoenix.vob.Ground.dist(heroPos, { x = entry.x, y = entry.y, z = entry.z })
-			if (d < bestDist) { bestDist = d; best = vobId }
+			if (d >= bestDist) continue
+			// Check if VOB is within the player's view cone
+			local dx = entry.x - heroPos.x
+			local dz = entry.z - heroPos.z
+			local angleToVob = atan2(dx, dz) * 180.0 / 3.14159265
+			local diff = angleToVob - heroAngle
+			while (diff > 180.0) diff -= 360.0
+			while (diff < -180.0) diff += 360.0
+			if (diff < -35.0 || diff > 35.0) continue
+			bestDist = d
+			best = vobId
 		}
 		return best
 	}
