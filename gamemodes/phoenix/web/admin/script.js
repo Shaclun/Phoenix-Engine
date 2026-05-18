@@ -3196,7 +3196,14 @@
         var pl = p.payload || {};
         if (p.action === "players" && p.success) { state.players = pl.players || []; return render(); }
         if (p.action === "schemes" && p.success) {
-            state.schemes = pl.schemes || [];
+            var chunkCount = pl.chunkCount || 1;
+            var chunkIndex = pl.chunkIndex || 0;
+            if (chunkIndex === 0) state._schemeBuf = [];
+            if (!state._schemeBuf) state._schemeBuf = [];
+            (pl.schemes || []).forEach(function (s) { state._schemeBuf.push(s); });
+            if (chunkIndex + 1 < chunkCount) return; // wait for more chunks
+            state.schemes = state._schemeBuf;
+            state._schemeBuf = null;
             state.schemesById = {};
             state.schemes.forEach(function (s) { state.schemesById[s.instance] = s; });
             if (activeTab === "craft") render(true);

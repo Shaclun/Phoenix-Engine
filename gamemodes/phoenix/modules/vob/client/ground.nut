@@ -88,7 +88,7 @@ phoenix.vob.Ground <- {
 		local noCollision = false
 		try { noCollision = entry.noCollision == true } catch (eC) {}
 		if (entry.entryKind == "item") noCollision = true
-		try { obj.cdDynamic = false } catch (e5) {}
+		try { obj.cdDynamic = !noCollision } catch (e5) {}
 		try { obj.cdStatic = !noCollision } catch (e6) {}
 		try { obj.visualAlpha = 1.0 } catch (e7) {}
 		try { obj.visible = true } catch (e8) {}

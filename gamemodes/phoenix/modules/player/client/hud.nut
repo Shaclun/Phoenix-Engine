@@ -112,6 +112,30 @@ phoenix.player.Message.KnockedDown.bind(phoenix.player.HudClient.onKnockedDown)
 phoenix.player.Message.Revived.bind(phoenix.player.HudClient.onRevived)
 phoenix.web.Router.on("phoenix:player:respawnChoice", phoenix.player.HudClient.onRespawnChoice)
 
+phoenix.player.HotbarClient <- {
+	function onSnapshot(message) {
+		try { phoenix.web.Manager.emit("phoenix:hotbar:snapshot", { data = message.data }) } catch (e) {}
+	}
+
+	function onSave(payload) {
+		if (payload == null || !("data" in payload)) return
+		local m = phoenix.player.Message.HotbarUpdate()
+		m.data = payload.data.tostring()
+		try { m.serialize().send(RELIABLE_ORDERED) } catch (e) {}
+	}
+}
+
+phoenix.player.HotbarUse <- {
+	function use(slot) {
+		local m = phoenix.player.Message.HotbarActivate()
+		m.slot = slot
+		try { m.serialize().send(RELIABLE) } catch (e) {}
+	}
+}
+
+phoenix.player.Message.HotbarSnapshot.bind(phoenix.player.HotbarClient.onSnapshot)
+phoenix.web.Router.on("phoenix:hotbar:save", phoenix.player.HotbarClient.onSave)
+
 addEventHandler("onRender", function () {
 	if (!phoenix.player.HudClient.knockedDown) return
 	try {

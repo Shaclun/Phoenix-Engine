@@ -1,6 +1,7 @@
 phoenix.player.Controls <- {
 	dettached = false
 	sitting = false
+	_keyHeld = {}
 
 	function dettach() {
 		if (dettached) return
@@ -45,6 +46,34 @@ addEventHandler("onInit", function() {
 addEventHandler("phoenix.character.OnSelected", function(_characterId, _name) {
 	phoenix.player.Controls.attach()
 	phoenix.player.Controls.sitting = false
+})
+
+addEventHandler("onKeyDown", function(key) {
+	if (phoenix.player.Controls.dettached) return
+	try { if (phoenix.player.HudClient.knockedDown) return } catch (e) {}
+	try { if (phoenix.chat.Client.inputOpen) return } catch (e) {}
+	try { if (phoenix.chat.Client.menuOpen) return } catch (e) {}
+	try { if (phoenix.web.Manager.isUiBlocking()) return } catch (e) {}
+	local slot = -1
+	if (key == KEY_1) slot = 0
+	else if (key == KEY_2) slot = 1
+	else if (key == KEY_3) slot = 2
+	else if (key == KEY_4) slot = 3
+	else if (key == KEY_5) slot = 4
+	else if (key == KEY_6) slot = 5
+	else if (key == KEY_7) slot = 6
+	else if (key == KEY_8) slot = 7
+	if (slot < 0) return
+	try { cancelEvent() } catch (e) {}
+	local now = getTickCount()
+	local last = (key in phoenix.player.Controls._keyHeld) ? phoenix.player.Controls._keyHeld[key] : 0
+	if (now - last < 700) return
+	phoenix.player.Controls._keyHeld[key] <- now
+	try { phoenix.player.HotbarUse.use(slot) } catch (e) {}
+})
+
+addEventHandler("onKeyUp", function(key) {
+	if (key in phoenix.player.Controls._keyHeld) phoenix.player.Controls._keyHeld.rawdelete(key)
 })
 
 addEventHandler("onKeyDown", function(key) {

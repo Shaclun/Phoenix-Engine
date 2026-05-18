@@ -33,28 +33,12 @@ if ("Router" in phoenix.web && phoenix.web.Router != null) {
 	})
 
 	phoenix.web.Router.on("phoenix:hotbar:use", function(payload) {
-		if (payload == null || !("instance" in payload)) return
-		local target = null
-		foreach (it in phoenix.item.Model.items) {
-			if (it.instance == payload.instance) {
-				if (target == null) target = it
-				else if (it.equipped) target = it
-			}
-		}
-		if (target == null) return
-		local category = ("category" in target) ? target.category : 0
-		local isWeapon = category == PhoenixItemCategory.Weapon1H || category == PhoenixItemCategory.Weapon2H || category == PhoenixItemCategory.Bow || category == PhoenixItemCategory.Crossbow
-		local isEquipment = category >= PhoenixItemCategory.Weapon1H && category <= PhoenixItemCategory.Belt
-		if (isWeapon && target.equipped) {
-			local mode = WEAPONMODE_1HS
-			if (category == PhoenixItemCategory.Weapon2H) mode = WEAPONMODE_2HS
-			else if (category == PhoenixItemCategory.Bow) mode = WEAPONMODE_BOW
-			else if (category == PhoenixItemCategory.Crossbow) mode = WEAPONMODE_CBOW
-			try { drawWeapon(heroId, mode) } catch (e) {}
-		} else if (isEquipment) {
-			phoenix.item.Model.requestEquip(target.id, !target.equipped)
-		} else {
-			phoenix.item.Model.requestUse(target.id)
-		}
+		if (payload == null) return
+		local slot = -1
+		if ("slot" in payload) slot = payload.slot.tointeger()
+		if (slot < 0 || slot > 7) return
+		local m = phoenix.player.Message.HotbarActivate()
+		m.slot = slot
+		try { m.serialize().send(RELIABLE) } catch (e) {}
 	})
 }

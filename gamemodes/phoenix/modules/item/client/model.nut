@@ -30,7 +30,8 @@ phoenix.item.Model._enrich <- function(entry) {
 	entry.weight      <- scheme.weight
 
 	entry.visual      <- phoenix.item.lookupVisual(entry.instance)
-	entry.onUse       <- scheme.onUse
+	entry.onUse       <- scheme.onUse != null
+	entry.onUseKind   <- scheme.onUse != null ? scheme.onUse.tostring() : ""
 	entry.category    <- scheme.category
 	entry.stats       <- {
 		damage     = stats.damage,
@@ -38,6 +39,28 @@ phoenix.item.Model._enrich <- function(entry) {
 		multiplier = stats.multiplier
 	}
 	if (entry.slot == 0 && scheme.slot != 0) entry.slot = scheme.slot
+
+	local reqs = []
+	try {
+		if (scheme.requirement != null) {
+			foreach (r in scheme.requirement) {
+				if (r == null) continue
+				local attr = ("attr" in r && r.attr != null) ? r.attr.tostring() : ""
+				local value = ("value" in r) ? r.value.tointeger() : 0
+				if (attr != "" && value > 0) reqs.append({ attr = attr, value = value })
+			}
+		}
+	} catch (eR) {}
+	entry.requirements <- reqs
+
+	local effect = null
+	try {
+		if (scheme.effect != null) {
+			effect = {}
+			foreach (k, v in scheme.effect) { try { effect[k] <- v } catch (eE) {} }
+		}
+	} catch (eEf) {}
+	entry.effect <- effect
 	return entry
 }
 

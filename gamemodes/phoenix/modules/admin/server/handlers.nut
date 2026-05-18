@@ -120,16 +120,35 @@ phoenix.admin.Server <- {
 				try { entry.weight = ("weight" in scheme) ? scheme.weight.tofloat() : 0.0 } catch (e) {}
 				try { entry.damage = ("damage" in scheme) ? scheme.damage : 0 } catch (e) {}
 				try {
-					local v = ("visual" in scheme) ? scheme.visual : null
-					if (v == null || v == "") {
-						try { v = phoenix.item.lookupVisual(instanceId) } catch (e) {}
+					local v = null
+					try { v = phoenix.item.lookupVisual(instanceId) } catch (e) {}
+					if (v == null || v == "") v = ("visual" in scheme) ? scheme.visual : null
+					if (v != null && v != "") {
+						local up = v.toupper()
+						if (up.find(".3DS") != null) v = v.slice(0, v.len() - 4) + ".MRM"
+						entry.visual = v
 					}
-					if (v != null) entry.visual = v
 				} catch (e) {}
 				rows.append(entry)
 			}
 		} catch (e) {}
-		phoenix.admin.Server.reply(playerId, "schemes", true, "", { schemes = rows })
+		// BPacketAny encodes array length as UInt8 (max 255). With 437+ schemes
+		// the payload corrupts. Send in chunks of 200.
+		local total = rows.len()
+		local chunkSize = 200
+		local chunkCount = (total <= 0) ? 1 : (((total - 1) / chunkSize) + 1)
+		if (total == 0) {
+			phoenix.admin.Server.reply(playerId, "schemes", true, "", { schemes = [], chunkIndex = 0, chunkCount = 1 })
+			return
+		}
+		for (local ci = 0; ci < chunkCount; ci += 1) {
+			local start = ci * chunkSize
+			local end = start + chunkSize
+			if (end > total) end = total
+			local chunk = []
+			for (local i = start; i < end; i += 1) chunk.append(rows[i])
+			phoenix.admin.Server.reply(playerId, "schemes", true, "", { schemes = chunk, chunkIndex = ci, chunkCount = chunkCount })
+		}
 	}
 
 	function dispatchSchemeDetails(playerId, payload) {

@@ -63,8 +63,21 @@ phoenix.npc.AI <- {
 		return row.kind == "humanoid" || row.kind == "npc" || row.kind == "merchant" || row.kind == "guard"
 	}
 
-	function _resolveWeaponMode(row) {
+	function _resolveWeaponMode(row, distance = -1.0) {
 		if (!phoenix.npc.AI._isHuman(row)) return WEAPONMODE_FIST
+		local rangedInst = ("ranged" in row && row.ranged != null && row.ranged != "") ? row.ranged : ""
+		if (rangedInst != "" && distance > 400.0) {
+			try {
+				local rs = phoenix.item.find(rangedInst)
+				if (rs != null) {
+					if (rs.category == PhoenixItemCategory.Bow) return WEAPONMODE_BOW
+					if (rs.category == PhoenixItemCategory.Crossbow) return WEAPONMODE_CBOW
+				}
+			} catch (e) {}
+			local rup = rangedInst.toupper()
+			if (rup.find("CBOW") != null || rup.find("CROSSBOW") != null) return WEAPONMODE_CBOW
+			return WEAPONMODE_BOW
+		}
 		local w = ("weapon" in row) ? row.weapon : ""
 		if ((w == null || w == "") && "ranged" in row) w = row.ranged
 		if (w == null || w == "") return WEAPONMODE_FIST
@@ -144,6 +157,21 @@ phoenix.npc.AI <- {
 		return ""
 	}
 
+	function _rangedAmmoFor(wm) {
+		if (wm == WEAPONMODE_BOW) return "ITRW_ARROW"
+		if (wm == WEAPONMODE_CBOW) return "ITRW_BOLT"
+		return ""
+	}
+
+	function _attackRangeFor(row, wm = -1) {
+		local range = row.attackRange > 0 ? row.attackRange : 250
+		if (wm < 0) wm = phoenix.npc.AI._resolveWeaponMode(row, range)
+		if (wm == WEAPONMODE_BOW || wm == WEAPONMODE_CBOW) {
+			if (range < 700) range = 700
+		}
+		return range
+	}
+
 	function _ensureEquipment(entry, includeWeapon = true, force = false) {
 		if (entry == null || !phoenix.npc.AI._isHuman(entry.row)) return
 		local now = getTickCount()
@@ -161,6 +189,12 @@ phoenix.npc.AI <- {
 		if (weapon == null || weapon == "") weapon = phoenix.npc.AI._metadataEquip(row, "melee")
 		if (weapon == null || weapon == "") weapon = phoenix.npc.AI._metadataEquip(row, "ranged")
 		if (weapon != null && weapon != "") { try { equipItem(npcId, weapon) } catch (e2) {} }
+		// Ensure NPC always has ammo for ranged weapons
+		local rangedInst = phoenix.npc.AI._metadataEquip(row, "ranged")
+		if (rangedInst != null && rangedInst != "") {
+			try { giveItem(npcId, "ITRW_ARROW", 200) } catch (e3) {}
+			try { giveItem(npcId, "ITRW_BOLT", 200) } catch (e4) {}
+		}
 	}
 
 	function _ensureIdle(entry, force = false) {
@@ -446,6 +480,7 @@ phoenix.npc.AI <- {
 	}
 
 	function _finishReturn(entry, forceIdle = false) {
+		entry.ai.combatCleared <- false
 		phoenix.npc.AI._clearCombatMovement(entry)
 		entry.ai.state = "idle"
 		entry.ai.returning <- false
@@ -599,6 +634,9 @@ phoenix.npc.AI <- {
 		if (dist < 80.0) {
 			if (("returning" in entry.ai) && entry.ai.returning == true) {
 				phoenix.npc.AI._finishReturn(entry, true)
+			} else {
+				try { stopAni(entry.npcId, phoenix.npc.AI._neutralWalkAnim(row)) } catch (e) {}
+				try { stopAni(entry.npcId, phoenix.npc.AI._neutralRunAnim(row)) } catch (e) {}
 			}
 			return false
 		}
@@ -695,6 +733,23 @@ phoenix.npc.AI <- {
 		return false
 	}
 
+	function _haltCombatMovement(entry) {
+		if (entry == null) return
+		local npcId = entry.npcId
+		entry.ai.idleApplied <- ""
+		try { clearNpcActions(npcId) } catch (e) {}
+		foreach (anim in [
+			"S_RUN", "S_WALK", "S_STAND",
+			"S_FISTRUNL", "S_FISTWALKL",
+			"S_1HRUNL", "S_1HWALKL",
+			"S_2HRUNL", "S_2HWALKL",
+			"S_BOWRUNL", "S_BOWWALKL",
+			"S_CBOWRUNL", "S_CBOWWALKL"
+		]) {
+			try { stopAni(npcId, anim) } catch (e) {}
+		}
+	}
+
 	function _applyDamageToTarget(attackerNpcId, target, damage) {
 		if (target < 0 || damage <= 0) return false
 		local npcEntry = phoenix.npc.AI._liveNpcEntry(target)
@@ -737,7 +792,9 @@ phoenix.npc.AI <- {
 	function _doAttack(entry, target, pos, tp, now) {
 		local row = entry.row
 		local npcId = entry.npcId
-		local wm = phoenix.npc.AI._resolveWeaponMode(row)
+		local dx = tp.x - pos.x; local dz = tp.z - pos.z
+		local dist = sqrt(dx * dx + dz * dz)
+		local wm = phoenix.npc.AI._resolveWeaponMode(row, dist)
 		phoenix.npc.AI._ensureEquipment(entry, true, false)
 		phoenix.npc.AI._setAngleTo(npcId, pos.x, pos.z, tp.x, tp.z, entry.ai, now, true)
 		if (!phoenix.npc.AI._actionFinished(npcId, entry.ai.waitAction)) return
@@ -762,11 +819,21 @@ phoenix.npc.AI <- {
 				kind = (rand() % 3)
 			}
 			if (wm == WEAPONMODE_FIST) phoenix.npc.AI._play(npcId, phoenix.npc.AI._attackAnimFor(row, wm))
-			npcAttackMelee(npcId, target, kind, -1, true)
+			if (wm == WEAPONMODE_BOW || wm == WEAPONMODE_CBOW) {
+				npcAttackRanged(npcId, target, true)
+			} else {
+				npcAttackMelee(npcId, target, ATTACK_FORWARD, 0, true)
+			}
 			entry.ai.waitAction = phoenix.npc.AI._lastAction(npcId)
+			// Replenish ammo for ranged NPCs so they never run out
+			if (wm == WEAPONMODE_BOW || wm == WEAPONMODE_CBOW) {
+				local ammo = phoenix.npc.AI._rangedAmmoFor(wm)
+				if (ammo != "") { try { giveItem(npcId, ammo, 50) } catch (eAmmo) {} }
+			}
 			local capturedNpc = npcId
 			local capturedTarget = target
 			local capturedDmg = row.attackDamage > 0 ? row.attackDamage : 10
+			local capturedRange = row.attackRange > 0 ? row.attackRange + 60 : 310
 			setTimer(function () {
 				try {
 					try { if (!isNpc(capturedNpc)) return } catch (eNpc) {}
@@ -791,7 +858,7 @@ phoenix.npc.AI <- {
 					if (nvw != vvw) return
 					local dx = vp.x - np.x; local dy = vp.y - np.y; local dz = vp.z - np.z
 					local d = sqrt(dx * dx + dy * dy + dz * dz)
-					if (d > 280.0) return
+					if (d > capturedRange) return
 					phoenix.npc.AI._applyDamageToTarget(capturedNpc, capturedTarget, capturedDmg)
 				} catch (eDmg) {}
 			}, 450, 1)
@@ -807,6 +874,7 @@ phoenix.npc.AI <- {
 		}
 		entry.ai.state = "attack"
 	}
+
 
 	function _onTargetLost(entry, lostTarget = -1) {
 		local now = getTickCount()
@@ -1077,11 +1145,10 @@ phoenix.npc.AI <- {
 				local target = targetData.pid
 				local tp = targetData.pos
 				local d = targetData.distance
-				local wm = phoenix.npc.AI._resolveWeaponMode(row)
+				local wm = phoenix.npc.AI._resolveWeaponMode(row, d)
 				local human = phoenix.npc.AI._isHuman(row)
 				if (human) phoenix.npc.AI._ensureEquipment(entry, true, false)
-				local attackRange = row.attackRange > 0 ? row.attackRange : 250
-				local minRange = (attackRange < 200) ? attackRange : (attackRange - 30)
+				local attackRange = phoenix.npc.AI._attackRangeFor(row, wm)
 
 				phoenix.npc.AI._setAngleTo(npcId, pos.x, pos.z, tp.x, tp.z, entry.ai, now, true)
 
@@ -1094,58 +1161,12 @@ phoenix.npc.AI <- {
 				if (d <= attackRange) {
 					if (!phoenix.npc.AI._actionFinished(npcId, entry.ai.waitAction)) return
 					if (now - entry.ai.lastAttack < 1100) return
-					entry.ai.lastAttack = now
-
-					try {
-						if (human) {
-							if (!phoenix.npc.AI._ensureWeapon(entry, wm)) return
-							local kind = ATTACK_FORWARD
-							if (wm == WEAPONMODE_1HS || wm == WEAPONMODE_2HS) kind = (rand() % 3)
-							if (wm == WEAPONMODE_FIST) phoenix.npc.AI._play(npcId, phoenix.npc.AI._attackAnimFor(row, wm))
-							npcAttackMelee(npcId, target, kind, -1, true)
-							entry.ai.waitAction = phoenix.npc.AI._lastAction(npcId)
-						} else {
-							npcAttackMelee(npcId, target, ATTACK_FORWARD, 1, true)
-							entry.ai.waitAction = phoenix.npc.AI._lastAction(npcId)
-						}
-					} catch (e) {
-						phoenix.npc.AI._play(npcId, phoenix.npc.AI._attackAnimFor(row, wm))
-						try {
-							local victimHp = getPlayerHealth(target)
-							if (victimHp > 0) {
-								local dmg = row.attackDamage > 0 ? row.attackDamage : 10
-								phoenix.npc.AI._applyDamageToTarget(npcId, target, dmg)
-							}
-						} catch (e2) {}
+					if (human && entry.ai.warnStart == 0) {
+						entry.ai.warnStart = now
+						phoenix.npc.AI._play(npcId, "T_WARN")
+						return
 					}
-					{
-						local capturedNpc = npcId
-						local capturedTarget = target
-						local capturedDmg = row.attackDamage > 0 ? row.attackDamage : 10
-						local capturedRange = attackRange + 60
-						setTimer(function () {
-							try {
-								try { if (!isNpc(capturedNpc)) return } catch (eNpc) {}
-								local capturedNpcTarget = phoenix.npc.AI._liveNpcEntry(capturedTarget)
-								if (capturedNpcTarget == null) {
-									if (!isPlayerConnected(capturedTarget)) return
-									try { if (capturedTarget in phoenix.player.Gate.reviving) return } catch (e) {}
-								}
-								if (getPlayerHealth(capturedNpc) <= 0) return
-								local victimHp = getPlayerHealth(capturedTarget)
-								if (victimHp <= 0) return
-								if (capturedNpcTarget == null) { try { if (phoenix.account.Auth.isVanished(capturedTarget)) return } catch (eVan) {} }
-								local np = getPlayerPosition(capturedNpc)
-								local vp = getPlayerPosition(capturedTarget)
-								if (np == null || vp == null) return
-								local dx = vp.x - np.x; local dy = vp.y - np.y; local dz = vp.z - np.z
-								local d2 = sqrt(dx * dx + dy * dy + dz * dz)
-								if (d2 > capturedRange) return
-								phoenix.npc.AI._applyDamageToTarget(capturedNpc, capturedTarget, capturedDmg)
-							} catch (eDmg) {}
-						}, 420, 1)
-					}
-					entry.ai.state = "attack"
+					phoenix.npc.AI._doAttack(entry, target, pos, tp, now)
 					return
 				}
 

@@ -139,6 +139,9 @@ class CharacterModel extends ORM.Model
 	</ type = "TIMESTAMP" />
 	updatedAt = null
 
+	</ type = "TEXT" />
+	hotbar = null
+
 	function beforeModelInsert() {
 		if (normalizedName == "" && name != "")
 			normalizedName = name.tolower()

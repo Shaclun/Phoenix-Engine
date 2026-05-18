@@ -335,6 +335,19 @@
 	}
 	function persistHotbar() {
 		try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.hotbar)); } catch (e) {}
+		try { PhoenixBridge.send("phoenix:hotbar:save", { data: JSON.stringify(state.hotbar) }); } catch (e) {}
+	}
+
+	function applyHotbarSnapshot(payload) {
+		if (!payload || !payload.data) return;
+		try {
+			const data = JSON.parse(payload.data);
+			if (Array.isArray(data) && data.length === HOTBAR_SLOTS) {
+				state.hotbar = data;
+				try { localStorage.setItem(STORAGE_KEY, JSON.stringify(state.hotbar)); } catch (e) {}
+				renderHotbar();
+			}
+		} catch (e) {}
 	}
 
 	function assignSlot(idx, data) {
@@ -421,10 +434,6 @@
 	function onKey(e) {
 		if (!state.visible) return;
 		if (e.target && (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA")) return;
-		const k = e.key;
-		if (k >= "1" && k <= "8") {
-			useSlot(parseInt(k, 10) - 1);
-		}
 	}
 
 	function onInventoryUpdate(payload) {
@@ -607,6 +616,7 @@
 		PhoenixBridge.on("phoenix:herb:result", onHerbResult);
 		PhoenixBridge.on("phoenix:inventory:update", onInventoryUpdate);
 		PhoenixBridge.on("phoenix:item:inventory", onInventoryUpdate);
+		PhoenixBridge.on("phoenix:hotbar:snapshot", applyHotbarSnapshot);
 		PhoenixBridge.on("phoenix:hud:hide", hide);
 		PhoenixBridge.on("phoenix:hud:show", show);
 		PhoenixBridge.on("phoenix:worldclock:update", applyWorldClock);
@@ -637,6 +647,7 @@
 			for (let i = 0; i < HOTBAR_SLOTS; i++) if (state.hotbar[i] && state.hotbar[i].instance === instance) return i;
 			return -1;
 		},
-		setBlocked: setBlocked
+		setBlocked: setBlocked,
+		applyHotbarSnapshot: applyHotbarSnapshot
 	};
 })();

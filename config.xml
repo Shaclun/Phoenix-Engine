@@ -25,8 +25,6 @@
 	<module src="LocalStorage.dll" type="client" />
 	<module src="CEF.dll" type="client" />
 
-	<!-- Example -->
-	<!-- <import src="examples/PATH_TO_XML" /> -->
 	
 	<!-- Ids -->
 	<data src="data.xml" />

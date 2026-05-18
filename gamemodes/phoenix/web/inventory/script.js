@@ -52,7 +52,8 @@
 		items: [],
 		gold: 0,
 		selectedId: null,
-		activeTab: "all"
+		activeTab: "all",
+		player: { strength: 0, dexterity: 0, hpMax: 0, manaMax: 0 }
 	};
 
 	let root = null;
@@ -535,6 +536,10 @@
 			row.innerHTML = "<span>" + r[0] + "</span><span>" + r[1] + "</span>";
 			tip_stats.appendChild(row);
 		});
+
+		renderRequirements(item);
+		renderEffects(item);
+
 		const hints = [];
 		if (item.onUse) hints.push(t("inv.hint.use"));
 		else if (item.slot >= 1 && item.slot <= 9) hints.push(t(item.equipped ? "inv.hint.unequip" : "inv.hint.equip"));
@@ -542,6 +547,68 @@
 		tip_hint.style.display = hints.length ? "block" : "none";
 		tooltipNode.classList.add("is-visible");
 		moveTooltip(e);
+	}
+
+	function attrLabel(attr) {
+		const map = {
+			strength: "inv.req.strength",
+			dexterity: "inv.req.dexterity",
+			hpMax: "stats.attr.hpMax",
+			manaMax: "stats.attr.manaMax",
+			hp: "stats.hp",
+			mana: "stats.mana"
+		};
+		return t(map[attr] || ("inv.effect." + attr), attr);
+	}
+
+	function playerAttrValue(attr) {
+		const p = state.player || {};
+		return p[attr] | 0;
+	}
+
+	function renderRequirements(item) {
+		if (!item || !item.requirements || !item.requirements.length) return;
+		const header = document.createElement("div");
+		header.className = "invui-tooltip__section";
+		header.textContent = t("inv.section.requirements", "Wymagania");
+		tip_stats.appendChild(header);
+		item.requirements.forEach(function (r) {
+			const row = document.createElement("div");
+			row.className = "invui-tooltip__stat";
+			const have = playerAttrValue(r.attr);
+			const ok = have >= r.value;
+			row.innerHTML =
+				"<span>" + attrLabel(r.attr) + "</span>" +
+				"<span style='color:" + (ok ? "#b5e8b0" : "#ff7a7a") + "'>" + r.value + (have > 0 ? " (" + have + ")" : "") + "</span>";
+			tip_stats.appendChild(row);
+		});
+	}
+
+	function renderEffects(item) {
+		if (!item || !item.effect) return;
+		const eff = item.effect;
+		const rows = [];
+		const pushAttr = function (attr, value) {
+			if (!attr || !value) return;
+			const sign = value > 0 ? "+" : "";
+			rows.push([attrLabel(attr), sign + value]);
+		};
+		if (eff.attribute && eff.value) pushAttr(eff.attribute, eff.value | 0);
+		["strength", "dexterity", "hpMax", "manaMax", "hp", "mana"].forEach(function (k) {
+			if (k in eff && (eff.attribute !== k)) pushAttr(k, eff[k] | 0);
+		});
+		if (eff.durationMs) rows.push([t("inv.effect.duration", "Czas"), Math.round((eff.durationMs | 0) / 1000) + "s"]);
+		if (!rows.length) return;
+		const header = document.createElement("div");
+		header.className = "invui-tooltip__section";
+		header.textContent = item.onUse ? t("inv.section.effects", "Efekty") : t("inv.section.bonuses", "Bonusy");
+		tip_stats.appendChild(header);
+		rows.forEach(function (r) {
+			const row = document.createElement("div");
+			row.className = "invui-tooltip__stat";
+			row.innerHTML = "<span>" + r[0] + "</span><span style='color:#9bd6ff'>" + r[1] + "</span>";
+			tip_stats.appendChild(row);
+		});
 	}
 	function moveTooltip(e) {
 		if (!tooltipNode.classList.contains("is-visible")) return;
@@ -707,6 +774,14 @@
 		}
 	});
 
+	PhoenixBridge.on("phoenix:stats:snapshot", function (payload) {
+		if (!payload) return;
+		state.player.strength  = payload.strength  | 0;
+		state.player.dexterity = payload.dexterity | 0;
+		state.player.hpMax     = payload.hpMax     | 0;
+		state.player.manaMax   = payload.manaMax   | 0;
+	});
+
 	app.register("inventory", {
 		onShow: function () {
 			root = document.getElementById("page-inventory");
@@ -715,6 +790,7 @@
 			buildLayout();
 			rerender();
 			PhoenixBridge.send("phoenix:item:requestRefresh", {});
+			try { PhoenixBridge.send("phoenix:stats:request", null); } catch (e) {}
 			startMeshRetrySweeps();
 		},
 		onHide: function () {

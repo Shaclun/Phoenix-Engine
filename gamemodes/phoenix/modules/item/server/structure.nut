@@ -395,6 +395,30 @@ phoenix.item.Structure._packetEntry <- function(rec) {
 	local stats  = (scheme != null)
 		? phoenix.item.computeStats(scheme, rec.quality, rec.upgrade)
 		: null
+	local requirements = []
+	try {
+		if (scheme != null && scheme.requirement != null) {
+			foreach (r in scheme.requirement) {
+				if (r == null) continue
+				local attr = ("attr" in r && r.attr != null) ? r.attr.tostring() : ""
+				local value = ("value" in r) ? r.value.tointeger() : 0
+				if (attr != "" && value > 0) requirements.append({ attr = attr, value = value })
+			}
+		}
+	} catch (eReq) {}
+	local effect = null
+	try {
+		if (scheme != null && scheme.effect != null) {
+			effect = {}
+			foreach (k, v in scheme.effect) {
+				try { effect[k] <- v } catch (eE) {}
+			}
+		}
+	} catch (eEff) {}
+	local onUseKind = ""
+	try {
+		if (scheme != null && scheme.onUse != null) onUseKind = scheme.onUse.tostring()
+	} catch (eK) {}
 	local entry  = {
 		id          = rec.id,
 		instance    = rec.instanceId,
@@ -412,7 +436,10 @@ phoenix.item.Structure._packetEntry <- function(rec) {
 		weight      = (scheme != null) ? scheme.weight      : 0,
 		visual      = (scheme != null && ("visual" in scheme)) ? scheme.visual : null,
 		onUse       = (scheme != null && scheme.onUse != null),
-		stats       = stats
+		onUseKind   = onUseKind,
+		stats       = stats,
+		requirements = requirements,
+		effect      = effect
 	}
 	return entry
 }

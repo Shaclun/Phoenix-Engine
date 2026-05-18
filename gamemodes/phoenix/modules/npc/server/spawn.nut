@@ -256,6 +256,28 @@ phoenix.npc.Spawn <- {
 		}
 	}
 
+	function _autoStats(row) {
+		// Auto-adjust NPC strength/dexterity so they can always wield their weapon.
+		// Only raises stats, never lowers them — if admin set higher, keep higher.
+		local weapon = ("weapon" in row) ? row.weapon : ""
+		if (weapon == null || weapon == "") return
+		try {
+			local scheme = phoenix.item.find(weapon)
+			if (scheme == null || scheme.requirement == null) return
+			foreach (r in scheme.requirement) {
+				if (r == null) continue
+				local attr = ("attr" in r) ? r.attr.tostring() : ""
+				local val = ("value" in r) ? r.value.tointeger() : 0
+				if (val <= 0) continue
+				if (attr == "strength") {
+					if (!("strength" in row) || row.strength < val) row.strength = val
+				} else if (attr == "dexterity") {
+					if (!("dexterity" in row) || row.dexterity < val) row.dexterity = val
+				}
+			}
+		} catch (e) {}
+	}
+
 	function normalizeEquipmentFields(row) {
 		if (!("weapon" in row) || row.weapon == null || row.weapon == "") {
 			local weapon = phoenix.npc.Spawn._metadataValue(row.metadata, "weapon")
@@ -409,14 +431,19 @@ phoenix.npc.Spawn <- {
 			try { serverWorld = getServerWorld() } catch (e) {}
 			try { setPlayerRespawnTime(npcId, (row.respawnSec > 0 ? row.respawnSec : 60) * 1000) } catch (e) {}
 			try { setPlayerInstance(npcId, row.instance.toupper()) } catch (e) { try { setPlayerInstance(npcId, row.instance) } catch (e2) {} }
-			local hpVal = row.hp > 0 ? row.hp : 100
+			// Auto-adjust strength/dexterity to meet weapon requirements
+			phoenix.npc.Spawn._autoStats(row)
+			// Level → auto HP/Mana (10 HP per level, 5 mana per level, min 100)
+			local levelVal = row.level > 0 ? row.level : 1
+			local hpVal = row.hp > 0 ? row.hp : (100 + (levelVal - 1) * 10)
+			local manaVal = 50 + (levelVal - 1) * 5
 			try { setPlayerStrength(npcId, row.strength > 0 ? row.strength : 10) } catch (e) {}
 			try { setPlayerDexterity(npcId, row.dexterity > 0 ? row.dexterity : 10) } catch (e) {}
 			phoenix.npc.Spawn.applySkills(npcId, row)
 			try { setPlayerMaxHealth(npcId, hpVal) } catch (e) {}
 			try { setPlayerHealth(npcId, hpVal) } catch (e) {}
-			try { setPlayerMaxMana(npcId, 100) } catch (e) {}
-			try { setPlayerMana(npcId, 100) } catch (e) {}
+			try { setPlayerMaxMana(npcId, manaVal) } catch (e) {}
+			try { setPlayerMana(npcId, manaVal) } catch (e) {}
 			try { setPlayerPosition(npcId, row.posX, row.posY, row.posZ) } catch (e) {}
 			try { setPlayerAngle(npcId, row.angle) } catch (e) {}
 			if (serverWorld != "") {
@@ -806,6 +833,19 @@ addEventHandler("onPlayerDamage", function (victimId, killerId, desc) {
 		}
 		if (getPlayerHealth(victimId) <= 0) {
 			phoenix.npc.Spawn.onNpcKilled(victimId, killerId)
+		}
+		// If an NPC killed a player via ranged attack, mark killedPlayer for loot AI
+		if (entry == null && killerId != null && killerId >= 0) {
+			local attackerEntry = phoenix.npc.Spawn._liveByNpcId(killerId)
+			if (attackerEntry != null) {
+				try {
+					local victimHp = getPlayerHealth(victimId)
+					if (victimHp <= 0 || (victimId in phoenix.player.Gate.reviving)) {
+						attackerEntry.ai.killedPlayer <- victimId
+						attackerEntry.ai.killedPlayerAt <- getTickCount()
+					}
+				} catch (eKp) {}
+			}
 		}
 	} catch (e) {}
 })

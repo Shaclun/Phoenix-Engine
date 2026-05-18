@@ -68,3 +68,19 @@ class phoenix.player.Message.StatsResult extends phoenix.net.Message {
 class phoenix.player.Message.Sit extends phoenix.net.Message {
 	</ type = phoenix.net.type.Bool /> sitting = false
 }
+
+class phoenix.player.Message.HotbarSnapshot extends phoenix.net.Message {
+	</ type = phoenix.net.type.String /> data = ""
+}
+
+class phoenix.player.Message.HotbarUpdate extends phoenix.net.Message {
+	</ type = phoenix.net.type.String /> data = ""
+}
+
+class phoenix.player.Message.HotbarActivate extends phoenix.net.Message {
+	</ type = phoenix.net.type.UInt8 /> slot = 0
+}
+
+class phoenix.player.Message.DrawWeaponRequest extends phoenix.net.Message {
+	</ type = phoenix.net.type.UInt8 /> mode = 0
+}

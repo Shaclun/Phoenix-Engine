@@ -50,6 +50,29 @@ phoenix.item.Handlers.onEquipRequest <- function(playerId, message) {
 	if (rec == null) return
 	local instanceId = rec.instanceId
 	local doEquip    = message.equip
+	if (doEquip) {
+		local scheme = phoenix.item.Structure.schemeOf(rec)
+		if (scheme != null && scheme.requirement != null) {
+			local missing = ""
+			local need = 0
+			foreach (r in scheme.requirement) {
+				if (r == null) continue
+				local attr = ("attr" in r && r.attr != null) ? r.attr.tostring() : ""
+				local val = ("value" in r) ? r.value.tointeger() : 0
+				if (attr == "" || val <= 0) continue
+				local cur = 0
+				try {
+					if (attr == "strength") cur = getPlayerStrength(playerId)
+					else if (attr == "dexterity") cur = getPlayerDexterity(playerId)
+				} catch (e) {}
+				if (cur < val) { missing = attr; need = val; break }
+			}
+			if (missing != "") {
+				try { phoenix.notification.notify(playerId, "error", "Wymagania", "Brak " + missing + " " + need, 2800) } catch (e2) {}
+				return
+			}
+		}
+	}
 	phoenix.item.Structure.setEquipped(PhoenixInventoryOwner.Player, active.id, message.id, doEquip, function(ok) {
 		if (!ok) return
 

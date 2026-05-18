@@ -171,6 +171,17 @@ phoenix.character.Structure <- {
 				record.mana = record.manaMax
 				record.experience = 0
 				record.experienceNext = 500
+				local meleeInstance = ""
+				local rangedInstance = ""
+				try {
+					if (payload.weapon >= 0 && payload.weapon < phoenix.character.StarterMelee.len())
+						meleeInstance = phoenix.character.StarterMelee[payload.weapon].instance
+				} catch (eM) {}
+				try {
+					if (payload.ranged >= 0 && payload.ranged < phoenix.character.StarterRanged.len())
+						rangedInstance = phoenix.character.StarterRanged[payload.ranged].instance
+				} catch (eR) {}
+				try { phoenix.player.Hotbar.setDefaults(record, meleeInstance, rangedInstance) } catch (eH) {}
 				record.insertAsync(function(_) {
 					phoenix.character.createStarterInventory(record.id, starterItems, function() {
 						callback(null, record)
