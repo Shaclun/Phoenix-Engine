@@ -463,11 +463,38 @@ phoenix.npc.Routines <- {
 			}
 			entry.ai.routineIndex = idx + 1
 			entry.ai.routineAnimApplied <- ""
+			phoenix.npc.AI._resetMoveWatch(entry)
 			return true
 		}
 
 		local mode = ("walkMode" in node) ? node.walkMode : "walk"
 		local anim = phoenix.npc.Routines._runAnimFor(entry, mode)
+
+		// Stuck detection: if NPC hasn't made progress toward waypoint, try
+		// to navigate around the obstacle using a detour angle.
+		local watch = phoenix.npc.AI._moveWatch(entry, pos, dist, now)
+		if (watch >= 2) {
+			// Severely stuck — teleport to waypoint
+			try { setPlayerPosition(entry.npcId, tx, ty, tz) } catch (eTp) {}
+			phoenix.npc.AI._resetMoveWatch(entry)
+			entry.ai.routineAnimApplied <- ""
+			return true
+		}
+		if (watch == 1) {
+			// Mildly stuck — try detour: offset angle by ±90 degrees
+			local stuckCount = ("stuckCount" in entry.ai) ? entry.ai.stuckCount : 1
+			local side = (stuckCount % 2 == 0) ? -90.0 : 90.0
+			local baseAngle = phoenix.npc.AI._vectorAngle(pos.x, pos.z, tx, tz)
+			local detourAngle = baseAngle + side
+			try { setPlayerAngle(entry.npcId, detourAngle, true) } catch (eA) { try { setPlayerAngle(entry.npcId, detourAngle) } catch (eA2) {} }
+			try {
+				local cur = getPlayerAni(entry.npcId)
+				if (cur != anim) playAni(entry.npcId, anim)
+			} catch (eP) {}
+			entry.ai.state = "routine-move"
+			return true
+		}
+
 		try {
 			phoenix.npc.AI._setAngleTo(entry.npcId, pos.x, pos.z, tx, tz, entry.ai, now, true)
 		} catch (e) {}
