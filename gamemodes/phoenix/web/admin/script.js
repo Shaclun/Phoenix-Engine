@@ -4471,12 +4471,12 @@
         }
         if (action === "spawnconfig-ghost-edit-create") {
             var c = cfg.characterCreateCamera || { x: 0, y: 0, z: 0, rotX: 0, rotY: 0, rotZ: 0 };
-            startGhostEditor("create", { idx: 0 }, "lobby", c.x, c.y, c.z, c.rotY, c.rotX, c.rotZ);
+            startGhostEditor("create", { idx: 0 }, "spawn", c.x, c.y, c.z, c.rotY, c.rotX, c.rotZ);
             return;
         }
         if (action === "spawnconfig-ghost-edit-select") {
             var s = cfg.characterSelectCamera || { x: 0, y: 0, z: 0, rotX: 0, rotY: 0, rotZ: 0 };
-            startGhostEditor("select", { idx: 0 }, "lobby", s.x, s.y, s.z, s.rotY, s.rotX, s.rotZ);
+            startGhostEditor("select", { idx: 0 }, "spawn", s.x, s.y, s.z, s.rotY, s.rotX, s.rotZ);
             return;
         }
         if (action === "spawnconfig-ghost-edit-default") {

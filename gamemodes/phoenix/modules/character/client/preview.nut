@@ -23,12 +23,21 @@ phoenix.character.Preview <- {
 		try {
 			if ("Lobby" in phoenix.player) {
 				local L = phoenix.player.Lobby
-				local target = (("createSpot" in L) && L.createSpot != null) ? L.createSpot
-					: ((("selectSpot" in L) && L.selectSpot != null) ? L.selectSpot : null)
+				local target = null
+				if (phoenix.character.Preview.mode == "create") {
+					if (("createSpot" in L) && L.createSpot != null) target = L.createSpot
+					else if (("selectSpot" in L) && L.selectSpot != null) target = L.selectSpot
+				} else {
+					if (("selectSpot" in L) && L.selectSpot != null) target = L.selectSpot
+					else if (("createSpot" in L) && L.createSpot != null) target = L.createSpot
+				}
 				if (target != null && "pos" in target) {
 					phoenix.character.Preview.anchorX = target.pos.x
 					phoenix.character.Preview.anchorY = target.pos.y
 					phoenix.character.Preview.anchorZ = target.pos.z
+				}
+				if (target != null && "rot" in target && "y" in target.rot) {
+					phoenix.character.Preview.modelAngle = target.rot.y
 				}
 			}
 		} catch (e) {}
@@ -472,13 +481,13 @@ phoenix.character.Preview.start <- function() {
 	phoenix.character.Preview.clearSelectionEquipment()
 	phoenix.character.Preview.clearCreatorEquipment()
 	phoenix.character.Preview.state = phoenix.character.Preview.defaultState()
-	phoenix.character.Preview.syncAnchorFromConfig()
 	phoenix.character.Preview.active = true
 	phoenix.character.Preview.mode = "create"
 	phoenix.character.Preview.cameraAngle = 0.0
 	phoenix.character.Preview.cameraDistance = 300.0
 	phoenix.character.Preview.cameraPitch = 50.0
 	phoenix.character.Preview.modelAngle = 180.0
+	phoenix.character.Preview.syncAnchorFromConfig()
 
 	try { Camera.movementEnabled = false } catch (e) {}
 	try { Camera.modeChangeEnabled = false } catch (e) {}
@@ -628,6 +637,24 @@ phoenix.character.Preview.onRender <- function() {
 	local camY = py + 100.0 + phoenix.character.Preview.cameraPitch
 	local camZ = pz + cos(angleRad) * phoenix.character.Preview.cameraDistance
 
+	try {
+		local origin = Vec3(px, py + 90.0, pz)
+		local direction = Vec3(camX - px, camY - (py + 90.0), camZ - pz)
+		local report = GameWorld.traceRayNearestHit(origin, direction, TRACERAY_STAT_POLY | TRACERAY_POLY_NORMAL | TRACERAY_VOB_IGNORE_NO_CD_DYN)
+		if (report != null) {
+			local rdx = report.intersect.x - px
+			local rdy = report.intersect.y - (py + 90.0)
+			local rdz = report.intersect.z - pz
+			local hitDist = sqrt(rdx * rdx + rdy * rdy + rdz * rdz) - 30.0
+			if (hitDist < phoenix.character.Preview.minDistance) hitDist = phoenix.character.Preview.minDistance
+			if (hitDist < phoenix.character.Preview.cameraDistance) {
+				camX = px + sin(angleRad) * hitDist
+				camZ = pz + cos(angleRad) * hitDist
+				camY = py + 100.0 + phoenix.character.Preview.cameraPitch * (hitDist / phoenix.character.Preview.cameraDistance)
+			}
+		}
+	} catch (eRC) {}
+
 	try { Camera.setPosition(camX, camY, camZ) } catch (e) {}
 
 	local dX = px - camX
@@ -677,11 +704,11 @@ phoenix.character.Preview.startSelect <- function() {
 	if (phoenix.character.Preview.active) return
 	phoenix.character.Preview.active = true
 	phoenix.character.Preview.mode = "select"
-	phoenix.character.Preview.syncAnchorFromConfig()
 	phoenix.character.Preview.cameraAngle = 0.0
 	phoenix.character.Preview.cameraDistance = 300.0
 	phoenix.character.Preview.cameraPitch = 50.0
 	phoenix.character.Preview.modelAngle = 180.0
+	phoenix.character.Preview.syncAnchorFromConfig()
 	try { Camera.movementEnabled = false } catch (e) {}
 	try { Camera.modeChangeEnabled = false } catch (e) {}
 	try { setHudMode(HUD_ALL, HUD_MODE_HIDDEN) } catch (e) {}

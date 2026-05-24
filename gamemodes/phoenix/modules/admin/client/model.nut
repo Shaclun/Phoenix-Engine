@@ -1364,9 +1364,30 @@ phoenix.admin.Model <- {
 			return
 		}
 		local angleRad = spawnGhost.camYaw * 3.14159 / 180.0
-		local cx = spawnGhost.x + sin(angleRad) * spawnGhost.camDistance
-		local cy = spawnGhost.y + 100.0 + spawnGhost.camCtrlPitch
-		local cz = spawnGhost.z + cos(angleRad) * spawnGhost.camDistance
+		local pitchRad = spawnGhost.camCtrlPitch * 3.14159 / 180.0
+		local desiredDist = spawnGhost.camDistance
+		local horizDist = desiredDist * cos(pitchRad)
+		local cx = spawnGhost.x + sin(angleRad) * horizDist
+		local cz = spawnGhost.z + cos(angleRad) * horizDist
+		local cy = spawnGhost.y + 100.0 + desiredDist * sin(pitchRad)
+		try {
+			local origin = Vec3(spawnGhost.x, spawnGhost.y + 90.0, spawnGhost.z)
+			local direction = Vec3(cx - spawnGhost.x, cy - (spawnGhost.y + 90.0), cz - spawnGhost.z)
+			local report = GameWorld.traceRayNearestHit(origin, direction, TRACERAY_STAT_POLY | TRACERAY_POLY_NORMAL | TRACERAY_VOB_IGNORE_NO_CD_DYN)
+			if (report != null) {
+				local dx = report.intersect.x - spawnGhost.x
+				local dy = report.intersect.y - (spawnGhost.y + 90.0)
+				local dz = report.intersect.z - spawnGhost.z
+				local hitDist = sqrt(dx * dx + dy * dy + dz * dz) - 30.0
+				if (hitDist < 90.0) hitDist = 90.0
+				if (hitDist < desiredDist) {
+					local nh = hitDist * cos(pitchRad)
+					cx = spawnGhost.x + sin(angleRad) * nh
+					cz = spawnGhost.z + cos(angleRad) * nh
+					cy = spawnGhost.y + 100.0 + hitDist * sin(pitchRad)
+				}
+			}
+		} catch (eRC) {}
 		try { Camera.setPosition(cx, cy, cz) } catch (e3) {}
 		local dx = spawnGhost.x - cx
 		local dz = spawnGhost.z - cz
@@ -1487,6 +1508,13 @@ phoenix.admin.Model <- {
 	}
 
 	function onMouseMove(x, y) {
+		if (spawnGhost.cameraActive && spawnGhost.camDragging) {
+			spawnGhost.camYaw += x * 0.3
+			spawnGhost.camCtrlPitch -= y * 0.6
+			if (spawnGhost.camCtrlPitch < -200.0) spawnGhost.camCtrlPitch = -200.0
+			if (spawnGhost.camCtrlPitch > 400.0) spawnGhost.camCtrlPitch = 400.0
+			return
+		}
 		if (houseGhost.cameraActive && houseGhost.camDragging) {
 			houseGhost.camYaw += x * 0.3
 			houseGhost.camPitch -= y * 0.6
@@ -1523,6 +1551,12 @@ phoenix.admin.Model <- {
 	}
 
 	function onMouseDown(button) {
+		if (spawnGhost.cameraActive && spawnGhost.mode == "spawn") {
+			local sgRightButton = 1
+			try { sgRightButton = MOUSE_BUTTONRIGHT } catch (e) {}
+			if (button == sgRightButton || button == 1) spawnGhost.camDragging = true
+			return
+		}
 		if (houseGhost.cameraActive) {
 			local houseRightButton = 1
 			try { houseRightButton = MOUSE_BUTTONRIGHT } catch (e) {}
@@ -1545,12 +1579,19 @@ phoenix.admin.Model <- {
 	function onMouseUp(button) {
 		local rightButton = 1
 		try { rightButton = MOUSE_BUTTONRIGHT } catch (e) {}
+		if (button == rightButton || button == 1) spawnGhost.camDragging = false
 		if (button == rightButton || button == 1) houseGhost.camDragging = false
 		if (button == rightButton || button == 1) vobPreview.camDragging = false
 		if (button == rightButton || button == 1) preview.camDragging = false
 	}
 
 	function onMouseWheel(delta) {
+		if (spawnGhost.cameraActive && spawnGhost.mode == "spawn") {
+			spawnGhost.camDistance -= delta * 30.0
+			if (spawnGhost.camDistance < 90.0) spawnGhost.camDistance = 90.0
+			if (spawnGhost.camDistance > 850.0) spawnGhost.camDistance = 850.0
+			return
+		}
 		if (vobPreview.cameraActive) {
 			vobPreview.camDistance -= delta * 30.0
 			if (vobPreview.camDistance < 90.0) vobPreview.camDistance = 90.0
