@@ -8,10 +8,12 @@
 	<script src="server/stats.nut" type="server" />
 	<script src="server/gate.nut" type="server" />
 	<script src="server/hotbar.nut" type="server" />
+	<script src="server/uiSettings.nut" type="server" />
 	<script src="server/lobbyConfig.nut" type="server" />
 	<script src="client/lobby.nut" type="client" />
 	<script src="client/controls.nut" type="client" />
 	<script src="client/hud.nut" type="client" />
 	<script src="client/combatText.nut" type="client" />
 	<script src="client/stats.nut" type="client" />
+	<script src="client/settings.nut" type="client" />
 </server>

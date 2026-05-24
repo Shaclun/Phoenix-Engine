@@ -37,6 +37,8 @@
 	function build() {
 		root = document.createElement("div");
 		root.className = "phoenix-chat";
+		root.id = "phoenix-chat";
+		root.dataset.hudId = "chat";
 		root.innerHTML = `
 			<div class="phoenix-chat__tabs" data-role="chat-tabs"></div>
 			<div class="phoenix-chat__panel">
@@ -305,8 +307,13 @@
 		const vanish = escMenu.querySelector("#escmenu-vanish");
 		const logout = escMenu.querySelector("#escmenu-logout");
 		const exit = escMenu.querySelector("#escmenu-exit");
+		const settings = escMenu.querySelector("#escmenu-settings");
 		if (back)   back.addEventListener("click", function () { closeEscMenu(); });
 		if (char)   char.addEventListener("click", function () { PhoenixBridge.send("phoenix:menu:changeChar", {}); closeEscMenu(); });
+		if (settings) settings.addEventListener("click", function () {
+			closeEscMenu();
+			PhoenixBridge.send("phoenix:settings:openRequest", {});
+		});
 		if (admin)  admin.addEventListener("click", function () {
 			closeEscMenu();
 			if (global.PhoenixAdminPanel) global.PhoenixAdminPanel.open();
@@ -403,6 +410,11 @@
 		if (document.body.classList.contains("phoenix-inventory-open")) {
 			e.preventDefault();
 			PhoenixBridge.send("phoenix:item:closeRequest", {});
+			return;
+		}
+		if (document.body.classList.contains("phoenix-settings-open")) {
+			e.preventDefault();
+			PhoenixBridge.send("phoenix:settings:closeRequest", {});
 			return;
 		}
 		if (!document.body.classList.contains("phoenix-in-game")) return;

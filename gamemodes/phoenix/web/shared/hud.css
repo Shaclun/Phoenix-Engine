@@ -1,41 +1,70 @@
-/* Phoenix HUD */
-.phoenix-hud {
+/* Phoenix HUD - independent elements */
+
+.phoenix-hud-el {
 	position: fixed;
-	inset: 0;
 	z-index: 30;
 	display: none;
 	pointer-events: none;
 	font-family: "Cinzel", "Trajan Pro", serif;
 	color: #f5e6c4;
 	user-select: none;
+	transform-origin: 0 0;
+	box-sizing: border-box;
 }
 
-.phoenix-hud.is-visible { display: block; }
-.phoenix-hud.is-blocked { display: none !important; }
+.phoenix-hud-el.is-visible { display: block; }
 
-.phoenix-hud__topleft {
-	position: absolute;
-	top: 18px;
-	left: 22px;
-	display: flex;
-	align-items: center;
-	gap: 18px;
+/* Auto-hide on UI open */
+body.phoenix-inventory-open .phoenix-hud-el,
+body.phoenix-stats-open .phoenix-hud-el,
+body.phoenix-teacher-open .phoenix-hud-el,
+body.phoenix-house-open .phoenix-hud-el,
+body.phoenix-social-open .phoenix-hud-el,
+body.phoenix-crafting-open .phoenix-hud-el,
+body.phoenix-character-open .phoenix-hud-el,
+body.phoenix-auth-open .phoenix-hud-el,
+body.phoenix-admin-open .phoenix-hud-el,
+body.phoenix-escmenu-open .phoenix-hud-el {
+	display: none !important;
 }
 
-.phoenix-hud__portrait {
-	position: relative;
-	width: 110px;
-	height: 110px;
-	flex: 0 0 auto;
-	filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.55));
+body.phoenix-inventory-open .phoenix-target-hud,
+body.phoenix-stats-open .phoenix-target-hud,
+body.phoenix-admin-open .phoenix-target-hud,
+body.phoenix-escmenu-open .phoenix-target-hud {
+	display: none !important;
 }
 
-.phoenix-hud__portrait-frame {
+body.phoenix-inventory-open .phoenix-worldclock,
+body.phoenix-stats-open .phoenix-worldclock,
+body.phoenix-admin-open .phoenix-worldclock,
+body.phoenix-escmenu-open .phoenix-worldclock {
+	display: none !important;
+}
+
+/* Default positions (top-left anchor, % of viewport) */
+#phoenix-hud-portrait { left: 1.0%; top: 1.5%; }
+#phoenix-hud-level    { left: 6.4%; top: 1.9%; }
+#phoenix-hud-name     { left: 6.4%; top: 3.5%; }
+#phoenix-hud-hp       { left: 6.2%; top: 6.1%; }
+#phoenix-hud-mana     { left: 6.2%; top: 7.6%; }
+#phoenix-hud-stamina  { left: 6.2%; top: 9.2%; }
+#phoenix-hud-exp      { left: 39%;  top: 91%; }
+#phoenix-hud-magicxp  { left: 39%;  top: 93.6%; }
+#phoenix-hud-hotbar   { left: 39%;  top: 95.5%; }
+
+/* Portrait diamond */
+.phoenix-hud-portrait {
+	width: 96px;
+	height: 96px;
+}
+
+.phoenix-hud-portrait__frame {
 	position: absolute;
 	left: 50%;
 	top: 50%;
-	width: 78px;
-	height: 78px;
+	width: 68px;
+	height: 68px;
 	transform: translate(-50%, -50%) rotate(45deg);
 	border: 2px solid rgba(247, 198, 106, 0.85);
 	background: rgba(0, 0, 0, 0.72);
@@ -43,178 +72,147 @@
 	pointer-events: none;
 }
 
-.phoenix-hud__portrait-inner {
+.phoenix-hud-portrait__inner {
 	position: absolute;
 	left: 50%;
 	top: 50%;
-	width: 100px;
-	height: 100px;
+	width: 88px;
+	height: 88px;
 	transform: translate(-50%, -50%);
 	clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
 	overflow: hidden;
 	background: radial-gradient(circle at 50% 35%, rgba(255, 220, 160, 0.08), rgba(0, 0, 0, 0));
-	display: flex;
-	align-items: center;
-	justify-content: center;
 }
 
-.phoenix-hud__portrait-inner gothic-render {
+.phoenix-hud-portrait__inner gothic-render {
 	position: absolute;
 	left: 50%;
 	top: 50%;
-	width: 100px !important;
-	height: 100px !important;
+	width: 88px !important;
+	height: 88px !important;
 	transform: translate(-50%, -50%);
 	display: block;
 	font-size: 0;
 	line-height: 0;
 }
-.phoenix-hud__portrait-inner gothic-render canvas {
+.phoenix-hud-portrait__inner gothic-render canvas {
 	display: block;
-	width: 100px !important;
-	height: 100px !important;
+	width: 88px !important;
+	height: 88px !important;
 	object-fit: contain;
 }
-
-.phoenix-hud__topleft-info {
-	display: flex;
-	flex-direction: column;
-	justify-content: center;
-	align-items: center;
-	min-height: 80px;
-	min-width: 260px;
-}
-
-.phoenix-hud__portrait-fallback {
-	font-size: 22px;
-	font-weight: 700;
-	color: rgba(245, 230, 196, 0.55);
-	letter-spacing: 1px;
-}
-
-.phoenix-hud__name {
-	font-size: 17px;
-	font-weight: 700;
-	letter-spacing: 2px;
-	text-shadow: 0 0 6px #000, 0 0 2px #000;
-	margin-bottom: 1px;
-	text-align: center;
-}
-
-.phoenix-hud__level {
-	font-size: 12px;
-	color: #f7c66a;
-	letter-spacing: 1.4px;
-	margin-bottom: 5px;
-	text-shadow: 0 0 4px #000;
-	text-align: center;
-}
-
-.phoenix-hud__bars {
-	display: flex;
-	flex-direction: column;
-	gap: 4px;
-	width: 280px;
-}
-
-.phoenix-hud__bar {
-	width: 100%;
-	height: 13px;
-	background: rgba(0, 0, 0, 0.7);
-	border: 1px solid rgba(245, 230, 196, 0.35);
-	border-radius: 2px;
-	position: relative;
-	overflow: hidden;
-	box-shadow: 0 0 6px rgba(0, 0, 0, 0.8);
-}
-
-.phoenix-hud__bottom {
-	position: absolute;
-	left: 50%;
-	bottom: 14px;
-	transform: translateX(-50%);
-	display: flex;
-	flex-direction: column;
-	align-items: center;
-	width: 412px;
-}
-
-.phoenix-hud__bar-fill {
-	position: absolute;
-	left: 0; top: 0; bottom: 0;
-	width: 100%;
-	transition: width 180ms linear;
-}
-.phoenix-hud__bar--hp .phoenix-hud__bar-fill { background: linear-gradient(180deg, #d24a4a, #7a1a1a); }
-.phoenix-hud__bar--mana .phoenix-hud__bar-fill { background: linear-gradient(180deg, #4a7ed2, #1a3b7a); }
-.phoenix-hud__bar--stamina .phoenix-hud__bar-fill { background: linear-gradient(180deg, #d4a44a, #7a591a); }
-
-.phoenix-hud__bar-label {
+.phoenix-hud-portrait__fallback {
 	position: absolute;
 	inset: 0;
 	display: flex;
 	align-items: center;
 	justify-content: center;
-	font-size: 11px;
+	font-size: 22px;
+	font-weight: 700;
+	color: rgba(245, 230, 196, 0.55);
+}
+
+/* Name + Level */
+.phoenix-hud-name {
+	font-size: 17px;
+	font-weight: 700;
+	letter-spacing: 2px;
+	text-shadow: 0 0 6px #000, 0 0 2px #000;
+	white-space: nowrap;
+}
+
+.phoenix-hud-level {
+	font-size: 12px;
+	color: #f7c66a;
+	letter-spacing: 1.4px;
+	text-shadow: 0 0 4px #000;
+	white-space: nowrap;
+}
+
+/* Stat bars */
+.phoenix-hud-bar {
+	width: 220px;
+	height: 11px;
+	background: rgba(0, 0, 0, 0.7);
+	border: 1px solid rgba(245, 230, 196, 0.35);
+	border-radius: 2px;
+	box-shadow: 0 0 6px rgba(0, 0, 0, 0.8);
+	overflow: hidden;
+}
+
+.phoenix-hud-bar__fill {
+	position: absolute;
+	left: 0; top: 0; bottom: 0;
+	width: 100%;
+	transition: width 180ms linear;
+}
+
+.phoenix-hud-bar--hp .phoenix-hud-bar__fill { background: linear-gradient(180deg, #d24a4a, #7a1a1a); }
+.phoenix-hud-bar--mana .phoenix-hud-bar__fill { background: linear-gradient(180deg, #4a7ed2, #1a3b7a); }
+.phoenix-hud-bar--stamina .phoenix-hud-bar__fill { background: linear-gradient(180deg, #d4a44a, #7a591a); }
+
+.phoenix-hud-bar__label {
+	position: absolute;
+	inset: 0;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-size: 10px;
 	font-weight: 600;
 	text-shadow: 0 0 3px #000, 1px 1px 0 #000;
 	color: #fff;
 	letter-spacing: 0.5px;
 }
 
-.phoenix-hud__exp {
-	width: 100%;
+/* XP bars */
+.phoenix-hud-xp {
+	width: 412px;
 	height: 12px;
 	background: rgba(0, 0, 0, 0.7);
 	border: 1px solid rgba(245, 230, 196, 0.3);
-	position: relative;
 	overflow: hidden;
-	margin-bottom: 6px;
 }
-.phoenix-hud__exp-fill {
+
+.phoenix-hud-xp__fill {
 	position: absolute;
 	left: 0; top: 0; bottom: 0;
 	background: linear-gradient(180deg, #f7c66a, #c08418);
 	transition: width 240ms linear;
 }
 
-.phoenix-hud__exp--magic {
+.phoenix-hud-xp--magic {
 	height: 10px;
 	border-color: rgba(118, 150, 220, 0.5);
 }
-.phoenix-hud__exp--magic .phoenix-hud__exp-fill {
+
+.phoenix-hud-xp--magic .phoenix-hud-xp__fill {
 	background: linear-gradient(180deg, #6aa6f7, #1f4fa8);
 }
-.phoenix-hud__exp-label {
-	position: absolute;
-	left: 6px; top: 50%;
-	transform: translateY(-50%);
-	color: #cfd8e8;
-	font-size: 10px;
-	letter-spacing: 0.5px;
-	text-shadow: 0 1px 2px rgba(0,0,0,0.8);
-	pointer-events: none;
-}
 
-.phoenix-hud__exp-label--center {
+.phoenix-hud-xp__label {
+	position: absolute;
 	left: 0;
 	right: 0;
-	width: 100%;
+	top: 50%;
+	transform: translateY(-50%);
 	text-align: center;
 	color: #fff;
 	font-size: 10px;
 	font-weight: 600;
 	letter-spacing: 0.6px;
 	text-shadow: 0 0 3px #000, 1px 1px 0 #000;
+	pointer-events: none;
 }
 
-.phoenix-hud__hotbar {
+/* Hotbar */
+.phoenix-hud-hotbar {
 	display: flex;
 	gap: 4px;
 	pointer-events: auto;
 }
+.phoenix-hud-el#phoenix-hud-hotbar.is-visible { display: flex; }
 
-.phoenix-hud__slot {
+.phoenix-hud-hotbar__slot {
 	width: 48px;
 	height: 48px;
 	background: rgba(0, 0, 0, 0.7);
@@ -228,9 +226,9 @@
 	color: #f5e6c4;
 	cursor: pointer;
 }
-.phoenix-hud__slot:hover { border-color: #f7c66a; }
-.phoenix-hud__slot.is-dragover { border-color: #f7c66a; background: rgba(247, 198, 106, 0.15); }
-.phoenix-hud__slot-key {
+.phoenix-hud-hotbar__slot:hover { border-color: #f7c66a; }
+.phoenix-hud-hotbar__slot.is-dragover { border-color: #f7c66a; background: rgba(247, 198, 106, 0.15); }
+.phoenix-hud-hotbar__key {
 	position: absolute;
 	top: 2px;
 	left: 4px;
@@ -238,7 +236,7 @@
 	color: #f7c66a;
 	text-shadow: 0 0 3px #000;
 }
-.phoenix-hud__slot-icon {
+.phoenix-hud-hotbar__icon {
 	width: 38px;
 	height: 38px;
 	background-size: contain;
@@ -247,15 +245,15 @@
 	position: relative;
 	overflow: hidden;
 }
-.phoenix-hud__slot-icon gothic-render,
-.phoenix-hud__slot-icon gothic-render canvas {
+.phoenix-hud-hotbar__icon gothic-render,
+.phoenix-hud-hotbar__icon gothic-render canvas {
 	position: absolute;
 	inset: 0;
 	width: 100% !important;
 	height: 100% !important;
 	object-fit: contain;
 }
-.phoenix-hud__slot-fallback {
+.phoenix-hud-hotbar__fallback {
 	position: absolute;
 	inset: 0;
 	display: flex;
@@ -264,7 +262,7 @@
 	font-size: 11px;
 	color: rgba(245, 230, 196, 0.5);
 }
-.phoenix-hud__slot-name {
+.phoenix-hud-hotbar__name {
 	position: absolute;
 	bottom: 2px;
 	left: 0;
@@ -278,7 +276,7 @@
 	text-overflow: ellipsis;
 	padding: 0 2px;
 }
-.phoenix-hud__slot-count {
+.phoenix-hud-hotbar__count {
 	position: absolute;
 	bottom: 2px;
 	right: 4px;
@@ -288,7 +286,7 @@
 	text-shadow: 0 0 3px #000;
 }
 
-/* Target HUD (top center, like Eldoria) */
+/* Target HUD */
 .phoenix-target-hud {
 	position: fixed;
 	top: 18px;
@@ -336,6 +334,7 @@
 .phoenix-target-hud__bar--hp .phoenix-target-hud__bar-fill { background: linear-gradient(180deg, #d24a4a, #7a1a1a); }
 .phoenix-target-hud__bar--mana .phoenix-target-hud__bar-fill { background: linear-gradient(180deg, #4a7ed2, #1a3b7a); }
 
+/* Weapon progress (right side) */
 .phoenix-weapon-progress {
 	position: fixed;
 	right: 26px;
@@ -506,7 +505,7 @@
 .phoenix-herb-progress.is-error .phoenix-herb-progress__state { color: #e58c84; }
 
 
-/* Phoenix Worldclock (time + weather) */
+/* Worldclock */
 .phoenix-worldclock {
 	position: fixed;
 	top: 14px;
@@ -523,6 +522,7 @@
 	user-select: none;
 	text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85), 0 0 6px rgba(0, 0, 0, 0.55);
 	opacity: 0.88;
+	transform-origin: 0 0;
 }
 
 .phoenix-worldclock.is-visible { display: inline-flex; }

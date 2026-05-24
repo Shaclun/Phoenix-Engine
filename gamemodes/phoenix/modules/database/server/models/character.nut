@@ -148,6 +148,9 @@ class CharacterModel extends ORM.Model
 	</ type = "TEXT" />
 	hotbar = null
 
+	</ type = "TEXT" />
+	uiSettings = null
+
 	function beforeModelInsert() {
 		if (normalizedName == "" && name != "")
 			normalizedName = name.tolower()

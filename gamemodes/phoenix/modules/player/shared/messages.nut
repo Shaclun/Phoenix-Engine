@@ -88,6 +88,14 @@ class phoenix.player.Message.HotbarUpdate extends phoenix.net.Message {
 	</ type = phoenix.net.type.String /> data = ""
 }
 
+class phoenix.player.Message.UiSettingsSnapshot extends phoenix.net.Message {
+	</ type = phoenix.net.type.String /> data = ""
+}
+
+class phoenix.player.Message.UiSettingsUpdate extends phoenix.net.Message {
+	</ type = phoenix.net.type.String /> data = ""
+}
+
 class phoenix.player.Message.HotbarActivate extends phoenix.net.Message {
 	</ type = phoenix.net.type.UInt8 /> slot = 0
 }

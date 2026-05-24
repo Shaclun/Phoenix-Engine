@@ -15,6 +15,7 @@
 	<link rel="stylesheet" href="social/style.css" />
 	<link rel="stylesheet" href="admin/style.css" />
 	<link rel="stylesheet" href="crafting/style.css" />
+	<link rel="stylesheet" href="settings/style.css" />
 	<link rel="stylesheet" href="shared/hud.css" />
 	<link rel="stylesheet" href="shared/notifications.css" />
 	<link rel="stylesheet" href="shared/debugconsole.css" />
@@ -45,6 +46,7 @@
 		<section id="page-house" class="phoenix-page" data-page="house"></section>
 		<section id="page-social" class="phoenix-page" data-page="social"></section>
 		<section id="page-crafting" class="phoenix-page" data-page="crafting"></section>
+		<section id="page-settings" class="phoenix-page" data-page="settings"></section>
 	</main>
 
 	<div class="phoenix-escmenu" id="phoenix-escmenu" tabindex="-1">
@@ -63,6 +65,7 @@
 				<button class="phoenix-escmenu__btn phoenix-escmenu__btn--primary" id="escmenu-back" data-t="menu.back">Wróć do gry</button>
 				<button class="phoenix-escmenu__btn phoenix-escmenu__btn--admin" id="escmenu-admin" data-admin-only="1" data-t="menu.admin" hidden>Panel administratora</button>
 				<button class="phoenix-escmenu__btn phoenix-escmenu__btn--admin" id="escmenu-vanish" data-admin-only="1" hidden>Vanish: OFF</button>
+				<button class="phoenix-escmenu__btn" id="escmenu-settings" data-t="menu.settings">Ustawienia</button>
 				<button class="phoenix-escmenu__btn" id="escmenu-char" data-t="menu.changeChar">Zmień postać</button>
 				<button class="phoenix-escmenu__btn" id="escmenu-logout" data-t="menu.logout">Wyloguj</button>
 				<button class="phoenix-escmenu__btn phoenix-escmenu__btn--danger" id="escmenu-exit" data-t="menu.exit">Wyjdź z gry</button>
@@ -134,6 +137,7 @@
 	<script src="inventory/script.js"></script>
 	<script src="admin/script.js"></script>
 	<script src="crafting/script.js"></script>
+	<script src="settings/script.js"></script>
 	<script src="shared/hud.js"></script>
 </body>
 </html>

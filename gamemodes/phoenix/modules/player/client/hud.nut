@@ -144,6 +144,23 @@ phoenix.player.HotbarUse <- {
 phoenix.player.Message.HotbarSnapshot.bind(phoenix.player.HotbarClient.onSnapshot)
 phoenix.web.Router.on("phoenix:hotbar:save", phoenix.player.HotbarClient.onSave)
 
+
+phoenix.player.UiSettingsClient <- {
+	function onSnapshot(message) {
+		try { phoenix.web.Manager.emit("phoenix:uisettings:snapshot", { data = message.data }) } catch (e) {}
+	}
+
+	function onSave(payload) {
+		if (payload == null || !("data" in payload)) return
+		local m = phoenix.player.Message.UiSettingsUpdate()
+		m.data = payload.data.tostring()
+		try { m.serialize().send(RELIABLE_ORDERED) } catch (e) {}
+	}
+}
+
+phoenix.player.Message.UiSettingsSnapshot.bind(phoenix.player.UiSettingsClient.onSnapshot)
+phoenix.web.Router.on("phoenix:uisettings:save", phoenix.player.UiSettingsClient.onSave)
+
 addEventHandler("onRender", function () {
 	if (!phoenix.player.HudClient.knockedDown) return
 	try {

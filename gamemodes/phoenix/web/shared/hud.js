@@ -24,7 +24,7 @@
 		expNext: 500
 	};
 
-	let nodes = null;
+	const els = {};
 	let targetNodes = null;
 	let knockdownNodes = null;
 	let herbNodes = null;
@@ -33,6 +33,8 @@
 	let herbTimer = null;
 	let herbRunId = 0;
 	let weaponHideTimer = null;
+	let blocked = false;
+	let layoutState = null;
 
 	function t(key, fallback) {
 		if (!window.PhoenixI18n || typeof PhoenixI18n.t !== "function") return fallback || key;
@@ -53,44 +55,70 @@
 		return Math.round(v * 1000) / 10;
 	}
 
-	function buildHud() {
-		if (nodes) return nodes;
-		const root = document.createElement("div");
-		root.className = "phoenix-hud";
-		root.id = "phoenix-hud";
-		root.innerHTML =
-			'<div class="phoenix-hud__topleft" data-role="topleft">' +
-				'<div class="phoenix-hud__portrait">' +
-					'<div class="phoenix-hud__portrait-frame"></div>' +
-					'<div class="phoenix-hud__portrait-inner" data-role="portrait"></div>' +
-				'</div>' +
-				'<div class="phoenix-hud__topleft-info">' +
-					'<div class="phoenix-hud__name" data-role="name">—</div>' +
-					'<div class="phoenix-hud__level" data-role="level">Lv 1</div>' +
-					'<div class="phoenix-hud__bars">' +
-						'<div class="phoenix-hud__bar phoenix-hud__bar--hp"><div class="phoenix-hud__bar-fill" data-role="hpFill"></div><div class="phoenix-hud__bar-label" data-role="hpLabel">0 / 0</div></div>' +
-						'<div class="phoenix-hud__bar phoenix-hud__bar--mana"><div class="phoenix-hud__bar-fill" data-role="manaFill"></div><div class="phoenix-hud__bar-label" data-role="manaLabel">0 / 0</div></div>' +
-						'<div class="phoenix-hud__bar phoenix-hud__bar--stamina"><div class="phoenix-hud__bar-fill" data-role="stamFill"></div><div class="phoenix-hud__bar-label" data-role="stamLabel">0 / 0</div></div>' +
-					'</div>' +
-				'</div>' +
-			'</div>' +
-			'<div class="phoenix-hud__bottom">' +
-				'<div class="phoenix-hud__exp"><div class="phoenix-hud__exp-fill" data-role="expFill"></div><span class="phoenix-hud__exp-label phoenix-hud__exp-label--center" data-role="expLabel">0 / 0</span></div>' +
-				'<div class="phoenix-hud__exp phoenix-hud__exp--magic"><div class="phoenix-hud__exp-fill" data-role="magicFill"></div><span class="phoenix-hud__exp-label phoenix-hud__exp-label--center" data-role="magicLabel">M 0</span></div>' +
-				'<div class="phoenix-hud__hotbar" data-role="hotbar"></div>' +
-			'</div>';
-		document.body.appendChild(root);
+	function makeElement(id, className, html) {
+		let node = document.getElementById("phoenix-hud-" + id);
+		if (node) return node;
+		node = document.createElement("div");
+		node.className = "phoenix-hud-el " + className;
+		node.id = "phoenix-hud-" + id;
+		node.dataset.hudId = id;
+		if (html) node.innerHTML = html;
+		document.body.appendChild(node);
+		return node;
+	}
 
-		const hotbar = root.querySelector('[data-role="hotbar"]');
+	function buildHud() {
+		if (els.portrait) return;
+
+		els.portrait = makeElement("portrait", "phoenix-hud-portrait",
+			'<div class="phoenix-hud-portrait__frame"></div>' +
+			'<div class="phoenix-hud-portrait__inner" data-role="portrait"></div>'
+		);
+
+		els.name = makeElement("name", "phoenix-hud-name",
+			'<span data-role="name">—</span>'
+		);
+
+		els.level = makeElement("level", "phoenix-hud-level",
+			'<span data-role="level">Lv 1</span>'
+		);
+
+		els.hp = makeElement("hp", "phoenix-hud-bar phoenix-hud-bar--hp",
+			'<div class="phoenix-hud-bar__fill" data-role="hpFill"></div>' +
+			'<div class="phoenix-hud-bar__label" data-role="hpLabel">0 / 0</div>'
+		);
+
+		els.mana = makeElement("mana", "phoenix-hud-bar phoenix-hud-bar--mana",
+			'<div class="phoenix-hud-bar__fill" data-role="manaFill"></div>' +
+			'<div class="phoenix-hud-bar__label" data-role="manaLabel">0 / 0</div>'
+		);
+
+		els.stamina = makeElement("stamina", "phoenix-hud-bar phoenix-hud-bar--stamina",
+			'<div class="phoenix-hud-bar__fill" data-role="stamFill"></div>' +
+			'<div class="phoenix-hud-bar__label" data-role="stamLabel">0 / 0</div>'
+		);
+
+		els.exp = makeElement("exp", "phoenix-hud-xp",
+			'<div class="phoenix-hud-xp__fill" data-role="expFill"></div>' +
+			'<span class="phoenix-hud-xp__label" data-role="expLabel">0 / 0</span>'
+		);
+
+		els.magicxp = makeElement("magicxp", "phoenix-hud-xp phoenix-hud-xp--magic",
+			'<div class="phoenix-hud-xp__fill" data-role="magicFill"></div>' +
+			'<span class="phoenix-hud-xp__label" data-role="magicLabel">M 0</span>'
+		);
+
+		els.hotbar = makeElement("hotbar", "phoenix-hud-hotbar", "");
+
 		for (let i = 0; i < HOTBAR_SLOTS; i++) {
 			const slot = document.createElement("div");
-			slot.className = "phoenix-hud__slot";
+			slot.className = "phoenix-hud-hotbar__slot";
 			slot.dataset.slot = String(i);
 			slot.innerHTML =
-				'<span class="phoenix-hud__slot-key">' + (i + 1) + '</span>' +
-				'<div class="phoenix-hud__slot-icon" data-role="icon"></div>' +
-				'<span class="phoenix-hud__slot-count" data-role="count"></span>' +
-				'<span class="phoenix-hud__slot-name" data-role="name"></span>';
+				'<span class="phoenix-hud-hotbar__key">' + (i + 1) + '</span>' +
+				'<div class="phoenix-hud-hotbar__icon" data-role="icon"></div>' +
+				'<span class="phoenix-hud-hotbar__count" data-role="count"></span>' +
+				'<span class="phoenix-hud-hotbar__name" data-role="name"></span>';
 			slot.addEventListener("dragover", function (e) {
 				if (e.dataTransfer && (e.dataTransfer.types || []).indexOf("text/phoenix-item") !== -1) {
 					e.preventDefault();
@@ -114,27 +142,24 @@
 				clearSlot(i);
 			});
 			slot.addEventListener("click", function () { useSlot(i); });
-			hotbar.appendChild(slot);
+			els.hotbar.appendChild(slot);
 		}
 
-		nodes = {
-			root: root,
-			name: root.querySelector('[data-role="name"]'),
-			level: root.querySelector('[data-role="level"]'),
-			portrait: root.querySelector('[data-role="portrait"]'),
-			hpFill: root.querySelector('[data-role="hpFill"]'),
-			hpLabel: root.querySelector('[data-role="hpLabel"]'),
-			manaFill: root.querySelector('[data-role="manaFill"]'),
-			manaLabel: root.querySelector('[data-role="manaLabel"]'),
-			stamFill: root.querySelector('[data-role="stamFill"]'),
-			stamLabel: root.querySelector('[data-role="stamLabel"]'),
-			expFill: root.querySelector('[data-role="expFill"]'),
-			expLabel: root.querySelector('[data-role="expLabel"]'),
-			magicFill: root.querySelector('[data-role="magicFill"]'),
-			magicLabel: root.querySelector('[data-role="magicLabel"]'),
-			hotbar: hotbar
+		els.refs = {
+			portraitInner: els.portrait.querySelector('[data-role="portrait"]'),
+			name: els.name.querySelector('[data-role="name"]'),
+			level: els.level.querySelector('[data-role="level"]'),
+			hpFill: els.hp.querySelector('[data-role="hpFill"]'),
+			hpLabel: els.hp.querySelector('[data-role="hpLabel"]'),
+			manaFill: els.mana.querySelector('[data-role="manaFill"]'),
+			manaLabel: els.mana.querySelector('[data-role="manaLabel"]'),
+			stamFill: els.stamina.querySelector('[data-role="stamFill"]'),
+			stamLabel: els.stamina.querySelector('[data-role="stamLabel"]'),
+			expFill: els.exp.querySelector('[data-role="expFill"]'),
+			expLabel: els.exp.querySelector('[data-role="expLabel"]'),
+			magicFill: els.magicxp.querySelector('[data-role="magicFill"]'),
+			magicLabel: els.magicxp.querySelector('[data-role="magicLabel"]')
 		};
-		return nodes;
 	}
 
 	const portraitState = { headModel: "", current: "" };
@@ -157,12 +182,14 @@
 	}
 
 	function renderPortrait(headModel) {
-		if (!nodes || !nodes.portrait) return;
+		buildHud();
+		if (!els.refs || !els.refs.portraitInner) return;
 		const head = String(headModel || "").trim();
 		portraitState.headModel = head;
+		const target = els.refs.portraitInner;
 		if (!head) {
 			if (portraitState.current !== "") {
-				nodes.portrait.innerHTML = '<span class="phoenix-hud__portrait-fallback">?</span>';
+				target.innerHTML = '<span class="phoenix-hud-portrait__fallback">?</span>';
 				portraitState.current = "";
 			}
 			return;
@@ -171,11 +198,11 @@
 		const sig = visual + "|" + portraitConfig.rotX + "|" + portraitConfig.rotY + "|" + portraitConfig.rotZ + "|" + portraitConfig.scale + "|" + portraitConfig.light;
 		if (portraitState.current === sig) return;
 		portraitState.current = sig;
-		nodes.portrait.innerHTML = "";
+		target.innerHTML = "";
 		const fallback = document.createElement("span");
-		fallback.className = "phoenix-hud__portrait-fallback";
+		fallback.className = "phoenix-hud-portrait__fallback";
 		fallback.textContent = "…";
-		nodes.portrait.appendChild(fallback);
+		target.appendChild(fallback);
 		const el = document.createElement("gothic-render");
 		el.setAttribute("width", "100");
 		el.setAttribute("height", "100");
@@ -185,7 +212,7 @@
 		el.setAttribute("scale", String(portraitConfig.scale));
 		el.setAttribute("light-intensity", String(portraitConfig.light));
 		el.setAttribute("visual", visual);
-		nodes.portrait.appendChild(el);
+		target.appendChild(el);
 	}
 
 	function buildTargetHud() {
@@ -193,6 +220,7 @@
 		const root = document.createElement("div");
 		root.className = "phoenix-target-hud";
 		root.id = "phoenix-target-hud";
+		root.dataset.hudId = "target";
 		root.innerHTML =
 			'<div class="phoenix-target-hud__name" data-role="name">—</div>' +
 			'<div class="phoenix-target-hud__level" data-role="level">Lv 1</div>' +
@@ -348,26 +376,28 @@
 		state.level = payload.level | 0;
 		state.expNext = payload.experienceNext | 0;
 		state.weaponProgress = payload.weaponProgress || "";
-		nodes.name.textContent = payload.name || "—";
-		nodes.level.textContent = "Lv " + (payload.level | 0);
-		nodes.hpFill.style.width = pct(payload.hp, payload.hpMax) + "%";
-		nodes.hpLabel.textContent = fmt(payload.hp, payload.hpMax);
-		nodes.manaFill.style.width = pct(payload.mana, payload.manaMax) + "%";
-		nodes.manaLabel.textContent = fmt(payload.mana, payload.manaMax);
-		nodes.stamFill.style.width = pct(payload.stamina, payload.staminaMax) + "%";
-		nodes.stamLabel.textContent = fmt(payload.stamina, payload.staminaMax);
+		const r = els.refs;
+		r.name.textContent = payload.name || "—";
+		r.level.textContent = "Lv " + (payload.level | 0);
+		r.hpFill.style.width = pct(payload.hp, payload.hpMax) + "%";
+		r.hpLabel.textContent = fmt(payload.hp, payload.hpMax);
+		r.manaFill.style.width = pct(payload.mana, payload.manaMax) + "%";
+		r.manaLabel.textContent = fmt(payload.mana, payload.manaMax);
+		r.stamFill.style.width = pct(payload.stamina, payload.staminaMax) + "%";
+		r.stamLabel.textContent = fmt(payload.stamina, payload.staminaMax);
 		const expCur = payload.experience | 0;
 		const expCap = (payload.experienceNext | 0) || 1;
-		nodes.expFill.style.width = pct(expCur, expCap) + "%";
-		if (nodes.expLabel) nodes.expLabel.textContent = expCur + " / " + expCap;
+		r.expFill.style.width = pct(expCur, expCap) + "%";
+		r.expLabel.textContent = expCur + " / " + expCap;
 		const magicLv = payload.magicLevel | 0;
 		const magicXp = payload.magicXp | 0;
 		const magicNext = (payload.magicXpNext | 0);
 		const magicCapped = magicNext <= 0;
 		const magicPct = magicCapped ? 100 : pct(magicXp, magicNext);
-		if (nodes.magicFill) nodes.magicFill.style.width = magicPct + "%";
-		if (nodes.magicLabel) nodes.magicLabel.textContent = "M " + magicLv + (magicCapped ? "  ·  MAX" : "  ·  " + magicXp + " / " + magicNext);
+		r.magicFill.style.width = magicPct + "%";
+		r.magicLabel.textContent = "M " + magicLv + (magicCapped ? "  ·  MAX" : "  ·  " + magicXp + " / " + magicNext);
 		try { renderPortrait(payload.headModel); } catch (ePt) {}
+		try { applyLayoutNow(); } catch (eLn) {}
 		show();
 	}
 
@@ -393,14 +423,20 @@
 	function show() {
 		buildHud();
 		state.visible = true;
-		nodes.root.classList.add("is-visible");
+		Object.keys(els).forEach(function (k) {
+			if (k === "refs") return;
+			if (els[k] && els[k].classList) els[k].classList.add("is-visible");
+		});
 		if (worldClockNodes) worldClockNodes.root.classList.add("is-visible");
 		renderHotbar();
 	}
 
 	function hide() {
 		state.visible = false;
-		if (nodes) nodes.root.classList.remove("is-visible");
+		Object.keys(els).forEach(function (k) {
+			if (k === "refs") return;
+			if (els[k] && els[k].classList) els[k].classList.remove("is-visible");
+		});
 		if (targetNodes) targetNodes.root.classList.remove("is-visible");
 		if (weaponNodes) weaponNodes.root.classList.remove("is-visible", "is-hiding", "is-notify", "is-updated");
 		if (knockdownNodes) knockdownNodes.root.classList.remove("is-visible");
@@ -473,7 +509,7 @@
 			return;
 		}
 		const fallback = document.createElement("span");
-		fallback.className = "phoenix-hud__slot-fallback";
+		fallback.className = "phoenix-hud-hotbar__fallback";
 		fallback.textContent = ((item && item.name) || entry.name || entry.instance || "?").slice(0, 2);
 		icon.appendChild(fallback);
 		const el = document.createElement("gothic-render");
@@ -490,10 +526,11 @@
 	}
 
 	function renderHotbar() {
-		if (!nodes) return;
-		const slots = nodes.hotbar.children;
+		if (!els.hotbar) return;
+		const slots = els.hotbar.children;
 		for (let i = 0; i < HOTBAR_SLOTS; i++) {
 			const slot = slots[i];
+			if (!slot) continue;
 			const entry = state.hotbar[i];
 			const icon = slot.querySelector('[data-role="icon"]');
 			const name = slot.querySelector('[data-role="name"]');
@@ -624,6 +661,7 @@
 		const root = document.createElement("div");
 		root.className = "phoenix-worldclock";
 		root.id = "phoenix-worldclock";
+		root.dataset.hudId = "worldclock";
 		root.innerHTML =
 			'<span class="phoenix-worldclock__time" data-role="time">00:00</span>' +
 			'<span class="phoenix-worldclock__sep">·</span>' +
@@ -690,6 +728,52 @@
 		PhoenixNotify.notify("error", tr("herb.notify.failed.title"), label, 3500);
 	}
 
+
+	function getElementNodeById(id) {
+		if (id === "worldclock") return worldClockNodes ? worldClockNodes.root : document.getElementById("phoenix-worldclock");
+		if (id === "chat") return document.getElementById("phoenix-chat");
+		if (id === "target") return targetNodes ? targetNodes.root : document.getElementById("phoenix-target-hud");
+		return document.getElementById("phoenix-hud-" + id);
+	}
+
+	function applyLayoutNow() {
+		if (!layoutState) return;
+		Object.keys(layoutState).forEach(function (id) {
+			const cfg = layoutState[id];
+			if (!cfg) return;
+			const node = getElementNodeById(id);
+			if (!node) return;
+			applyElementLayout(node, cfg);
+		});
+	}
+
+	function applyElementLayout(node, cfg) {
+		if (cfg.visible === false) {
+			node.style.display = "none";
+			return;
+		}
+		node.style.display = "";
+
+		const x = (typeof cfg.x === "number") ? cfg.x : 0;
+		const y = (typeof cfg.y === "number") ? cfg.y : 0;
+		const scale = (typeof cfg.scale === "number") ? cfg.scale : 1;
+
+		node.style.right = "";
+		node.style.bottom = "";
+		node.style.left = x + "%";
+		node.style.top = y + "%";
+		node.style.transformOrigin = "0 0";
+		node.style.transform = "scale(" + scale + ")";
+	}
+
+	function applyLayout(layout) {
+		if (!layout) return;
+		layoutState = layout;
+		buildHud();
+		try { buildWorldClock(); } catch (eW) {}
+		try { applyLayoutNow(); } catch (e) {}
+	}
+
 	loadHotbar();
 
 	document.addEventListener("keydown", onKey, true);
@@ -717,18 +801,25 @@
 		});
 		PhoenixBridge.on("phoenix:hud:hide", hide);
 		PhoenixBridge.on("phoenix:hud:show", show);
+		PhoenixBridge.on("phoenix:chat:show", function () {
+			setTimeout(function () { try { applyLayoutNow(); } catch (e) {} }, 50);
+		});
 		PhoenixBridge.on("phoenix:hud:portraitConfig", function (payload) {
 			if (!payload) return;
 			applyPortraitConfig(payload.data || "");
 		});
+		PhoenixBridge.on("phoenix:uisettings:snapshot", function (payload) {
+			if (!payload || !payload.data) return;
+			try {
+				const obj = JSON.parse(payload.data);
+				if (obj && obj.hud) applyLayout(obj.hud);
+			} catch (e) {}
+		});
 		PhoenixBridge.on("phoenix:worldclock:update", applyWorldClock);
 	}
 
-	let blocked = false;
 	function setBlocked(value) {
 		blocked = !!value;
-		const hud = document.querySelector(".phoenix-hud");
-		if (hud) hud.classList.toggle("is-blocked", blocked);
 		const target = document.querySelector(".phoenix-target-hud");
 		if (target) target.classList.toggle("is-blocked", blocked);
 		const weapon = document.querySelector(".phoenix-weapon-progress");
@@ -750,6 +841,8 @@
 			return -1;
 		},
 		setBlocked: setBlocked,
-		applyHotbarSnapshot: applyHotbarSnapshot
+		applyHotbarSnapshot: applyHotbarSnapshot,
+		applyLayout: applyLayout,
+		getElement: getElementNodeById
 	};
 })();

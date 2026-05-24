@@ -2,12 +2,13 @@
 
 .phoenix-chat {
 	position: fixed;
-	left: 24px;
-	bottom: 24px;
+	left: 1.0%;
+	top: 87%;
 	width: 520px;
 	max-width: 42vw;
 	z-index: 100;
 	display: none;
+	transform-origin: 0 0;
 	flex-direction: column;
 	font-family: "Cinzel", "Trajan Pro", "Times New Roman", serif;
 	pointer-events: none;
@@ -203,7 +204,16 @@ body.phoenix-in-game .phoenix-footer { display: none; }
 }
 .phoenix-chat.is-input-open .phoenix-chat__hint { opacity: 1; }
 
-body.phoenix-inventory-open .phoenix-chat {
+body.phoenix-inventory-open .phoenix-chat,
+body.phoenix-stats-open .phoenix-chat,
+body.phoenix-teacher-open .phoenix-chat,
+body.phoenix-house-open .phoenix-chat,
+body.phoenix-social-open .phoenix-chat,
+body.phoenix-crafting-open .phoenix-chat,
+body.phoenix-character-open .phoenix-chat,
+body.phoenix-auth-open .phoenix-chat,
+body.phoenix-admin-open .phoenix-chat,
+body.phoenix-escmenu-open .phoenix-chat {
 	display: none !important;
 }
 

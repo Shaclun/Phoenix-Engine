@@ -14,10 +14,16 @@
 			if (!node) return;
 			node.classList.toggle("is-active", key === name);
 		});
+		if (previous) {
+			document.body.classList.remove("phoenix-" + previous + "-open");
+		}
 		if (previous && pages[previous] && typeof pages[previous].onHide === "function") {
 			try { pages[previous].onHide(); } catch (e) {}
 		}
 		active = name;
+		if (name) {
+			document.body.classList.add("phoenix-" + name + "-open");
+		}
 		if (pages[name] && typeof pages[name].onShow === "function") {
 			pages[name].onShow();
 		}
@@ -30,6 +36,9 @@
 			if (node) node.classList.remove("is-active");
 		});
 		active = null;
+		if (previous) {
+			document.body.classList.remove("phoenix-" + previous + "-open");
+		}
 		if (previous && pages[previous] && typeof pages[previous].onHide === "function") {
 			try { pages[previous].onHide(); } catch (e) {}
 		}
