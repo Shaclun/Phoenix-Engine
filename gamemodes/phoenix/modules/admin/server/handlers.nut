@@ -1153,9 +1153,9 @@ phoenix.admin.Server <- {
 
 	function dispatchSpawnConfigGet(playerId, _payload) {
 		phoenix.admin.Server._ensureSpawnConfigTable(function () {
-			local sql = "SELECT `configKey`, `payload` FROM `phoenix_admin_config` WHERE `configKey` IN ('lobbyCameras','characterDefaultSpawn','characterScenarios','characterCreateCamera','characterSelectCamera')"
+			local sql = "SELECT `configKey`, `payload` FROM `phoenix_admin_config` WHERE `configKey` IN ('lobbyCameras','characterDefaultSpawn','characterScenarios','characterCreateCamera','characterSelectCamera','hudPortrait')"
 			ORM.engine.executeAsync(sql, function (rows) {
-				local out = { lobbyCameras = "", characterDefaultSpawn = "", characterScenarios = "", characterCreateCamera = "", characterSelectCamera = "" }
+				local out = { lobbyCameras = "", characterDefaultSpawn = "", characterScenarios = "", characterCreateCamera = "", characterSelectCamera = "", hudPortrait = "" }
 				if (rows != null) foreach (r in rows) {
 					if (!("configKey" in r)) continue
 					local key = r.configKey.tostring()
@@ -1173,7 +1173,7 @@ phoenix.admin.Server <- {
 		}
 		local key = payload.configKey.tostring()
 		if (key != "lobbyCameras" && key != "characterDefaultSpawn" && key != "characterScenarios" &&
-			key != "characterCreateCamera" && key != "characterSelectCamera") {
+			key != "characterCreateCamera" && key != "characterSelectCamera" && key != "hudPortrait") {
 			phoenix.admin.Server.reply(playerId, "spawnConfigSave", false, "badKey", null); return
 		}
 		local raw = payload.payload.tostring()

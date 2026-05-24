@@ -1,5 +1,5 @@
 phoenix.player.LobbyConfig <- {
-	cache = { lobbyCameras = "", characterDefaultSpawn = "", characterScenarios = "", characterCreateCamera = "", characterSelectCamera = "" }
+	cache = { lobbyCameras = "", characterDefaultSpawn = "", characterScenarios = "", characterCreateCamera = "", characterSelectCamera = "", hudPortrait = "" }
 	loaded = false
 
 	function ensureTable(callback) {
@@ -15,7 +15,7 @@ phoenix.player.LobbyConfig <- {
 
 	function load(callback) {
 		phoenix.player.LobbyConfig.ensureTable(function () {
-			local sql = "SELECT `configKey`, `payload` FROM `phoenix_admin_config` WHERE `configKey` IN ('lobbyCameras','characterDefaultSpawn','characterScenarios','characterCreateCamera','characterSelectCamera')"
+			local sql = "SELECT `configKey`, `payload` FROM `phoenix_admin_config` WHERE `configKey` IN ('lobbyCameras','characterDefaultSpawn','characterScenarios','characterCreateCamera','characterSelectCamera','hudPortrait')"
 			ORM.engine.executeAsync(sql, function (rows) {
 				local cache = phoenix.player.LobbyConfig.cache
 				if (rows != null) foreach (r in rows) {
@@ -37,6 +37,7 @@ phoenix.player.LobbyConfig <- {
 		m.characterScenarios = phoenix.player.LobbyConfig.cache.characterScenarios
 		m.characterCreateCamera = phoenix.player.LobbyConfig.cache.characterCreateCamera
 		m.characterSelectCamera = phoenix.player.LobbyConfig.cache.characterSelectCamera
+		m.hudPortrait = phoenix.player.LobbyConfig.cache.hudPortrait
 		return m
 	}
 

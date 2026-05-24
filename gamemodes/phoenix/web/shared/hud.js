@@ -59,16 +59,26 @@
 		root.className = "phoenix-hud";
 		root.id = "phoenix-hud";
 		root.innerHTML =
-			'<div class="phoenix-hud__name" data-role="name">—</div>' +
-			'<div class="phoenix-hud__level" data-role="level">Lv 1</div>' +
-			'<div class="phoenix-hud__bars">' +
-				'<div class="phoenix-hud__bar phoenix-hud__bar--hp"><div class="phoenix-hud__bar-fill" data-role="hpFill"></div><div class="phoenix-hud__bar-label" data-role="hpLabel">0 / 0</div></div>' +
-				'<div class="phoenix-hud__bar phoenix-hud__bar--mana"><div class="phoenix-hud__bar-fill" data-role="manaFill"></div><div class="phoenix-hud__bar-label" data-role="manaLabel">0 / 0</div></div>' +
-				'<div class="phoenix-hud__bar phoenix-hud__bar--stamina"><div class="phoenix-hud__bar-fill" data-role="stamFill"></div><div class="phoenix-hud__bar-label" data-role="stamLabel">0 / 0</div></div>' +
+			'<div class="phoenix-hud__topleft" data-role="topleft">' +
+				'<div class="phoenix-hud__portrait">' +
+					'<div class="phoenix-hud__portrait-frame"></div>' +
+					'<div class="phoenix-hud__portrait-inner" data-role="portrait"></div>' +
+				'</div>' +
+				'<div class="phoenix-hud__topleft-info">' +
+					'<div class="phoenix-hud__name" data-role="name">—</div>' +
+					'<div class="phoenix-hud__level" data-role="level">Lv 1</div>' +
+					'<div class="phoenix-hud__bars">' +
+						'<div class="phoenix-hud__bar phoenix-hud__bar--hp"><div class="phoenix-hud__bar-fill" data-role="hpFill"></div><div class="phoenix-hud__bar-label" data-role="hpLabel">0 / 0</div></div>' +
+						'<div class="phoenix-hud__bar phoenix-hud__bar--mana"><div class="phoenix-hud__bar-fill" data-role="manaFill"></div><div class="phoenix-hud__bar-label" data-role="manaLabel">0 / 0</div></div>' +
+						'<div class="phoenix-hud__bar phoenix-hud__bar--stamina"><div class="phoenix-hud__bar-fill" data-role="stamFill"></div><div class="phoenix-hud__bar-label" data-role="stamLabel">0 / 0</div></div>' +
+					'</div>' +
+				'</div>' +
 			'</div>' +
-			'<div class="phoenix-hud__exp"><div class="phoenix-hud__exp-fill" data-role="expFill"></div></div>' +
-			'<div class="phoenix-hud__exp phoenix-hud__exp--magic"><div class="phoenix-hud__exp-fill" data-role="magicFill"></div><span class="phoenix-hud__exp-label" data-role="magicLabel">M 0</span></div>' +
-			'<div class="phoenix-hud__hotbar" data-role="hotbar"></div>';
+			'<div class="phoenix-hud__bottom">' +
+				'<div class="phoenix-hud__exp"><div class="phoenix-hud__exp-fill" data-role="expFill"></div><span class="phoenix-hud__exp-label phoenix-hud__exp-label--center" data-role="expLabel">0 / 0</span></div>' +
+				'<div class="phoenix-hud__exp phoenix-hud__exp--magic"><div class="phoenix-hud__exp-fill" data-role="magicFill"></div><span class="phoenix-hud__exp-label phoenix-hud__exp-label--center" data-role="magicLabel">M 0</span></div>' +
+				'<div class="phoenix-hud__hotbar" data-role="hotbar"></div>' +
+			'</div>';
 		document.body.appendChild(root);
 
 		const hotbar = root.querySelector('[data-role="hotbar"]');
@@ -111,6 +121,7 @@
 			root: root,
 			name: root.querySelector('[data-role="name"]'),
 			level: root.querySelector('[data-role="level"]'),
+			portrait: root.querySelector('[data-role="portrait"]'),
 			hpFill: root.querySelector('[data-role="hpFill"]'),
 			hpLabel: root.querySelector('[data-role="hpLabel"]'),
 			manaFill: root.querySelector('[data-role="manaFill"]'),
@@ -118,11 +129,63 @@
 			stamFill: root.querySelector('[data-role="stamFill"]'),
 			stamLabel: root.querySelector('[data-role="stamLabel"]'),
 			expFill: root.querySelector('[data-role="expFill"]'),
+			expLabel: root.querySelector('[data-role="expLabel"]'),
 			magicFill: root.querySelector('[data-role="magicFill"]'),
 			magicLabel: root.querySelector('[data-role="magicLabel"]'),
 			hotbar: hotbar
 		};
 		return nodes;
+	}
+
+	const portraitState = { headModel: "", current: "" };
+	const portraitConfig = { rotX: 1.5708, rotY: 3.1416, rotZ: 0, scale: 4.6, light: 2.4 };
+
+	function applyPortraitConfig(raw) {
+		if (raw == null) return;
+		const text = String(raw || "").trim();
+		if (!text) return;
+		let obj = null;
+		try { obj = JSON.parse(text); } catch (e) { obj = null; }
+		if (!obj) return;
+		if (typeof obj.rotX === "number") portraitConfig.rotX = obj.rotX;
+		if (typeof obj.rotY === "number") portraitConfig.rotY = obj.rotY;
+		if (typeof obj.rotZ === "number") portraitConfig.rotZ = obj.rotZ;
+		if (typeof obj.scale === "number") portraitConfig.scale = obj.scale;
+		if (typeof obj.light === "number") portraitConfig.light = obj.light;
+		portraitState.current = "";
+		try { renderPortrait(portraitState.headModel); } catch (e2) {}
+	}
+
+	function renderPortrait(headModel) {
+		if (!nodes || !nodes.portrait) return;
+		const head = String(headModel || "").trim();
+		portraitState.headModel = head;
+		if (!head) {
+			if (portraitState.current !== "") {
+				nodes.portrait.innerHTML = '<span class="phoenix-hud__portrait-fallback">?</span>';
+				portraitState.current = "";
+			}
+			return;
+		}
+		const visual = head.toUpperCase().endsWith(".MMB") ? head : head + ".MMB";
+		const sig = visual + "|" + portraitConfig.rotX + "|" + portraitConfig.rotY + "|" + portraitConfig.rotZ + "|" + portraitConfig.scale + "|" + portraitConfig.light;
+		if (portraitState.current === sig) return;
+		portraitState.current = sig;
+		nodes.portrait.innerHTML = "";
+		const fallback = document.createElement("span");
+		fallback.className = "phoenix-hud__portrait-fallback";
+		fallback.textContent = "…";
+		nodes.portrait.appendChild(fallback);
+		const el = document.createElement("gothic-render");
+		el.setAttribute("width", "130");
+		el.setAttribute("height", "130");
+		el.setAttribute("rot-x", String(portraitConfig.rotX));
+		el.setAttribute("rot-y", String(portraitConfig.rotY));
+		el.setAttribute("rot-z", String(portraitConfig.rotZ));
+		el.setAttribute("scale", String(portraitConfig.scale));
+		el.setAttribute("light-intensity", String(portraitConfig.light));
+		el.setAttribute("visual", visual);
+		nodes.portrait.appendChild(el);
 	}
 
 	function buildTargetHud() {
@@ -296,13 +359,15 @@
 		const expCur = payload.experience | 0;
 		const expCap = (payload.experienceNext | 0) || 1;
 		nodes.expFill.style.width = pct(expCur, expCap) + "%";
+		if (nodes.expLabel) nodes.expLabel.textContent = expCur + " / " + expCap;
 		const magicLv = payload.magicLevel | 0;
 		const magicXp = payload.magicXp | 0;
 		const magicNext = (payload.magicXpNext | 0);
 		const magicCapped = magicNext <= 0;
 		const magicPct = magicCapped ? 100 : pct(magicXp, magicNext);
 		if (nodes.magicFill) nodes.magicFill.style.width = magicPct + "%";
-		if (nodes.magicLabel) nodes.magicLabel.textContent = "M " + magicLv + (magicCapped ? "  MAX" : "  " + magicXp + " / " + magicNext);
+		if (nodes.magicLabel) nodes.magicLabel.textContent = "M " + magicLv + (magicCapped ? "  ·  MAX" : "  ·  " + magicXp + " / " + magicNext);
+		try { renderPortrait(payload.headModel); } catch (ePt) {}
 		show();
 	}
 
@@ -652,6 +717,10 @@
 		});
 		PhoenixBridge.on("phoenix:hud:hide", hide);
 		PhoenixBridge.on("phoenix:hud:show", show);
+		PhoenixBridge.on("phoenix:hud:portraitConfig", function (payload) {
+			if (!payload) return;
+			applyPortraitConfig(payload.data || "");
+		});
 		PhoenixBridge.on("phoenix:worldclock:update", applyWorldClock);
 	}
 

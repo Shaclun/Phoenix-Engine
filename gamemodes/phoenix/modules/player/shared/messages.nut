@@ -13,6 +13,11 @@ class phoenix.player.Message.HudSnapshot extends phoenix.net.Message {
 	</ type = phoenix.net.type.UInt32 /> magicXp = 0
 	</ type = phoenix.net.type.UInt32 /> magicXpNext = 0
 	</ type = phoenix.net.type.String /> weaponProgress = ""
+	</ type = phoenix.net.type.String /> headModel = ""
+	</ type = phoenix.net.type.String /> bodyModel = ""
+	</ type = phoenix.net.type.UInt16 /> bodyTexIndex = 0
+	</ type = phoenix.net.type.UInt32 /> face = 0
+	</ type = phoenix.net.type.UInt8 /> gender = 1
 }
 
 class phoenix.player.Message.KnockedDown extends phoenix.net.Message {
@@ -98,4 +103,5 @@ class phoenix.player.Message.LobbyConfig extends phoenix.net.Message {
 	</ type = phoenix.net.type.String /> characterScenarios = ""
 	</ type = phoenix.net.type.String /> characterCreateCamera = ""
 	</ type = phoenix.net.type.String /> characterSelectCamera = ""
+	</ type = phoenix.net.type.String /> hudPortrait = ""
 }

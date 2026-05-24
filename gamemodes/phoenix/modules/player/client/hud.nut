@@ -58,7 +58,12 @@ phoenix.player.HudClient <- {
 			magicLevel = message.magicLevel,
 			magicXp = message.magicXp,
 			magicXpNext = message.magicXpNext,
-			weaponProgress = message.weaponProgress
+			weaponProgress = message.weaponProgress,
+			headModel = message.headModel,
+			bodyModel = message.bodyModel,
+			bodyTexIndex = message.bodyTexIndex,
+			face = message.face,
+			gender = message.gender
 		}
 		phoenix.player.HudClient.lastWeaponProgress = message.weaponProgress
 		phoenix.player.HudClient.last = payload

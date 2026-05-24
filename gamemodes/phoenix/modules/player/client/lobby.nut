@@ -30,6 +30,8 @@ phoenix.player.Lobby <- {
 		phoenix.player.Lobby.createSpot = phoenix.player.Lobby._parseSingleSpot(rawCreate)
 		local rawSelect = ("characterSelectCamera" in payload) ? payload.characterSelectCamera.tostring() : ""
 		phoenix.player.Lobby.selectSpot = phoenix.player.Lobby._parseSingleSpot(rawSelect)
+		local rawHudPortrait = ("hudPortrait" in payload) ? payload.hudPortrait.tostring() : ""
+		try { phoenix.web.Manager.emit("phoenix:hud:portraitConfig", { data = rawHudPortrait }) } catch (eHp) {}
 	}
 
 	function _parseSingleSpot(raw) {

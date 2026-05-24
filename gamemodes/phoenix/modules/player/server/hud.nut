@@ -34,6 +34,11 @@ phoenix.player.Hud <- {
 		try { msg.magicXp    = ("magicXp"    in record && record.magicXp    != null) ? record.magicXp    : 0 } catch (eMx) { msg.magicXp = 0 }
 		try { msg.magicXpNext = phoenix.item.Spells != null ? phoenix.item.Spells.xpToNext(msg.magicLevel) : 0 } catch (eMxn) { msg.magicXpNext = 20 + msg.magicLevel * msg.magicLevel * 3 }
 		try { msg.weaponProgress = phoenix.player.WeaponProgression.progressString(playerId) } catch (e) { msg.weaponProgress = "" }
+		try { msg.headModel = (record.headModel != null) ? record.headModel.tostring() : "" } catch (eHm) { msg.headModel = "" }
+		try { msg.bodyModel = (record.bodyModel != null) ? record.bodyModel.tostring() : "" } catch (eBm) { msg.bodyModel = "" }
+		try { msg.bodyTexIndex = (record.bodyTexIndex != null) ? record.bodyTexIndex.tointeger() : 0 } catch (eBti) { msg.bodyTexIndex = 0 }
+		try { msg.face = (record.face != null) ? record.face.tointeger() : 0 } catch (eFc) { msg.face = 0 }
+		try { msg.gender = (record.gender != null) ? record.gender.tointeger() : 1 } catch (eGn) { msg.gender = 1 }
 		msg.serialize().send(playerId, RELIABLE_ORDERED)
 	}
 

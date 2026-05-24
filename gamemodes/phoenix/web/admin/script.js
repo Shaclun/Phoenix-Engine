@@ -995,8 +995,71 @@
         }
         html += '</div>';
 
+        html += renderHudPortraitConfig(cfg);
+
         html += '</div>';
         return html;
+    }
+
+    function defaultHudPortrait() { return { rotX: 1.5708, rotY: 3.1416, rotZ: 0, scale: 4.6, light: 2.4, head: "Hum_Head_Pony" }; }
+    function parseHudPortrait(raw) {
+        var out = defaultHudPortrait();
+        if (!raw) return out;
+        try {
+            var obj = JSON.parse(raw);
+            if (obj && typeof obj === "object") {
+                if (typeof obj.rotX === "number") out.rotX = obj.rotX;
+                if (typeof obj.rotY === "number") out.rotY = obj.rotY;
+                if (typeof obj.rotZ === "number") out.rotZ = obj.rotZ;
+                if (typeof obj.scale === "number") out.scale = obj.scale;
+                if (typeof obj.light === "number") out.light = obj.light;
+                if (typeof obj.head === "string" && obj.head) out.head = obj.head;
+            }
+        } catch (e) {}
+        return out;
+    }
+
+    function renderHudPortraitConfig(cfg) {
+        var raw = (cfg && cfg.hudPortrait) ? String(cfg.hudPortrait) : "";
+        var hp = parseHudPortrait(raw);
+        var headOptions = ["Hum_Head_Pony", "Hum_Head_Bald", "Hum_Head_Thief", "Hum_Head_Psionic", "Hum_Head_Fighter", "Hum_Head_FatBald", "Hum_Head_Babe", "Hum_Head_Babe1", "Hum_Head_Babe2"];
+        var visual = (hp.head || "Hum_Head_Pony") + ".MMB";
+
+        var html = '<div class="adm-section adm-section--inline">';
+        html += '<div class="adm-db-header"><h4>HUD · render portretu (romb)</h4>';
+        html += '<div class="adm-db-actions">';
+        html += '<button class="adm-btn" data-action="hudportrait-reset">Reset domyślny</button>';
+        html += '<button class="adm-btn adm-btn--primary" data-action="hudportrait-save">Zapisz</button>';
+        html += '</div></div>';
+        html += '<p class="adm-muted">Te same wartości co w bestiariuszu — ustaw głowę żeby pasowała do rombu w lewym górnym rogu HUD.</p>';
+
+        html += '<div class="adm-render-debug">';
+        html += '<div class="adm-render-debug__preview" style="width:200px;height:200px;">';
+        html += '<gothic-render width="180" height="180" rot-x="' + hp.rotX + '" rot-y="' + hp.rotY + '" rot-z="' + hp.rotZ + '" scale="' + hp.scale + '" light-intensity="' + hp.light + '" visual="' + escapeHtml(visual) + '"></gothic-render>';
+        html += '</div>';
+        html += '<div class="adm-render-debug__body">';
+        html += '<p>Podgląd głowy: <b>' + escapeHtml(hp.head) + '</b></p>';
+        html += '<label>Model do podglądu<select class="adm-input" data-hudportrait="head">';
+        headOptions.forEach(function (h) {
+            html += '<option value="' + escapeHtml(h) + '"' + (h === hp.head ? ' selected' : '') + '>' + escapeHtml(h) + '</option>';
+        });
+        html += '</select></label>';
+        html += '<div class="adm-render-debug__grid">';
+        html += renderHudPortraitSlider("rotX", "rot-x", -3.142, 3.142, 0.01, hp.rotX);
+        html += renderHudPortraitSlider("rotY", "rot-y", -3.142, 3.142, 0.01, hp.rotY);
+        html += renderHudPortraitSlider("rotZ", "rot-z", -3.142, 3.142, 0.01, hp.rotZ);
+        html += renderHudPortraitSlider("scale", "scale", 0.5, 12, 0.05, hp.scale);
+        html += renderHudPortraitSlider("light", "light", 0.2, 5, 0.05, hp.light);
+        html += '</div>';
+        html += '<div class="adm-render-debug__values">rot-x=' + (+hp.rotX).toFixed(3) + ' rot-y=' + (+hp.rotY).toFixed(3) + ' rot-z=' + (+hp.rotZ).toFixed(3) + ' scale=' + (+hp.scale).toFixed(2) + ' light=' + (+hp.light).toFixed(2) + '</div>';
+        html += '</div></div>';
+
+        html += '</div>';
+        return html;
+    }
+
+    function renderHudPortraitSlider(key, label, min, max, step, value) {
+        return '<label class="adm-render-debug__control"><span>' + escapeHtml(label) + '</span><input type="range" min="' + min + '" max="' + max + '" step="' + step + '" data-hudportrait="' + key + '" value="' + value + '"><b>' + (+value).toFixed(key === "scale" || key === "light" ? 2 : 3) + '</b></label>';
     }
 
     function renderCameraGrid(prefix, cam) {
@@ -2796,6 +2859,19 @@
                 render();
             });
         });
+        body.querySelectorAll("[data-hudportrait]").forEach(function (el) {
+            var ev = el.tagName === "SELECT" ? "change" : "input";
+            el.addEventListener(ev, function () {
+                var raw = state.spawnConfig && state.spawnConfig.hudPortrait ? state.spawnConfig.hudPortrait : "";
+                var hp = parseHudPortrait(raw);
+                var key = el.dataset.hudportrait;
+                if (key === "head") hp.head = String(el.value || hp.head);
+                else hp[key] = parseFloat(el.value) || 0;
+                if (!state.spawnConfig) state.spawnConfig = {};
+                state.spawnConfig.hudPortrait = JSON.stringify(hp);
+                render();
+            });
+        });
         var bf = body.querySelector("[data-role='bestiary-filter']");
         if (bf) bf.addEventListener("input", debounce(function () {
             state.bestiaryFilter = bf.value;
@@ -3248,6 +3324,18 @@
         if (a === "bestiary-reset") {
             if (!state.bestiarySelected) return;
             state.bestiaryRender[state.bestiarySelected.toUpperCase()] = { rotX: 0.158, rotY: -0.853, rotZ: 0, scaleValue: 1.5, lightIntensity: 2.3 };
+            return render();
+        }
+        if (a === "hudportrait-save") {
+            var rawHp = state.spawnConfig && state.spawnConfig.hudPortrait ? state.spawnConfig.hudPortrait : "";
+            var hpVal = parseHudPortrait(rawHp);
+            var payloadHp = JSON.stringify({ rotX: hpVal.rotX, rotY: hpVal.rotY, rotZ: hpVal.rotZ, scale: hpVal.scale, light: hpVal.light });
+            send("spawnConfigSave", { configKey: "hudPortrait", payload: payloadHp });
+            return setStatus("Zapisuję HUD portret", "");
+        }
+        if (a === "hudportrait-reset") {
+            if (!state.spawnConfig) state.spawnConfig = {};
+            state.spawnConfig.hudPortrait = JSON.stringify(defaultHudPortrait());
             return render();
         }
         if (a === "item-render-save") {
@@ -4935,7 +5023,7 @@
     }
 
     function parseSpawnConfigPayload(pl) {
-        var out = { lobbyCameras: [], characterDefaultSpawn: null, characterScenarios: [], characterCreateCamera: null, characterSelectCamera: null };
+        var out = { lobbyCameras: [], characterDefaultSpawn: null, characterScenarios: [], characterCreateCamera: null, characterSelectCamera: null, hudPortrait: "" };
         if (!pl) return out;
         function tryParse(raw) { try { return raw ? JSON.parse(raw) : null; } catch (e) { return null; } }
         var lobby = tryParse(pl.lobbyCameras);
@@ -4948,6 +5036,7 @@
         if (cre && typeof cre === "object") out.characterCreateCamera = cre;
         var sel = tryParse(pl.characterSelectCamera);
         if (sel && typeof sel === "object") out.characterSelectCamera = sel;
+        if (typeof pl.hudPortrait === "string") out.hudPortrait = pl.hudPortrait;
         return out;
     }
 
