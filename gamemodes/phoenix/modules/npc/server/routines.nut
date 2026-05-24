@@ -474,10 +474,13 @@ phoenix.npc.Routines <- {
 		// to navigate around the obstacle using a detour angle.
 		local watch = phoenix.npc.AI._moveWatch(entry, pos, dist, now)
 		if (watch >= 2) {
-			// Severely stuck — teleport to waypoint
-			try { setPlayerPosition(entry.npcId, tx, ty, tz) } catch (eTp) {}
+			// Severely stuck — skip to next waypoint instead of teleporting
+			// (teleport caused NPC to clip under terrain)
 			phoenix.npc.AI._resetMoveWatch(entry)
+			entry.ai.routineIndex = idx + 1
 			entry.ai.routineAnimApplied <- ""
+			try { stopAni(entry.npcId, anim) } catch (eS) {}
+			phoenix.npc.AI._ensureIdle(entry, true)
 			return true
 		}
 		if (watch == 1) {

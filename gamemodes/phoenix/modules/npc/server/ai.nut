@@ -84,18 +84,39 @@ phoenix.npc.AI <- {
 		try {
 			local scheme = phoenix.item.find(w)
 			if (scheme != null) {
+				// If close range and weapon is ranged-only, check if NPC has
+				// a separate melee weapon in metadata to fall back to
+				if (distance >= 0.0 && distance <= 400.0) {
+					if (scheme.category == PhoenixItemCategory.Bow || scheme.category == PhoenixItemCategory.Crossbow) {
+						local melee = phoenix.npc.AI._metadataEquip(row, "melee")
+						if (melee == null || melee == "") melee = phoenix.npc.AI._metadataEquip(row, "weapon")
+						if (melee != null && melee != "" && melee != w) {
+							try {
+								local ms = phoenix.item.find(melee)
+								if (ms != null) {
+									if (ms.category == PhoenixItemCategory.Weapon2H) return WEAPONMODE_2HS
+									if (ms.category == PhoenixItemCategory.Weapon1H) return WEAPONMODE_1HS
+								}
+							} catch (eM) {}
+						}
+						return WEAPONMODE_FIST
+					}
+				}
 				if (scheme.category == PhoenixItemCategory.Weapon2H) return WEAPONMODE_2HS
 				if (scheme.category == PhoenixItemCategory.Bow) return WEAPONMODE_BOW
 				if (scheme.category == PhoenixItemCategory.Crossbow) return WEAPONMODE_CBOW
 				if (scheme.category == PhoenixItemCategory.Weapon1H) return WEAPONMODE_1HS
 			}
 		} catch (e) {}
+		// Scheme not found — try to detect from item name patterns
 		local up = w.toupper()
 		if (up.find("CROSSBOW") != null || up.find("CBOW") != null) return WEAPONMODE_CBOW
 		if (up.find("ITRC_") != null) return WEAPONMODE_CBOW
 		if (up.find("BOW") != null) return WEAPONMODE_BOW
 		if (up.find("ITRW_") != null) return WEAPONMODE_BOW
-		if (up.find("2H") != null)    return WEAPONMODE_2HS
+		if (up.find("2H") != null) return WEAPONMODE_2HS
+		// For unregistered items without "2H" in name, use 1HS — G2O drawWeapon
+		// with WEAPONMODE_1HS works for both 1H and 2H melee weapons.
 		return WEAPONMODE_1HS
 	}
 
@@ -506,7 +527,20 @@ phoenix.npc.AI <- {
 	}
 
 	function _teleportHome(entry, forceIdle = true) {
-		try { setPlayerPosition(entry.npcId, entry.ai.anchorX, entry.ai.anchorY, entry.ai.anchorZ) } catch (e) {}
+		// If NPC has a routine, teleport to nearest waypoint instead of spawn
+		local tx = entry.ai.anchorX
+		local ty = entry.ai.anchorY
+		local tz = entry.ai.anchorZ
+		try {
+			if ("routine" in entry.ai && entry.ai.routine != null && "nodes" in entry.ai.routine && entry.ai.routine.nodes.len() > 0) {
+				local nearest = 0
+				try { nearest = phoenix.npc.Routines.findNearestWaypoint(entry) } catch (eN) {}
+				if (nearest < 0) nearest = 0
+				local node = entry.ai.routine.nodes[nearest]
+				if (node != null && "x" in node) { tx = node.x; ty = node.y; tz = node.z }
+			}
+		} catch (eR) {}
+		try { setPlayerPosition(entry.npcId, tx, ty, tz) } catch (e) {}
 		try { setPlayerAngle(entry.npcId, entry.row.angle) } catch (e2) {}
 		entry.ai.targetPid = -1
 		entry.ai.warnStart = 0
@@ -585,9 +619,10 @@ phoenix.npc.AI <- {
 		}
 		local dist = phoenix.npc.AI._distFlat(pos.x, pos.z, entry.ai.anchorX, entry.ai.anchorZ)
 		local hasTarget = phoenix.npc.AI._hasLiveTarget(entry, pos, world)
+		local hasLockedTarget = (("targetPid" in entry.ai) && entry.ai.targetPid >= 0)
 		local state = ("state" in entry.ai) ? entry.ai.state : "idle"
 		if (dist <= 90.0) {
-			if (!hasTarget && (state == "chase" || state == "attack" || state == "run" || state == "parade" || state == "combat" || (("returning" in entry.ai) && entry.ai.returning == true) || (("weaponSheathed" in entry.ai) && entry.ai.weaponSheathed != true))) {
+			if (!hasTarget && !hasLockedTarget && (state == "chase" || state == "attack" || state == "run" || state == "parade" || state == "combat" || (("returning" in entry.ai) && entry.ai.returning == true) || (("weaponSheathed" in entry.ai) && entry.ai.weaponSheathed != true))) {
 				phoenix.npc.AI._finishReturn(entry, true)
 				return true
 			}
@@ -822,7 +857,7 @@ phoenix.npc.AI <- {
 			if (wm == WEAPONMODE_BOW || wm == WEAPONMODE_CBOW) {
 				npcAttackRanged(npcId, target, true)
 			} else {
-				npcAttackMelee(npcId, target, ATTACK_FORWARD, 0, true)
+				npcAttackMelee(npcId, target, ATTACK_FORWARD, -1, true)
 			}
 			entry.ai.waitAction = phoenix.npc.AI._lastAction(npcId)
 			// Replenish ammo for ranged NPCs so they never run out
@@ -1152,20 +1187,19 @@ phoenix.npc.AI <- {
 
 				phoenix.npc.AI._setAngleTo(npcId, pos.x, pos.z, tp.x, tp.z, entry.ai, now, true)
 
-				if (human && entry.ai.warnStart == 0) {
-					entry.ai.warnStart = now
-					phoenix.npc.AI._play(npcId, "T_WARN")
-					return
-				}
-
 				if (d <= attackRange) {
-					if (!phoenix.npc.AI._actionFinished(npcId, entry.ai.waitAction)) return
-					if (now - entry.ai.lastAttack < 1100) return
-					if (human && entry.ai.warnStart == 0) {
-						entry.ai.warnStart = now
-						phoenix.npc.AI._play(npcId, "T_WARN")
+					if (!phoenix.npc.AI._actionFinished(npcId, entry.ai.waitAction)) {
+						// If action is stuck for too long, clear it
+						if (!("actionStuckSince" in entry.ai)) entry.ai.actionStuckSince <- now
+						if (now - entry.ai.actionStuckSince > 1500) {
+							try { clearNpcActions(npcId) } catch (eC) {}
+							entry.ai.waitAction = -1
+							entry.ai.actionStuckSince <- 0
+						}
 						return
 					}
+					entry.ai.actionStuckSince <- 0
+					if (now - entry.ai.lastAttack < 1100) return
 					phoenix.npc.AI._doAttack(entry, target, pos, tp, now)
 					return
 				}

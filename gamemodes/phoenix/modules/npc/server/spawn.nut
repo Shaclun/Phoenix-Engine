@@ -104,6 +104,8 @@ phoenix.npc.Spawn <- {
 		entry.ai.lastSeen <- getTickCount()
 		entry.ai.warnStart = 0
 		entry.ai.state = "combat"
+		entry.ai.dialogPartner <- -1
+		entry.ai.dialogPaused <- false
 	}
 
 	function expForLevel(level) {
@@ -253,6 +255,12 @@ phoenix.npc.Spawn <- {
 				try { giveItem(npcId, "ITRW_ARROW", 1000) } catch (e) {}
 				try { giveItem(npcId, "ITRW_BOLT", 1000) } catch (e) {}
 			}
+		}
+		// G2O may be case-sensitive — try lowercase variant too
+		foreach (key in ["armor", "weapon", "melee", "ranged", "shield", "helmet"]) {
+			local inst = phoenix.npc.Spawn._metadataValue(row.metadata, key)
+			if (inst == "") continue
+			try { local lower = inst.tolower(); if (lower != inst) { giveItem(npcId, lower, 1); equipItem(npcId, lower) } } catch (e) {}
 		}
 	}
 
@@ -550,6 +558,8 @@ phoenix.npc.Spawn <- {
 					} catch (e) {}
 				}
 				phoenix.npc.Spawn.broadcastNameplates()
+				print("[manager] Spawned " + n + "/" + rows.len() + " NPCs\n")
+				phoenix.npc.Spawn._printServerStats()
 			})
 		})
 	}
@@ -764,6 +774,46 @@ phoenix.npc.Spawn <- {
 			})
 		}
 		return out
+	}
+
+	function _printServerStats() {
+		try {
+			local npcCount = 0
+			local monsterCount = 0
+			local humanCount = 0
+			foreach (sid, entry in phoenix.npc.Spawn.live) {
+				npcCount += 1
+				if (phoenix.npc.AI._isHuman(entry.row)) humanCount += 1
+				else monsterCount += 1
+			}
+			print("[stats] NPCs: " + npcCount + " (humans: " + humanCount + ", monsters: " + monsterCount + ")\n")
+		} catch (e) {}
+		try {
+			local sql = "SELECT " +
+				"(SELECT COUNT(*) FROM phoenix_accounts) AS accounts, " +
+				"(SELECT COUNT(*) FROM phoenix_characters) AS characters, " +
+				"(SELECT COUNT(*) FROM phoenix_world_vobs WHERE active=1) AS vobs, " +
+				"(SELECT COUNT(*) FROM phoenix_herb_spots WHERE active=1) AS herbs"
+			ORM.engine.executeAsync(sql, function(rows) {
+				if (rows == null || rows.len() == 0) return
+				local r = rows[0]
+				local accounts = ("accounts" in r) ? r.accounts : 0
+				local characters = ("characters" in r) ? r.characters : 0
+				local vobs = ("vobs" in r) ? r.vobs : 0
+				local herbs = ("herbs" in r) ? r.herbs : 0
+				print("[stats] Accounts: " + accounts + " | Characters: " + characters + " | VOBs: " + vobs + " | Herbs: " + herbs + "\n")
+				try {
+					local sql2 = "SELECT COUNT(*) AS cnt FROM phoenix_houses"
+					ORM.engine.executeAsync(sql2, function(rows2) {
+						local houses = (rows2 != null && rows2.len() > 0 && "cnt" in rows2[0]) ? rows2[0].cnt : 0
+						print("[stats] Houses: " + houses + "\n")
+					})
+				} catch (eH) {}
+				try {
+					print("[stats] Item schemes: " + phoenix.item.count() + "\n")
+				} catch (eI) {}
+			})
+		} catch (eS) {}
 	}
 
 	function bootLoad() {

@@ -50,4 +50,5 @@ phoenix.item.register("ITMW_2H_ORCAXE_03", w(   20,  70, Edge , 110, str(90),  "
 phoenix.item.register("ITMW_2H_ORCAXE_04", w(   25,  80, Edge , 130, str(100), "ItMw_2h_OrcAxe_04.3DS",          "Ogromny orkowy topor"))
 phoenix.item.register("ITMW_2H_ORCSWORD_01", w(   25,  80, Edge , 100, str(100), "ItMw_2h_OrcSword_01.3DS",        "Jaszczurzy miecz"))
 phoenix.item.register("ITMW_2H_ORCSWORD_02", w(   30, 100, Edge , 140, str(120), "ItMw_2h_OrcSword_02.3DS",        "Orkowy miecz wojenny"))
+phoenix.item.register("ITMW_SCHLACHTAXT", w(  600, 140, Edge , 100, str(140), "ItMw_070_2h_axe_heavy_03.3DS",   "Topor wojenny"))
 
