@@ -69,7 +69,7 @@ phoenix.character.Handlers <- {
 					if (bans != null && bans.len() > 0) target.status = 2
 					done()
 				})
-				local sql = "SELECT UNIX_TIMESTAMP(`createdAt`) AS createdAt, UNIX_TIMESTAMP(`lastPlayedAt`) AS lastPlayedAt FROM `phoenix_characters` WHERE `id` = " + target.id + " LIMIT 1"
+				local sql = "SELECT IFNULL(UNIX_TIMESTAMP(IF(`createdAt` = 0 OR `createdAt` IS NULL, NULL, `createdAt`)), 0) AS createdAt, IFNULL(UNIX_TIMESTAMP(IF(`lastPlayedAt` = 0 OR `lastPlayedAt` IS NULL, NULL, `lastPlayedAt`)), 0) AS lastPlayedAt FROM `phoenix_characters` WHERE `id` = " + target.id + " LIMIT 1"
 				ORM.engine.executeAsync(sql, function(rows) {
 					if (rows != null && rows.len() > 0) {
 						try { target.createdAt = rows[0].createdAt.tointeger() } catch (e) {}
@@ -173,3 +173,16 @@ phoenix.character.Message.Select.bind(phoenix.character.Handlers.onSelect)
 phoenix.character.Message.Delete.bind(phoenix.character.Handlers.onDelete)
 phoenix.character.Message.PreviewRestore.bind(phoenix.character.Handlers.onPreviewRestore)
 addEventHandler("onPlayerDisconnect", function(playerId, reason) { phoenix.character.Handlers.onPlayerDisconnect(playerId, reason) })
+
+addEventHandler("phoenix.database.OnReady", function () {
+	try {
+		try { ORM.engine.executeAsync("SET SESSION sql_mode = REPLACE(REPLACE(@@SESSION.sql_mode, 'NO_ZERO_DATE', ''), 'NO_ZERO_IN_DATE', '')", function (_) {}) } catch (eM) {}
+		ORM.engine.executeAsync("UPDATE `phoenix_characters` SET `createdAt` = NOW() WHERE `createdAt` IS NULL", function (_) {
+			try {
+				ORM.engine.executeAsync("UPDATE `phoenix_characters` SET `createdAt` = NOW() WHERE CAST(`createdAt` AS CHAR) LIKE '0000-%'", function (_) {
+					try { ORM.engine.executeAsync("ALTER TABLE `phoenix_characters` MODIFY `createdAt` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP", function (_) {}) } catch (eA) {}
+				})
+			} catch (eU2) {}
+		})
+	} catch (e) {}
+})
