@@ -84,3 +84,10 @@ class phoenix.player.Message.HotbarActivate extends phoenix.net.Message {
 class phoenix.player.Message.DrawWeaponRequest extends phoenix.net.Message {
 	</ type = phoenix.net.type.UInt8 /> mode = 0
 }
+
+
+class phoenix.player.Message.LobbyConfig extends phoenix.net.Message {
+	</ type = phoenix.net.type.String /> lobbyCameras = ""
+	</ type = phoenix.net.type.String /> characterDefaultSpawn = ""
+	</ type = phoenix.net.type.String /> characterScenarios = ""
+}

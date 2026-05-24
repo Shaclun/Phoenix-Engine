@@ -9,6 +9,72 @@ phoenix.player.Lobby <- {
 	]
 	currentSpot = null
 
+	function applyServerConfig(payload) {
+		// Server pushes a JSON blob with admin-tuned camera spots; if it parses,
+		// override the hardcoded defaults so admin changes take effect without code edits.
+		if (payload == null) return
+		local raw = ("lobbyCameras" in payload) ? payload.lobbyCameras.tostring() : ""
+		if (raw == null || raw == "") return
+		try {
+			local parsed = phoenix.player.Lobby._parseSpots(raw)
+			if (parsed != null && parsed.len() > 0) {
+				phoenix.player.Lobby.cameraSpots = parsed
+				phoenix.player.Lobby.pickSpot()
+				phoenix.player.Lobby.applyLobbyCamera()
+			}
+		} catch (e) {}
+	}
+
+	function _parseSpots(raw) {
+		// Accept the shape [{x,y,z,rotX,rotY,rotZ}, ...]; falls back to null on shape mismatch.
+		local result = []
+		local trimmed = raw
+		try { trimmed = raw.tostring() } catch (e) { return null }
+		if (trimmed == null || trimmed == "") return null
+		// Naive JSON-like parser: rely on the admin tool to send well-formed payloads.
+		// Split on closing braces and parse each {key:value} pair.
+		local entries = []
+		local depth = 0
+		local start = -1
+		for (local i = 0; i < trimmed.len(); i += 1) {
+			local ch = trimmed[i]
+			if (ch == '{') {
+				if (depth == 0) start = i
+				depth += 1
+			} else if (ch == '}') {
+				depth -= 1
+				if (depth == 0 && start >= 0) { entries.append(trimmed.slice(start, i + 1)); start = -1 }
+			}
+		}
+		foreach (entry in entries) {
+			local x = phoenix.player.Lobby._readNumber(entry, "x")
+			local y = phoenix.player.Lobby._readNumber(entry, "y")
+			local z = phoenix.player.Lobby._readNumber(entry, "z")
+			local rx = phoenix.player.Lobby._readNumber(entry, "rotX")
+			local ry = phoenix.player.Lobby._readNumber(entry, "rotY")
+			local rz = phoenix.player.Lobby._readNumber(entry, "rotZ")
+			result.append({ pos = { x = x, y = y, z = z }, rot = { x = rx, y = ry, z = rz } })
+		}
+		return result
+	}
+
+	function _readNumber(text, key) {
+		local needle = "\"" + key + "\""
+		local at = text.find(needle)
+		if (at == null) return 0.0
+		local after = text.slice(at + needle.len())
+		// Skip ': '
+		local n = ""
+		local started = false
+		for (local i = 0; i < after.len(); i += 1) {
+			local ch = after[i]
+			if (ch == ',' || ch == '}') break
+			if ((ch >= '0' && ch <= '9') || ch == '-' || ch == '.' || ch == 'e' || ch == 'E' || ch == '+') { n += ch.tochar(); started = true }
+			else if (started) break
+		}
+		try { return n.tofloat() } catch (e) { return 0.0 }
+	}
+
 	function pickSpot() {
 		local idx = (rand() % phoenix.player.Lobby.cameraSpots.len())
 		phoenix.player.Lobby.currentSpot = phoenix.player.Lobby.cameraSpots[idx]
@@ -41,6 +107,7 @@ phoenix.player.Lobby <- {
 
 addEventHandler("phoenix.web.OnReady", phoenix.player.Lobby.onWebReady)
 addEventHandler("phoenix.character.OnSelected", phoenix.player.Lobby.onCharacterSelected)
+phoenix.player.Message.LobbyConfig.bind(phoenix.player.Lobby.applyServerConfig)
 addEventHandler("onRender", function() {
 
 	if (phoenix.player.Lobby.currentSpot == null) return

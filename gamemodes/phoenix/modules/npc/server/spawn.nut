@@ -757,6 +757,11 @@ phoenix.npc.Spawn <- {
 		local out = []
 		foreach (sid, entry in phoenix.npc.Spawn.live) {
 			local r = entry.row
+			local weapon = ("weapon" in r) ? r.weapon : phoenix.npc.Spawn._metadataValue(r.metadata, "weapon")
+			if (weapon == null || weapon == "") weapon = phoenix.npc.Spawn._metadataValue(r.metadata, "melee")
+			local ranged = ("ranged" in r) ? r.ranged : phoenix.npc.Spawn._metadataValue(r.metadata, "ranged")
+			local armor  = phoenix.npc.Spawn._metadataValue(r.metadata, "armor")
+			local merchantItems = phoenix.npc.Spawn._metadataValue(r.metadata, "merchantItems")
 			out.append({
 				id = r.id, instance = r.instance, name = r.name, world = r.world,
 				posX = r.posX, posY = r.posY, posZ = r.posZ, angle = r.angle,
@@ -765,12 +770,18 @@ phoenix.npc.Spawn <- {
 				presetId = r.presetId, kind = r.kind,
 				scaleX = r.scaleX, scaleY = r.scaleY, scaleZ = r.scaleZ,
 				fatness = r.fatness, hp = r.hp, level = r.level, experience = ("experience" in r) ? r.experience : 0,
+				strength = ("strength" in r) ? r.strength : 0,
+				dexterity = ("dexterity" in r) ? r.dexterity : 0,
 				bodyModel = r.bodyModel, bodyTex = r.bodyTex,
 				headModel = r.headModel, headTex = r.headTex,
+				voice = ("voice" in r) ? r.voice : 0,
 				idleAnimation = r.idleAnimation,
 				aggroRadius = r.aggroRadius, attackRange = r.attackRange,
 				attackDamage = r.attackDamage, walkSpeed = r.walkSpeed,
-				teacherSkills = r.teacherSkills, teachCost = r.teachCost, baseExperience = r.baseExperience
+				teacherSkills = r.teacherSkills, teachCost = r.teachCost, baseExperience = r.baseExperience,
+				weapon = weapon, ranged = ranged, armor = armor,
+				merchantItems = merchantItems,
+				metadata = r.metadata
 			})
 		}
 		return out

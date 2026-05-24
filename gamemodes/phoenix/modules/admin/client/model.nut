@@ -27,6 +27,10 @@ phoenix.admin.Model <- {
 		weapon = "",
 		armor = "",
 		ranged = "",
+		bodyModel = "",
+		headModel = "",
+		bodyTex = 0,
+		headTex = 0,
 		orig = null
 	}
 
@@ -143,16 +147,29 @@ phoenix.admin.Model <- {
 	function previewStart(payload) {
 		if (preview.active) phoenix.admin.Model.previewStop()
 		local requestedMode = (payload != null && "mode" in payload) ? payload.mode : "npc"
+		// Honour explicit position from caller (e.g. editing an existing spawn) — fall back to the admin's position otherwise.
+		local hasExplicitPos = payload != null && ("posX" in payload || "posY" in payload || "posZ" in payload)
 		local p = null
 		try { p = getPlayerPosition(heroId) } catch (e) {}
-		if (p != null) { preview.x = p.x; preview.y = p.y; preview.z = p.z }
-		try { preview.angle = getPlayerAngle(heroId) } catch (e) {}
-		if (requestedMode != "human" && p != null) {
-			local angleRad = preview.angle * 3.14159 / 180.0
-			preview.x = p.x + sin(angleRad) * 180.0
-			preview.z = p.z + cos(angleRad) * 180.0
+		if (hasExplicitPos) {
+			if ("posX" in payload) preview.x = payload.posX.tofloat()
+			if ("posY" in payload) preview.y = payload.posY.tofloat()
+			if ("posZ" in payload) preview.z = payload.posZ.tofloat()
+			if ("angle" in payload) preview.angle = payload.angle.tofloat()
+		} else {
+			if (p != null) { preview.x = p.x; preview.y = p.y; preview.z = p.z }
+			try { preview.angle = getPlayerAngle(heroId) } catch (e) {}
+			if (requestedMode != "human" && p != null) {
+				local angleRad = preview.angle * 3.14159 / 180.0
+				preview.x = p.x + sin(angleRad) * 180.0
+				preview.z = p.z + cos(angleRad) * 180.0
+			}
 		}
-		try { preview.world = getPlayerWorld(heroId) } catch (e) { try { preview.world = getWorld() } catch (e2) {} }
+		if (payload != null && "world" in payload && payload.world != "") {
+			preview.world = payload.world
+		} else {
+			try { preview.world = getPlayerWorld(heroId) } catch (e) { try { preview.world = getWorld() } catch (e2) {} }
+		}
 		try { preview.virtualWorld = getPlayerVirtualWorld(heroId) } catch (e3) { preview.virtualWorld = 0 }
 		preview.active = true
 		preview.mode = requestedMode
@@ -182,18 +199,47 @@ phoenix.admin.Model <- {
 		local instance = ("instance" in payload && payload.instance != "") ? payload.instance.tostring() : (preview.instance != "" ? preview.instance : "PC_HERO")
 		local needsRecreate = preview.npcId == phoenix.admin.Model.invalidNpcId || preview.instance != instance
 		if (needsRecreate) phoenix.admin.Model.previewCreate(instance)
-		if (preview.mode == "human") {
-			try { setPlayerInstance(preview.npcId, instance.toupper()) } catch (e) { try { setPlayerInstance(preview.npcId, instance) } catch (e2) {} }
-		} else {
-			phoenix.admin.Model.previewSetMonsterInstance(instance)
+		// Only push instance to engine when it's a fresh NPC — otherwise this is a no-op that costs nothing,
+		// but in some G2O builds it triggers a visual rebind which can drop equipment.
+		if (needsRecreate) {
+			if (preview.mode == "human") {
+				try { setPlayerInstance(preview.npcId, instance.toupper()) } catch (e) { try { setPlayerInstance(preview.npcId, instance) } catch (e2) {} }
+			} else {
+				phoenix.admin.Model.previewSetMonsterInstance(instance)
+			}
 		}
-		local body = ("bodyModel" in payload && payload.bodyModel != "") ? payload.bodyModel : "Hum_Body_Naked0"
-		local head = ("headModel" in payload && payload.headModel != "") ? payload.headModel : "Hum_Head_Bald"
-		local bodyTex = ("bodyTex" in payload) ? payload.bodyTex : 0
-		local headTex = ("headTex" in payload) ? payload.headTex : 0
-		if (preview.mode == "human") {
-			try { setPlayerVisual(preview.npcId, body, bodyTex, head, headTex) } catch (e) {}
-			if ("fatness" in payload) { try { setPlayerFatness(preview.npcId, payload.fatness.tofloat()) } catch (e) {} }
+		// Visual fields are only applied when present in payload, so delta payloads (e.g. equipment swap)
+		// don't reset the body model and trigger a costly rebind.
+		local hasVisualKey = "bodyModel" in payload || "headModel" in payload || "bodyTex" in payload || "headTex" in payload
+		if (preview.mode == "human" && (needsRecreate || hasVisualKey)) {
+			local body = ("bodyModel" in payload && payload.bodyModel != "") ? payload.bodyModel : (preview.bodyModel != "" ? preview.bodyModel : "Hum_Body_Naked0")
+			local head = ("headModel" in payload && payload.headModel != "") ? payload.headModel : (preview.headModel != "" ? preview.headModel : "Hum_Head_Bald")
+			local bodyTex = ("bodyTex" in payload) ? payload.bodyTex : preview.bodyTex
+			local headTex = ("headTex" in payload) ? payload.headTex : preview.headTex
+			// Skip the engine call if nothing actually changed — setPlayerVisual rebinds the model and drops equipment.
+			local visualChanged = needsRecreate || body != preview.bodyModel || head != preview.headModel || bodyTex != preview.bodyTex || headTex != preview.headTex
+			if (visualChanged) {
+				try { setPlayerVisual(preview.npcId, body, bodyTex, head, headTex) } catch (e) {}
+				preview.bodyModel = body
+				preview.headModel = head
+				preview.bodyTex = bodyTex
+				preview.headTex = headTex
+				// Rebinding the model usually clears items — re-apply whatever we still have cached.
+				if (!needsRecreate) {
+					local cachedWeapon = preview.weapon
+					local cachedArmor = preview.armor
+					local cachedRanged = preview.ranged
+					preview.weapon = ""
+					preview.armor = ""
+					preview.ranged = ""
+					if (cachedWeapon != "") { phoenix.admin.Model.previewAutoStat(cachedWeapon); phoenix.admin.Model.previewEquip("weapon", cachedWeapon) }
+					if (cachedArmor != "") phoenix.admin.Model.previewEquip("armor", cachedArmor)
+					if (cachedRanged != "") { phoenix.admin.Model.previewAutoStat(cachedRanged); phoenix.admin.Model.previewEquip("ranged", cachedRanged) }
+				}
+			}
+		}
+		if (preview.mode == "human" && "fatness" in payload) {
+			try { setPlayerFatness(preview.npcId, payload.fatness.tofloat()) } catch (e) {}
 		}
 		if ("scaleX" in payload || "scaleY" in payload || "scaleZ" in payload) {
 			local sx = ("scaleX" in payload) ? payload.scaleX.tofloat() : 1.0
@@ -201,18 +247,58 @@ phoenix.admin.Model <- {
 			local sz = ("scaleZ" in payload) ? payload.scaleZ.tofloat() : 1.0
 			try { setPlayerScale(preview.npcId, sx, sy, sz) } catch (e) {}
 		}
+		local hasPosKey = "posX" in payload || "posY" in payload || "posZ" in payload || "angle" in payload
 		if ("posX" in payload) preview.x = payload.posX.tofloat()
 		if ("posY" in payload) preview.y = payload.posY.tofloat()
 		if ("posZ" in payload) preview.z = payload.posZ.tofloat()
 		if ("angle" in payload) preview.angle = payload.angle.tofloat()
 		if ("world" in payload && payload.world != "") preview.world = payload.world
 		if ("virtualWorld" in payload) preview.virtualWorld = payload.virtualWorld.tointeger()
-		phoenix.admin.Model.previewPlace()
-		phoenix.admin.Model.previewEquip("weapon", ("weapon" in payload) ? payload.weapon : "")
-		phoenix.admin.Model.previewEquip("armor", ("armor" in payload) ? payload.armor : "")
-		phoenix.admin.Model.previewEquip("ranged", ("ranged" in payload) ? payload.ranged : "")
+		// Don't re-place an unchanged NPC every tick — setPlayerPosition can re-snap it and stutter the camera.
+		if (needsRecreate || hasPosKey) phoenix.admin.Model.previewPlace()
+		// Equipment is only touched when its slot key is present in the payload.
+		// This prevents partial updates (e.g. visual cycling) from stripping gear that's already equipped.
+		if (needsRecreate && preview.mode == "human") {
+			if ("weapon" in payload && payload.weapon != "") phoenix.admin.Model.previewAutoStat(payload.weapon)
+			if ("ranged" in payload && payload.ranged != "") phoenix.admin.Model.previewAutoStat(payload.ranged)
+			if ("weapon" in payload) phoenix.admin.Model.previewEquip("weapon", payload.weapon)
+			if ("armor" in payload) phoenix.admin.Model.previewEquip("armor", payload.armor)
+			if ("ranged" in payload) phoenix.admin.Model.previewEquip("ranged", payload.ranged)
+		} else {
+			if ("weapon" in payload) {
+				phoenix.admin.Model.previewAutoStat(payload.weapon)
+				phoenix.admin.Model.previewEquip("weapon", payload.weapon)
+			}
+			if ("armor" in payload) phoenix.admin.Model.previewEquip("armor", payload.armor)
+			if ("ranged" in payload) {
+				phoenix.admin.Model.previewAutoStat(payload.ranged)
+				phoenix.admin.Model.previewEquip("ranged", payload.ranged)
+			}
+		}
 		phoenix.admin.Model.previewCameraStart()
 		phoenix.admin.Model.previewEmit()
+	}
+
+	// Raises NPC strength/dexterity to meet weapon requirements so it can wield it in preview.
+	// Mirrors phoenix.npc.Spawn._autoStats on the server. Never lowers stats.
+	function previewAutoStat(instance) {
+		if (preview.npcId == phoenix.admin.Model.invalidNpcId) return
+		if (instance == null || instance == "") return
+		try {
+			local scheme = phoenix.item.find(instance)
+			if (scheme == null || !("requirement" in scheme) || scheme.requirement == null) return
+			foreach (r in scheme.requirement) {
+				if (r == null || !("attr" in r) || !("value" in r)) continue
+				local attr = r.attr.tostring()
+				local val = r.value.tointeger()
+				if (val <= 0) continue
+				if (attr == "strength") {
+					try { setPlayerStrength(preview.npcId, val) } catch (e) {}
+				} else if (attr == "dexterity") {
+					try { setPlayerDexterity(preview.npcId, val) } catch (e) {}
+				}
+			}
+		} catch (e) {}
 	}
 
 	function previewCreate(instance) {
@@ -224,6 +310,10 @@ phoenix.admin.Model <- {
 		preview.weapon = ""
 		preview.armor = ""
 		preview.ranged = ""
+		preview.bodyModel = ""
+		preview.headModel = ""
+		preview.bodyTex = 0
+		preview.headTex = 0
 		local inst = instance.tostring().toupper()
 		local engineInst = phoenix.admin.Model.previewEngineInstance(instance)
 		preview.npcId = phoenix.admin.Model.previewCreateNpc(engineInst, inst, instance.tostring())

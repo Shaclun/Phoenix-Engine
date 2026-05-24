@@ -22,6 +22,8 @@
         { id: "vobs",    labelKey: "admin.tab.vobs",    fallback: "VOB-y" },
         { id: "houses",  labelKey: "admin.tab.houses",  fallback: "Domy" },
         { id: "craft",   labelKey: "admin.tab.craft",   fallback: "Crafty" },
+        { id: "spawns",  labelKey: "admin.tab.spawns",  fallback: "Lobby/Spawny" },
+        { id: "db",      labelKey: "admin.tab.db",      fallback: "Baza danych" },
         { id: "debug",   labelKey: "admin.tab.debug",   fallback: "Debug" },
         { id: "log",     labelKey: "admin.tab.log",     fallback: "Historia" }
     ];
@@ -142,7 +144,16 @@
         craftFilter: "",
         craftStationVob: "",
         craftStationPicked: {},
-        craftView: "list"
+        craftView: "list",
+        dbTables: [],
+        dbActiveTable: "",
+        dbSchema: { table: "", columns: [] },
+        dbRows: { table: "", rows: [], total: 0, offset: 0, limit: 100 },
+        dbFilter: "",
+        dbInsertDraft: null,
+        dbEditing: null,
+        spawnConfig: { lobbyCameras: [], characterDefaultSpawn: null, characterScenarios: [] },
+        spawnConfigLoaded: false
     };
 
     function defaultHumanCreator() {
@@ -188,6 +199,45 @@
             world: "",
             cameraMode: "orbital"
         };
+    }
+
+    // Maps an existing spawn row (from npcList) into humanCreator state so the same form can edit it.
+    function hydrateHumanCreatorFromSpawn(sp) {
+        var base = defaultHumanCreator();
+        base.instance = sp.instance || base.instance;
+        base.name = sp.name || "";
+        base.tag = sp.tag || "human";
+        base.respawnSec = +sp.respawnSec || 0;
+        base.hostile = +sp.hostile || 0;
+        base.hp = +sp.hp || 0;
+        base.level = +sp.level || 0;
+        base.strength = +sp.strength || 0;
+        base.dexterity = +sp.dexterity || 0;
+        base.idleAnimation = sp.idleAnimation || "S_STAND";
+        base.aggroRadius = +sp.aggroRadius || 900;
+        base.baseExperience = +sp.baseExperience || 0;
+        base.teacherSkills = sp.teacherSkills || "";
+        base.teachCost = +sp.teachCost || 100;
+        base.merchantItems = sp.merchantItems || "";
+        base.weapon = sp.weapon || "";
+        base.armor = sp.armor || "";
+        base.ranged = sp.ranged || "";
+        base.bodyModel = sp.bodyModel || base.bodyModel;
+        base.bodyTex = sp.bodyTex == null ? base.bodyTex : +sp.bodyTex;
+        base.headModel = sp.headModel || base.headModel;
+        base.headTex = sp.headTex == null ? base.headTex : +sp.headTex;
+        base.fatness = sp.fatness == null ? 0 : +sp.fatness;
+        base.voice = +sp.voice || 0;
+        base.posX = +sp.posX || 0;
+        base.posY = +sp.posY || 0;
+        base.posZ = +sp.posZ || 0;
+        base.angle = +sp.angle || 0;
+        base.world = sp.world || "";
+        // Heuristic for gender: female bodies map to gender index 0 (in HUMAN_OPTIONS).
+        var bm = String(base.bodyModel || "").toUpperCase();
+        if (bm.indexOf("BABE") >= 0) { base.gender = 0; }
+        else { base.gender = 1; }
+        state.humanCreator = base;
     }
 
     function defaultNpcEditor() {
@@ -506,11 +556,12 @@
             headModel: h.headModel,
             headTex: +h.headTex || 0,
             fatness: +h.fatness || 0,
-            weapon: h.weapon || "",
-            armor: h.armor || "",
-            ranged: h.ranged || "",
             cameraMode: h.cameraMode || "orbital"
         };
+        // Equipment is only included when set, so clearing/cycling visuals doesn't strip the gear in preview.
+        if (h.weapon) payload.weapon = h.weapon;
+        if (h.armor)  payload.armor  = h.armor;
+        if (h.ranged) payload.ranged = h.ranged;
         payload.aggroRadius = +h.aggroRadius || 900;
         payload.teacherSkills = h.teacherSkills || "";
         payload.teachCost = +h.teachCost || 100;
@@ -521,6 +572,13 @@
             payload.angle = +h.angle || 0;
             payload.world = h.world || "";
         }
+        return payload;
+    }
+
+    function humanEquipPayload(slot) {
+        var h = state.humanCreator;
+        var payload = { mode: "human", instance: h.instance };
+        payload[slot] = h[slot] || "";
         return payload;
     }
 
@@ -704,6 +762,19 @@
             b.className = "phoenix-adminpanel__tab" + (tab.id === activeTab ? " is-active" : "");
             b.textContent = t(tab.labelKey, tab.fallback);
             b.addEventListener("click", function () {
+                var prevTab = activeTab;
+                if (prevTab === "npc" && tab.id !== "npc") {
+                    if (state.humanCreator.preview || state.npcForm.preview || state.npcView === "spawn-edit") {
+                        send("adminNpcPreviewStop", {});
+                        state.humanCreator.preview = 0;
+                        state.npcForm.preview = 0;
+                        if (state.npcView === "spawn-edit") {
+                            state.npcSpawnEdit = null;
+                            state.npcEditingId = 0;
+                            state.npcView = "active";
+                        }
+                    }
+                }
                 activeTab = tab.id;
                 buildTabs();
                 if (tab.id === "log") send("log", { limit: 100 });
@@ -715,6 +786,8 @@
                 if (tab.id === "vobs") { requestVobCatalog(); send("vobList"); }
                 if (tab.id === "houses") send("houseList");
                 if (tab.id === "craft") { send("craftingList"); send("schemes"); requestVobCatalog(); send("vobList"); }
+                if (tab.id === "spawns") send("spawnConfigGet");
+                if (tab.id === "db") send("dbTables");
                 render();
             });
             tabsEl.appendChild(b);
@@ -739,6 +812,8 @@
         else if (activeTab === "vobs") html = renderVobs();
         else if (activeTab === "houses") html = renderHouses();
         else if (activeTab === "craft") html = renderCraft();
+        else if (activeTab === "spawns") html = renderSpawnConfig();
+        else if (activeTab === "db") html = renderDatabase();
         else if (activeTab === "debug") html = renderDebug();
         else if (activeTab === "log") html = renderLog();
 
@@ -806,6 +881,249 @@
         });
         html += "</tbody></table></div>";
         return html;
+    }
+
+    function renderSpawnConfig() {
+        var cfg = state.spawnConfig || { lobbyCameras: [], characterDefaultSpawn: null, characterScenarios: [] };
+        var html = '<div class="adm-section adm-section--spawns">';
+        html += '<h3>Lobby i punkty startowe</h3>';
+        html += '<p class="adm-muted">Edycja działa na żywo. Po zapisie konfiguracja jest rozsyłana do wszystkich klientów.</p>';
+
+        // ---- Lobby cameras ----
+        html += '<div class="adm-section adm-section--inline">';
+        html += '<div class="adm-db-header"><h4>Kamery lobby (' + (cfg.lobbyCameras || []).length + ')</h4>';
+        html += '<div class="adm-db-actions">';
+        html += '<button class="adm-btn" data-action="spawnconfig-capture-lobby">⌖ Dodaj z mojej pozycji</button>';
+        html += '<button class="adm-btn adm-btn--primary" data-action="spawnconfig-save-lobby">Zapisz lobby</button>';
+        html += '</div></div>';
+        if (!(cfg.lobbyCameras || []).length) {
+            html += '<div class="adm-empty">Brak kamer — używane są wbudowane defaults. Stań tam gdzie chcesz mieć kamerę i kliknij „Dodaj z mojej pozycji”.</div>';
+        } else {
+            html += '<table class="adm-table"><thead><tr><th>#</th><th>X</th><th>Y</th><th>Z</th><th>Rot X (pitch)</th><th>Rot Y (yaw)</th><th>Rot Z</th><th></th></tr></thead><tbody>';
+            (cfg.lobbyCameras || []).forEach(function (spot, idx) {
+                html += '<tr>';
+                html += '<td>' + (idx + 1) + '</td>';
+                ["x","y","z","rotX","rotY","rotZ"].forEach(function (f) {
+                    html += '<td><input class="adm-input adm-input--mini" type="number" step="0.1" data-spawn-lobby-idx="' + idx + '" data-spawn-lobby-field="' + f + '" value="' + (+spot[f] || 0) + '"></td>';
+                });
+                html += '<td><button class="adm-btn adm-btn--mini adm-btn--danger" data-action="spawnconfig-remove-lobby" data-idx="' + idx + '" title="Usuń">×</button></td>';
+                html += '</tr>';
+            });
+            html += '</tbody></table>';
+        }
+        html += '</div>';
+
+        // ---- Character default spawn ----
+        var def = cfg.characterDefaultSpawn || { world: "NEWWORLD.ZEN", x: 870.118, y: -96.2501, z: -1848.33, angle: 65.1225 };
+        html += '<div class="adm-section adm-section--inline">';
+        html += '<div class="adm-db-header"><h4>Domyślny punkt respawnu / startu postaci</h4>';
+        html += '<div class="adm-db-actions">';
+        html += '<button class="adm-btn" data-action="spawnconfig-capture-default">⌖ Z mojej pozycji</button>';
+        html += '<button class="adm-btn adm-btn--primary" data-action="spawnconfig-save-default">Zapisz</button>';
+        html += '</div></div>';
+        html += '<div class="adm-grid adm-grid--3">';
+        html += '<label>Świat<input class="adm-input" data-spawn-def="world" value="' + escapeHtml(def.world || "NEWWORLD.ZEN") + '"></label>';
+        html += '<label>X<input class="adm-input" type="number" step="0.1" data-spawn-def="x" value="' + (+def.x || 0) + '"></label>';
+        html += '<label>Y<input class="adm-input" type="number" step="0.1" data-spawn-def="y" value="' + (+def.y || 0) + '"></label>';
+        html += '<label>Z<input class="adm-input" type="number" step="0.1" data-spawn-def="z" value="' + (+def.z || 0) + '"></label>';
+        html += '<label>Kąt<input class="adm-input" type="number" step="0.1" data-spawn-def="angle" value="' + (+def.angle || 0) + '"></label>';
+        html += '</div></div>';
+
+        // ---- Scenario spots (alternative starting points) ----
+        var scenarios = cfg.characterScenarios || [];
+        html += '<div class="adm-section adm-section--inline">';
+        html += '<div class="adm-db-header"><h4>Alternatywne punkty startowe (' + scenarios.length + ')</h4>';
+        html += '<div class="adm-db-actions">';
+        html += '<button class="adm-btn" data-action="spawnconfig-capture-scenario">⌖ Dodaj z mojej pozycji</button>';
+        html += '<button class="adm-btn adm-btn--primary" data-action="spawnconfig-save-scenarios">Zapisz scenariusze</button>';
+        html += '</div></div>';
+        if (!scenarios.length) {
+            html += '<div class="adm-empty">Brak alternatywnych punktów. Pierwszy zalogowany dostaje domyślny.</div>';
+        } else {
+            html += '<table class="adm-table"><thead><tr><th>#</th><th>X</th><th>Y</th><th>Z</th><th>Kąt</th><th></th></tr></thead><tbody>';
+            scenarios.forEach(function (sc, idx) {
+                html += '<tr>';
+                html += '<td>' + (idx + 1) + '</td>';
+                ["x","y","z","angle"].forEach(function (f) {
+                    html += '<td><input class="adm-input adm-input--mini" type="number" step="0.1" data-spawn-sc-idx="' + idx + '" data-spawn-sc-field="' + f + '" value="' + (+sc[f] || 0) + '"></td>';
+                });
+                html += '<td><button class="adm-btn adm-btn--mini adm-btn--danger" data-action="spawnconfig-remove-scenario" data-idx="' + idx + '" title="Usuń">×</button></td>';
+                html += '</tr>';
+            });
+            html += '</tbody></table>';
+        }
+        html += '</div>';
+
+        html += '</div>';
+        return html;
+    }
+
+    function renderDatabase() {
+        var tables = state.dbTables || [];
+        var active = state.dbActiveTable || "";
+        var schema = state.dbSchema && state.dbSchema.table === active ? state.dbSchema : { table: active, columns: [] };
+        var rowsView = state.dbRows && state.dbRows.table === active ? state.dbRows : { table: active, rows: [], total: 0, offset: 0, limit: 100 };
+        var html = '<div class="adm-section adm-section--db">';
+        html += '<h3>' + escapeHtml(t("admin.tab.db", "Baza danych")) + '</h3>';
+        html += '<div class="adm-db-layout">';
+
+        // Table list
+        html += '<aside class="adm-db-sidebar"><h4>Tabele (' + tables.length + ')</h4>';
+        html += '<input class="adm-search" data-role="db-table-filter" value="' + escapeHtml(state.dbFilter || "") + '" placeholder="Filtruj tabele">';
+        html += '<div class="adm-db-tables">';
+        var filter = (state.dbFilter || "").toLowerCase();
+        tables.forEach(function (tab) {
+            var name = String(tab.name || "");
+            if (filter && name.toLowerCase().indexOf(filter) < 0) return;
+            var sel = name === active ? " is-selected" : "";
+            html += '<button type="button" class="adm-btn adm-btn--ghost' + sel + '" data-action="db-table-pick" data-table="' + escapeHtml(name) + '">' + escapeHtml(name) + ' <small>(' + (tab.rowCount || 0) + ')</small></button>';
+        });
+        html += '</div></aside>';
+
+        // Table editor
+        html += '<div class="adm-db-main">';
+        if (!active) {
+            html += '<div class="adm-empty">Wybierz tabelę z listy po lewej.</div>';
+        } else {
+            var pkColumn = dbPrimaryKey(schema.columns);
+            var canEdit = active.indexOf("phoenix_") === 0;
+            html += '<div class="adm-db-header">';
+            html += '<div><h4>' + escapeHtml(active) + '</h4><small>' + (rowsView.total || 0) + ' wierszy · ' + (schema.columns || []).length + ' kolumn</small></div>';
+            html += '<div class="adm-db-actions">';
+            html += '<button class="adm-btn" data-action="db-refresh" title="Odśwież">⟳ Odśwież</button>';
+            if (canEdit) {
+                html += '<button class="adm-btn adm-btn--primary" data-action="db-row-new">+ Dodaj wiersz</button>';
+            } else {
+                html += '<span class="adm-db-readonly">Tylko do odczytu (poza phoenix_*)</span>';
+            }
+            html += '</div></div>';
+
+            html += '<div class="adm-db-grid">';
+            html += '<table class="adm-table adm-table--db"><thead><tr>';
+            if (canEdit && pkColumn) html += '<th class="adm-db-action-col">Akcje</th>';
+            schema.columns.forEach(function (c) {
+                var keyHint = String(c.keyType || "") === "PRI" ? ' <span class="adm-db-pk">PK</span>' : '';
+                html += '<th title="' + escapeHtml(c.type || "") + '">' + escapeHtml(c.name) + keyHint + '</th>';
+            });
+            html += '</tr></thead><tbody>';
+            (rowsView.rows || []).forEach(function (row, rowIdx) {
+                var pkValue = pkColumn ? row[pkColumn] : null;
+                html += '<tr>';
+                if (canEdit && pkColumn) {
+                    html += '<td class="adm-db-action-col">';
+                    html += '<button class="adm-btn adm-btn--mini" data-action="db-row-edit" data-row="' + rowIdx + '" title="Edytuj">✎</button>';
+                    html += '<button class="adm-btn adm-btn--mini adm-btn--danger" data-action="db-row-delete" data-row="' + rowIdx + '" title="Usuń">🗑</button>';
+                    html += '</td>';
+                }
+                schema.columns.forEach(function (c) {
+                    var raw = row[c.name];
+                    var display = raw == null ? '<span class="adm-db-null">NULL</span>' : escapeHtml(String(raw));
+                    var rawStr = raw == null ? "" : String(raw);
+                    var truncated = rawStr.length > 80 ? escapeHtml(rawStr.slice(0, 80)) + '…' : display;
+                    html += '<td title="' + escapeHtml(rawStr) + '">' + truncated + '</td>';
+                });
+                html += '</tr>';
+            });
+            if (!(rowsView.rows || []).length) {
+                var span = (schema.columns || []).length + (canEdit && pkColumn ? 1 : 0);
+                html += '<tr><td colspan="' + span + '"><div class="adm-empty">Brak danych</div></td></tr>';
+            }
+            html += '</tbody></table>';
+            html += '</div>';
+
+            // Pagination
+            var pageSize = rowsView.limit || 100;
+            var page = Math.floor((rowsView.offset || 0) / pageSize);
+            var totalPages = Math.max(1, Math.ceil((rowsView.total || 0) / pageSize));
+            html += '<div class="adm-toolbar adm-db-pager">';
+            html += '<button class="adm-btn" data-action="db-page-prev"' + (page <= 0 ? ' disabled' : '') + '>← Poprzednia</button>';
+            html += '<span>Strona <b>' + (page + 1) + '</b> / ' + totalPages + '</span>';
+            html += '<button class="adm-btn" data-action="db-page-next"' + (page + 1 >= totalPages ? ' disabled' : '') + '>Następna →</button>';
+            html += '</div>';
+
+            if (state.dbInsertDraft && state.dbInsertDraft.table === active) {
+                html += renderDbInsertModal(schema.columns);
+            }
+            if (state.dbEditing && state.dbEditing.table === active) {
+                html += renderDbEditModal(schema.columns, rowsView.rows || []);
+            }
+        }
+        html += '</div>'; // adm-db-main
+
+        html += '</div></div>'; // layout, section
+        return html;
+    }
+
+    function renderDbEditModal(columns, rows) {
+        var ed = state.dbEditing;
+        var pkColumn = ed.pkColumn;
+        var sourceRow = rows.filter(function (r) { return String(r[pkColumn]) === String(ed.pkValue); })[0] || {};
+        var html = '<div class="adm-modal adm-modal--db" data-db-modal-bg>';
+        html += '<div class="adm-modal__backdrop" data-action="db-row-cancel"></div>';
+        html += '<div class="adm-modal__panel adm-modal__panel--db">';
+        html += '<div class="adm-modal__head"><h3>Edytuj wiersz · <code>' + escapeHtml(ed.table) + ' #' + escapeHtml(String(ed.pkValue)) + '</code></h3></div>';
+        html += '<div class="adm-modal__body"><div class="adm-grid adm-grid--db-edit">';
+        columns.forEach(function (c) {
+            var raw = sourceRow[c.name];
+            var draft = ed.values[c.name];
+            var value = draft != null ? draft : (raw == null ? "" : String(raw));
+            var readonly = c.name === pkColumn;
+            var typ = String(c.type || "").toLowerCase();
+            var inputType = "text";
+            if (typ.indexOf("int") >= 0 || typ.indexOf("bigint") >= 0 || typ.indexOf("decimal") >= 0 || typ.indexOf("float") >= 0 || typ.indexOf("double") >= 0) inputType = "number";
+            html += '<label class="adm-db-field"><span><b>' + escapeHtml(c.name) + '</b> <small>' + escapeHtml(c.type || "") + (readonly ? " · PK" : "") + '</small></span>';
+            if (typ.indexOf("text") >= 0 || (typ.indexOf("varchar") >= 0 && parseInt(typ.replace(/\D+/g, "")) >= 256)) {
+                html += '<textarea class="adm-input" data-db-edit="' + escapeHtml(c.name) + '" rows="4"' + (readonly ? ' readonly' : '') + '>' + escapeHtml(value) + '</textarea>';
+            } else {
+                html += '<input class="adm-input" type="' + inputType + '" data-db-edit="' + escapeHtml(c.name) + '" value="' + escapeHtml(value) + '"' + (readonly ? ' readonly' : '') + '>';
+            }
+            html += '</label>';
+        });
+        html += '</div></div>';
+        html += '<div class="adm-modal__actions">';
+        html += '<button class="adm-btn" data-action="db-row-cancel">Anuluj</button>';
+        html += '<button class="adm-btn adm-btn--primary" data-action="db-row-save">Zapisz zmiany</button>';
+        html += '</div>';
+        html += '</div></div>';
+        return html;
+    }
+
+    function renderDbInsertModal(columns) {
+        var draft = state.dbInsertDraft || { values: {} };
+        var html = '<div class="adm-modal adm-modal--db" data-db-modal-bg>';
+        html += '<div class="adm-modal__backdrop" data-action="db-row-insert-cancel"></div>';
+        html += '<div class="adm-modal__panel adm-modal__panel--db">';
+        html += '<div class="adm-modal__head"><h3>Nowy wiersz · <code>' + escapeHtml(draft.table || "") + '</code></h3></div>';
+        html += '<div class="adm-modal__body"><div class="adm-grid adm-grid--db-edit">';
+        columns.forEach(function (c) {
+            // Skip auto-increment primary keys.
+            if (String(c.extra || "").toLowerCase().indexOf("auto_increment") >= 0) return;
+            var v = draft.values[c.name] != null ? draft.values[c.name] : "";
+            var typ = String(c.type || "").toLowerCase();
+            var inputType = "text";
+            if (typ.indexOf("int") >= 0 || typ.indexOf("decimal") >= 0 || typ.indexOf("float") >= 0 || typ.indexOf("double") >= 0) inputType = "number";
+            html += '<label class="adm-db-field"><span><b>' + escapeHtml(c.name) + '</b> <small>' + escapeHtml(c.type || "") + '</small></span>';
+            if (typ.indexOf("text") >= 0) {
+                html += '<textarea class="adm-input" data-db-insert="' + escapeHtml(c.name) + '" rows="3">' + escapeHtml(String(v)) + '</textarea>';
+            } else {
+                html += '<input class="adm-input" type="' + inputType + '" data-db-insert="' + escapeHtml(c.name) + '" value="' + escapeHtml(String(v)) + '">';
+            }
+            html += '</label>';
+        });
+        html += '</div></div>';
+        html += '<div class="adm-modal__actions">';
+        html += '<button class="adm-btn" data-action="db-row-insert-cancel">Anuluj</button>';
+        html += '<button class="adm-btn adm-btn--primary" data-action="db-row-insert">Zapisz</button>';
+        html += '</div>';
+        html += '</div></div>';
+        return html;
+    }
+
+    function dbPrimaryKey(columns) {
+        for (var i = 0; i < (columns || []).length; i++) {
+            if (String(columns[i].keyType || "") === "PRI") return columns[i].name;
+        }
+        return null;
     }
 
     function renderDebug() {
@@ -1631,7 +1949,20 @@
         html += '</div>';
         html += '</div>';
         html += renderHumanPlacement(h);
-        html += '<div class="adm-toolbar"><button class="adm-btn" data-action="human-preview">' + escapeHtml(t(h.preview ? "admin.npc.human.previewUpdate" : "admin.npc.human.previewStart")) + '</button><button class="adm-btn" data-action="human-preview-stop">' + escapeHtml(t("admin.npc.human.previewStop")) + '</button><button class="adm-btn" data-action="human-reset">' + escapeHtml(t("admin.common.reset")) + '</button><button class="adm-btn adm-btn--primary" data-action="human-spawn">' + escapeHtml(t("admin.npc.human.spawn")) + '</button></div>';
+        var spawnLabelKey = state.npcEditingId > 0 ? "admin.common.save" : "admin.npc.human.spawn";
+        var spawnLabel = state.npcEditingId > 0 ? t("admin.common.save") : t("admin.npc.human.spawn");
+        var toolbar = '<div class="adm-toolbar">';
+        if (state.npcEditingId > 0) {
+            toolbar += '<button class="adm-btn" data-action="human-edit-cancel">' + escapeHtml(t("admin.npc.btn.cancel")) + '</button>';
+        }
+        toolbar += '<button class="adm-btn" data-action="human-preview">' + escapeHtml(t(h.preview ? "admin.npc.human.previewUpdate" : "admin.npc.human.previewStart")) + '</button>';
+        toolbar += '<button class="adm-btn" data-action="human-preview-stop">' + escapeHtml(t("admin.npc.human.previewStop")) + '</button>';
+        if (state.npcEditingId === 0) {
+            toolbar += '<button class="adm-btn" data-action="human-reset">' + escapeHtml(t("admin.common.reset")) + '</button>';
+        }
+        toolbar += '<button class="adm-btn adm-btn--primary" data-action="human-spawn">' + escapeHtml(spawnLabel) + '</button>';
+        toolbar += '</div>';
+        html += toolbar;
         return html;
     }
 
@@ -2376,6 +2707,13 @@
             state.schemeCategoryFilter = +sc.value || 0;
             render();
         });
+        var dbFilterEl = body.querySelector("[data-role='db-table-filter']");
+        if (dbFilterEl) dbFilterEl.addEventListener("input", debounce(function () {
+            state.dbFilter = dbFilterEl.value;
+            render();
+            var f = body.querySelector("[data-role='db-table-filter']");
+            if (f) { f.focus(); f.setSelectionRange(f.value.length, f.value.length); }
+        }, 120));
         var grids = body.querySelectorAll("[data-role='itemgrid']");
         grids.forEach(function (grid) {
             grid.addEventListener("mousemove", onItemMouseMove);
@@ -2518,6 +2856,14 @@
             handleCraftAction(a, el);
             return;
         }
+        if (a && a.indexOf("db-") === 0) {
+            handleDbAction(a, el);
+            return;
+        }
+        if (a && a.indexOf("spawnconfig-") === 0) {
+            handleSpawnConfigAction(a, el);
+            return;
+        }
         if (a === "select-player") {
             if (e.target.closest("[data-stop]")) { e.stopPropagation(); return; }
             state.playerSelectedPid = +el.dataset.pid;
@@ -2564,7 +2910,23 @@
         if (a === "custom-reset") { state.custom = defaultCustom(); return render(); }
         if (a === "refresh-npc") { send("npcCatalog"); send("npcList"); send("npcPresetList"); return; }
         if (a === "npc-view") {
+            var prevView = state.npcView;
             state.npcView = el.dataset.view || "presets";
+            if (prevView !== state.npcView) {
+                if (prevView === "human" && state.humanCreator.preview) {
+                    state.humanCreator.preview = 0;
+                    send("adminNpcPreviewStop", {});
+                }
+                if (prevView === "catalog" && state.npcForm.preview) {
+                    state.npcForm.preview = 0;
+                    send("adminNpcPreviewStop", {});
+                }
+                if (prevView === "spawn-edit") {
+                    send("adminNpcPreviewStop", {});
+                    state.npcSpawnEdit = null;
+                    state.npcEditingId = 0;
+                }
+            }
             if (state.npcView === "active") send("npcList");
             if (state.npcView === "presets") send("npcPresetList");
             if (state.npcView === "catalog") send("npcCatalog");
@@ -2574,6 +2936,14 @@
         if (a === "human-reset") {
             send("adminNpcPreviewStop", {});
             state.humanCreator = defaultHumanCreator();
+            return render();
+        }
+        if (a === "human-edit-cancel") {
+            send("adminNpcPreviewStop", {});
+            state.humanCreator = defaultHumanCreator();
+            state.humanCreator.preview = 0;
+            state.npcEditingId = 0;
+            state.npcView = "active";
             return render();
         }
         if (a === "human-cycle") {
@@ -2590,7 +2960,9 @@
             var pickedInstance = el.dataset.instance || "";
             state.humanCreator[pickSlot] = pickedInstance;
             state.humanPickSlot = "";
-            syncHumanPreview();
+            if (state.humanCreator.preview) {
+                send("adminNpcPreviewUpdate", humanEquipPayload(pickSlot));
+            }
             updateHumanEquipPickerDom(pickSlot);
             return;
         }
@@ -2649,6 +3021,46 @@
             var hc = state.humanCreator;
             if (!hc.instance) return setStatus(t("admin.status.pickInstance"), "error");
             var equipment = { weapon: hc.weapon || "", armor: hc.armor || "", ranged: hc.ranged || "" };
+            var metadataJson = JSON.stringify({ equipment: equipment, weapon: hc.weapon || "", armor: hc.armor || "", ranged: hc.ranged || "", expReward: +hc.baseExperience || 0, animation: hc.idleAnimation || "", merchantItems: hc.merchantItems || "" });
+            if (state.npcEditingId > 0) {
+                // Update existing spawn in place, no new NPC.
+                var fields = {
+                    name: hc.name || "",
+                    instance: hc.instance,
+                    tag: hc.tag || "",
+                    kind: (hc.merchantItems || "") ? "merchant" : "npc",
+                    hostile: +hc.hostile || 0,
+                    respawnSec: +hc.respawnSec || 0,
+                    bodyModel: hc.bodyModel || "HUM_BODY_NAKED0",
+                    bodyTex: +hc.bodyTex || 0,
+                    headModel: hc.headModel || "HUM_HEAD_BALD",
+                    headTex: +hc.headTex || 0,
+                    fatness: +hc.fatness || 0,
+                    voice: +hc.voice || 0,
+                    hp: +hc.hp || 0,
+                    level: +hc.level || 0,
+                    strength: +hc.strength || 0,
+                    dexterity: +hc.dexterity || 0,
+                    idleAnimation: hc.idleAnimation || "S_STAND",
+                    aggroRadius: +hc.aggroRadius || 900,
+                    baseExperience: +hc.baseExperience || 0,
+                    teacherSkills: hc.teacherSkills || "",
+                    teachCost: +hc.teachCost || 100,
+                    posX: +hc.posX || 0,
+                    posY: +hc.posY || 0,
+                    posZ: +hc.posZ || 0,
+                    angle: +hc.angle || 0,
+                    metadata: metadataJson
+                };
+                send("npcUpdate", { id: state.npcEditingId, fields: fields });
+                send("adminNpcPreviewStop", {});
+                state.humanCreator.preview = 0;
+                var editingId = state.npcEditingId;
+                state.npcEditingId = 0;
+                state.humanCreator = defaultHumanCreator();
+                state.npcView = "active";
+                return setStatus(tFmt("admin.npc.spawnEdit.saving", "#" + editingId), "");
+            }
             var spawnPayload = {
                 instance: hc.instance,
                 name: hc.name || "",
@@ -2671,7 +3083,7 @@
                 baseExperience: +hc.baseExperience || 0,
                 teacherSkills: hc.teacherSkills || "",
                 teachCost: +hc.teachCost || 100,
-                metadata: JSON.stringify({ equipment: equipment, weapon: hc.weapon || "", armor: hc.armor || "", ranged: hc.ranged || "", expReward: +hc.baseExperience || 0, animation: hc.idleAnimation || "", merchantItems: hc.merchantItems || "" })
+                metadata: metadataJson
             };
             if (humanHasPosition()) {
                 spawnPayload.posX = +hc.posX || 0;
@@ -2828,9 +3240,13 @@
             var sid3 = +el.dataset.id;
             var sp = (state.npcSpawns || []).filter(function (x) { return +x.id === sid3; })[0];
             if (!sp) return setStatus(t("admin.npc.spawnEdit.notFound"), "error");
-            state.npcSpawnEdit = JSON.parse(JSON.stringify(sp));
-            state.npcView = "spawn-edit";
-            send("adminNpcPreviewStart", spawnEditPreviewPayload());
+            hydrateHumanCreatorFromSpawn(sp);
+            state.npcEditingId = sid3;
+            state.humanPickSlot = "";
+            state.humanCreator.preview = 1;
+            state.npcView = "human";
+            if (!state.schemes.length) send("schemes");
+            send("adminNpcPreviewStart", humanPayload(true));
             return render();
         }
         if (a === "npc-edit-back") {
@@ -3315,6 +3731,39 @@
             state.craftStations = pl.stations || [];
             return render();
         }
+        if (p.action === "dbTables" && p.success) {
+            state.dbTables = pl.tables || [];
+            return render();
+        }
+        if (p.action === "dbTableSchema" && p.success) {
+            state.dbSchema = { table: pl.table || "", columns: pl.columns || [] };
+            return render();
+        }
+        if (p.action === "dbRows" && p.success) {
+            state.dbRows = { table: pl.table || "", rows: pl.rows || [], total: pl.total || 0, offset: pl.offset || 0, limit: pl.limit || 100 };
+            return render();
+        }
+        if ((p.action === "dbRowUpdate" || p.action === "dbRowInsert" || p.action === "dbRowDelete") && p.success) {
+            if (state.dbActiveTable) {
+                send("dbRows", { table: state.dbActiveTable, limit: state.dbRows.limit || 100, offset: state.dbRows.offset || 0 });
+            }
+            setStatus(t("admin.status.ok", p.action), "ok");
+            return;
+        }
+        if (p.action === "spawnConfigGet" && p.success) {
+            var parsed = parseSpawnConfigPayload(pl);
+            state.spawnConfig = parsed;
+            state.spawnConfigLoaded = true;
+            return render();
+        }
+        if (p.action === "spawnConfigSave" && p.success) {
+            setStatus("Config zapisany i rozesłany do graczy", "ok");
+            return;
+        }
+        if (p.action === "spawnConfigCapture" && p.success) {
+            applySpawnCapture(pl);
+            return render(true);
+        }
         if (p.action === "adminHouseGhost" && p.success) {
             state.houseGhostActive = !!(+pl.active || 0);
             return render(true);
@@ -3439,9 +3888,19 @@
             send("npcList");
             return render();
         }
-        if (p.action === "npcUpdate" && p.success && state.npcView === "spawn-edit") {
-            state.npcSpawnEdit = null;
-            state.npcView = "active";
+        if (p.action === "npcUpdate" && p.success) {
+            // Was the user editing via the unified human creator? Bail out cleanly.
+            if (state.npcEditingId && (!pl || +pl.id === +state.npcEditingId)) {
+                state.npcEditingId = 0;
+                state.humanCreator = defaultHumanCreator();
+                state.humanCreator.preview = 0;
+                state.npcView = "active";
+            }
+            // Legacy spawn-edit form fallback
+            if (state.npcView === "spawn-edit") {
+                state.npcSpawnEdit = null;
+                state.npcView = "active";
+            }
             send("npcList");
             setStatus(t("admin.npc.spawnEdit.saved"), "ok");
             return render();
@@ -3805,6 +4264,186 @@
             }),
             visuals: visuals
         };
+    }
+
+    function handleSpawnConfigAction(action, el) {
+        var cfg = state.spawnConfig;
+        // Sync input values from DOM into state before any save/capture, so the user's edits aren't lost on render.
+        flushSpawnConfigInputs();
+        if (action === "spawnconfig-capture-lobby") {
+            send("spawnConfigCapture", { purpose: "lobby" });
+            return;
+        }
+        if (action === "spawnconfig-capture-default") {
+            send("spawnConfigCapture", { purpose: "default" });
+            return;
+        }
+        if (action === "spawnconfig-capture-scenario") {
+            send("spawnConfigCapture", { purpose: "scenario" });
+            return;
+        }
+        if (action === "spawnconfig-save-lobby") {
+            send("spawnConfigSave", { configKey: "lobbyCameras", payload: JSON.stringify(cfg.lobbyCameras || []) });
+            return;
+        }
+        if (action === "spawnconfig-save-default") {
+            send("spawnConfigSave", { configKey: "characterDefaultSpawn", payload: JSON.stringify(cfg.characterDefaultSpawn || {}) });
+            return;
+        }
+        if (action === "spawnconfig-save-scenarios") {
+            send("spawnConfigSave", { configKey: "characterScenarios", payload: JSON.stringify(cfg.characterScenarios || []) });
+            return;
+        }
+        if (action === "spawnconfig-remove-lobby") {
+            var li = +el.dataset.idx;
+            if (cfg.lobbyCameras && cfg.lobbyCameras[li]) cfg.lobbyCameras.splice(li, 1);
+            return render(true);
+        }
+        if (action === "spawnconfig-remove-scenario") {
+            var si = +el.dataset.idx;
+            if (cfg.characterScenarios && cfg.characterScenarios[si]) cfg.characterScenarios.splice(si, 1);
+            return render(true);
+        }
+    }
+
+    function flushSpawnConfigInputs() {
+        if (!body) return;
+        var cfg = state.spawnConfig;
+        body.querySelectorAll("[data-spawn-lobby-idx]").forEach(function (el) {
+            var idx = +el.dataset.spawnLobbyIdx;
+            var field = el.dataset.spawnLobbyField;
+            if (cfg.lobbyCameras && cfg.lobbyCameras[idx]) {
+                cfg.lobbyCameras[idx][field] = parseFloat(el.value) || 0;
+            }
+        });
+        body.querySelectorAll("[data-spawn-def]").forEach(function (el) {
+            if (!cfg.characterDefaultSpawn) cfg.characterDefaultSpawn = {};
+            var key = el.dataset.spawnDef;
+            if (key === "world") cfg.characterDefaultSpawn[key] = el.value;
+            else cfg.characterDefaultSpawn[key] = parseFloat(el.value) || 0;
+        });
+        body.querySelectorAll("[data-spawn-sc-idx]").forEach(function (el) {
+            var idx = +el.dataset.spawnScIdx;
+            var field = el.dataset.spawnScField;
+            if (cfg.characterScenarios && cfg.characterScenarios[idx]) {
+                cfg.characterScenarios[idx][field] = parseFloat(el.value) || 0;
+            }
+        });
+    }
+
+    function parseSpawnConfigPayload(pl) {
+        var out = { lobbyCameras: [], characterDefaultSpawn: null, characterScenarios: [] };
+        if (!pl) return out;
+        function tryParse(raw) { try { return raw ? JSON.parse(raw) : null; } catch (e) { return null; } }
+        var lobby = tryParse(pl.lobbyCameras);
+        if (Array.isArray(lobby)) out.lobbyCameras = lobby;
+        var def = tryParse(pl.characterDefaultSpawn);
+        if (def && typeof def === "object") out.characterDefaultSpawn = def;
+        var scen = tryParse(pl.characterScenarios);
+        if (Array.isArray(scen)) out.characterScenarios = scen;
+        return out;
+    }
+
+    function applySpawnCapture(pl) {
+        if (!pl || !pl.purpose) return;
+        var cfg = state.spawnConfig;
+        if (pl.purpose === "lobby") {
+            // Convert game position into a camera spot. Pitch 20° looks roughly natural for the default Gothic camera.
+            cfg.lobbyCameras = cfg.lobbyCameras || [];
+            cfg.lobbyCameras.push({ x: pl.x, y: pl.y, z: pl.z, rotX: 20, rotY: pl.angle || 0, rotZ: 0 });
+        } else if (pl.purpose === "default") {
+            cfg.characterDefaultSpawn = { world: pl.world || "NEWWORLD.ZEN", x: pl.x, y: pl.y, z: pl.z, angle: pl.angle || 0 };
+        } else if (pl.purpose === "scenario") {
+            cfg.characterScenarios = cfg.characterScenarios || [];
+            cfg.characterScenarios.push({ x: pl.x, y: pl.y, z: pl.z, angle: pl.angle || 0 });
+        }
+    }
+
+    function handleDbAction(action, el) {
+        if (action === "db-table-pick") {
+            var table = el.dataset.table || "";
+            if (!table) return;
+            state.dbActiveTable = table;
+            state.dbRows = { table: table, rows: [], total: 0, offset: 0, limit: 100 };
+            state.dbSchema = { table: table, columns: [] };
+            state.dbInsertDraft = null;
+            state.dbEditing = null;
+            send("dbTableSchema", { table: table });
+            send("dbRows", { table: table, limit: 100, offset: 0 });
+            return render(true);
+        }
+        if (action === "db-refresh") {
+            if (!state.dbActiveTable) return;
+            send("dbRows", { table: state.dbActiveTable, limit: state.dbRows.limit || 100, offset: state.dbRows.offset || 0 });
+            return;
+        }
+        if (action === "db-page-prev" || action === "db-page-next") {
+            if (!state.dbActiveTable) return;
+            var pageSize = state.dbRows.limit || 100;
+            var newOffset = state.dbRows.offset || 0;
+            newOffset += action === "db-page-prev" ? -pageSize : pageSize;
+            if (newOffset < 0) newOffset = 0;
+            send("dbRows", { table: state.dbActiveTable, limit: pageSize, offset: newOffset });
+            return;
+        }
+        if (action === "db-row-edit") {
+            var rowIdx = +el.dataset.row;
+            var row = (state.dbRows.rows || [])[rowIdx];
+            if (!row) return;
+            var pkColumn = dbPrimaryKey(state.dbSchema.columns);
+            if (!pkColumn) { setStatus("Brak klucza głównego — edycja niemożliwa", "error"); return; }
+            state.dbEditing = { table: state.dbActiveTable, pkColumn: pkColumn, pkValue: row[pkColumn], values: {} };
+            return render(true);
+        }
+        if (action === "db-row-cancel") {
+            state.dbEditing = null;
+            return render(true);
+        }
+        if (action === "db-row-save") {
+            if (!state.dbEditing) return;
+            var changes = {};
+            (body.querySelectorAll("[data-db-edit]") || []).forEach(function (input) {
+                changes[input.dataset.dbEdit] = input.value;
+            });
+            // Drop the primary key column from changes — it can't be modified.
+            delete changes[state.dbEditing.pkColumn];
+            send("dbRowUpdate", {
+                table: state.dbEditing.table,
+                pkColumn: state.dbEditing.pkColumn,
+                pkValue: state.dbEditing.pkValue,
+                changes: changes
+            });
+            state.dbEditing = null;
+            return;
+        }
+        if (action === "db-row-delete") {
+            var dRowIdx = +el.dataset.row;
+            var dRow = (state.dbRows.rows || [])[dRowIdx];
+            if (!dRow) return;
+            var dPk = dbPrimaryKey(state.dbSchema.columns);
+            if (!dPk) { setStatus("Brak klucza głównego — usuwanie niemożliwe", "error"); return; }
+            if (!confirm("Usunąć wiersz " + dPk + "=" + dRow[dPk] + " z " + state.dbActiveTable + "?")) return;
+            send("dbRowDelete", { table: state.dbActiveTable, pkColumn: dPk, pkValue: dRow[dPk] });
+            return;
+        }
+        if (action === "db-row-new") {
+            state.dbInsertDraft = { table: state.dbActiveTable, values: {} };
+            return render(true);
+        }
+        if (action === "db-row-insert-cancel") {
+            state.dbInsertDraft = null;
+            return render(true);
+        }
+        if (action === "db-row-insert") {
+            if (!state.dbInsertDraft) return;
+            var values = {};
+            (body.querySelectorAll("[data-db-insert]") || []).forEach(function (input) {
+                if (input.value !== "") values[input.dataset.dbInsert] = input.value;
+            });
+            send("dbRowInsert", { table: state.dbInsertDraft.table, values: values });
+            state.dbInsertDraft = null;
+            return;
+        }
     }
 
     function handleCraftAction(action, el) {

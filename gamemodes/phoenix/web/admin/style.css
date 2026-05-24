@@ -1600,3 +1600,50 @@ body.phoenix-admin-open .phoenix-chat {
 	padding: 12px;
 	text-align: center;
 }
+
+
+/* ----- Database browser ----- */
+.adm-db-tables { display: flex; flex-direction: column; gap: 4px; max-height: 480px; overflow: auto; margin-top: 8px; }
+.adm-db-tables .adm-btn { justify-content: flex-start; text-align: left; }
+.adm-db-tables .adm-btn.is-selected { background: rgba(212, 175, 55, 0.18); border-color: rgba(212, 175, 55, 0.6); }
+.adm-input--mini { padding: 3px 6px; font-size: 11px; min-width: 80px; max-width: 220px; }
+
+
+/* ----- Database browser layout ----- */
+.adm-section--db { display: flex; flex-direction: column; height: 100%; min-height: 0; }
+.adm-db-layout { display: grid; grid-template-columns: 280px minmax(0, 1fr); gap: 12px; align-items: stretch; min-height: 0; flex: 1; }
+.adm-db-sidebar { display: flex; flex-direction: column; gap: 6px; padding: 10px; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(201, 180, 138, 0.15); }
+.adm-db-sidebar h4 { margin: 0 0 4px; color: #c9b48a; font-size: 11px; letter-spacing: 0.16em; text-transform: uppercase; }
+.adm-db-tables { display: flex; flex-direction: column; gap: 4px; max-height: calc(100vh - 240px); overflow: auto; padding-right: 4px; }
+.adm-db-tables .adm-btn { justify-content: flex-start; text-align: left; padding: 6px 10px; font-family: "Consolas", monospace; font-size: 11px; }
+.adm-db-tables .adm-btn.is-selected { background: rgba(212, 175, 55, 0.18); border-color: rgba(212, 175, 55, 0.6); color: #f5e6a8; }
+.adm-db-main { display: flex; flex-direction: column; gap: 10px; padding: 10px; background: rgba(0, 0, 0, 0.3); border: 1px solid rgba(201, 180, 138, 0.15); min-width: 0; }
+.adm-db-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-bottom: 8px; border-bottom: 1px solid rgba(212, 175, 55, 0.15); }
+.adm-db-header h4 { margin: 0; color: #f5e6a8; font-family: "Consolas", monospace; font-size: 13px; }
+.adm-db-header small { color: #a07c2f; font-size: 10px; letter-spacing: 0.08em; }
+.adm-db-actions { display: flex; gap: 6px; align-items: center; }
+.adm-db-readonly { color: #a07c2f; font-size: 11px; font-style: italic; }
+.adm-db-grid { overflow: auto; max-height: calc(100vh - 320px); border: 1px solid rgba(201, 180, 138, 0.1); }
+.adm-table--db { font-size: 11px; }
+.adm-table--db th { white-space: nowrap; position: sticky; top: 0; background: rgba(20, 16, 10, 0.96); }
+.adm-table--db td { white-space: nowrap; max-width: 320px; overflow: hidden; text-overflow: ellipsis; }
+.adm-db-action-col { width: 70px; min-width: 70px; }
+.adm-db-pk { color: #d4af37; font-weight: bold; font-size: 9px; }
+.adm-db-null { color: #6a5a3a; font-style: italic; }
+.adm-db-pager { justify-content: center; }
+.adm-btn--mini { padding: 3px 8px !important; font-size: 11px !important; min-width: 28px; }
+
+/* ----- Database edit modal ----- */
+.adm-modal--db { position: fixed; inset: 0; z-index: 9000; display: flex; align-items: center; justify-content: center; }
+.adm-modal__panel--db { width: min(900px, 92vw); max-height: 86vh; display: flex; flex-direction: column; background: linear-gradient(180deg, rgba(20, 14, 8, 0.98), rgba(8, 6, 4, 0.98)); border: 1px solid rgba(212, 175, 55, 0.4); box-shadow: 0 24px 70px rgba(0, 0, 0, 0.7); }
+.adm-modal--db .adm-modal__head { padding: 14px 20px; border-bottom: 1px solid rgba(212, 175, 55, 0.2); }
+.adm-modal--db .adm-modal__head h3 { margin: 0; color: #f5e6a8; font-size: 13px; letter-spacing: 0.12em; }
+.adm-modal--db .adm-modal__head code { color: #d4af37; font-family: "Consolas", monospace; font-size: 12px; }
+.adm-modal--db .adm-modal__body { flex: 1; padding: 16px 20px; overflow-y: auto; min-height: 0; }
+.adm-modal--db .adm-modal__actions { padding: 12px 20px; border-top: 1px solid rgba(212, 175, 55, 0.2); display: flex; justify-content: flex-end; gap: 8px; }
+.adm-grid--db-edit { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 10px; }
+.adm-db-field { display: flex; flex-direction: column; gap: 4px; }
+.adm-db-field span { color: #c9b48a; font-size: 11px; }
+.adm-db-field span small { color: #6a5a3a; font-family: "Consolas", monospace; font-weight: normal; margin-left: 4px; }
+.adm-db-field textarea { resize: vertical; min-height: 60px; font-family: "Consolas", monospace; font-size: 11px; }
+.adm-input--mini { padding: 3px 6px; font-size: 11px; min-width: 80px; max-width: 220px; }

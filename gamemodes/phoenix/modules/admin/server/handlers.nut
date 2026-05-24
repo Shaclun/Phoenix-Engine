@@ -960,6 +960,254 @@ phoenix.admin.Server <- {
 		}
 	}
 
+	// ---------------------------------------------------------------------
+	// Database browser / editor — read-only by default for SELECT,
+	// insert/update/delete are restricted to phoenix_* tables and audited.
+	// ---------------------------------------------------------------------
+
+	function _dbSafeIdent(name) {
+		// Allow only [A-Za-z0-9_]; otherwise return null.
+		if (name == null) return null
+		local s = name.tostring()
+		if (s.len() == 0 || s.len() > 64) return null
+		for (local i = 0; i < s.len(); i += 1) {
+			local c = s[i]
+			local ok = (c >= '0' && c <= '9') || (c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z') || c == '_'
+			if (!ok) return null
+		}
+		return s
+	}
+
+	function _dbIsManagedTable(table) {
+		if (table == null) return false
+		local s = table.tostring()
+		// Restrict mutations to the phoenix_ namespace so admins can't trash mysql.* etc.
+		if (s.len() < 8) return false
+		return s.slice(0, 8) == "phoenix_"
+	}
+
+	function _dbEscape(v) {
+		if (v == null) return "NULL"
+		if (typeof v == "string") {
+			try { return "'" + ORM.engine.escape(v) + "'" } catch (e) { return "'" + v + "'" }
+		}
+		if (typeof v == "integer" || typeof v == "float" || typeof v == "bool") {
+			return v.tostring()
+		}
+		// Fallback — coerce to string and escape.
+		try { return "'" + ORM.engine.escape(v.tostring()) + "'" } catch (e) { return "'" + v.tostring() + "'" }
+	}
+
+	function dispatchDbTables(playerId, _payload) {
+		local sql = "SELECT TABLE_NAME AS `name`, TABLE_ROWS AS `rowCount`, ENGINE AS `engine` FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_SCHEMA = DATABASE() ORDER BY TABLE_NAME"
+		try {
+			ORM.engine.executeAsync(sql, function (rows) {
+				local out = []
+				if (rows != null) foreach (r in rows) out.append(r)
+				phoenix.admin.Server.reply(playerId, "dbTables", true, "", { tables = out })
+			})
+		} catch (e) {
+			phoenix.admin.Server.reply(playerId, "dbTables", false, "exception", null)
+		}
+	}
+
+	function dispatchDbTableSchema(playerId, payload) {
+		local table = (payload != null && "table" in payload) ? phoenix.admin.Server._dbSafeIdent(payload.table) : null
+		if (table == null) { phoenix.admin.Server.reply(playerId, "dbTableSchema", false, "badTable", null); return }
+		local sql = "SELECT COLUMN_NAME AS name, COLUMN_TYPE AS type, IS_NULLABLE AS nullable, COLUMN_KEY AS keyType, COLUMN_DEFAULT AS defaultValue, EXTRA AS extra " +
+			"FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = '" + table + "' ORDER BY ORDINAL_POSITION"
+		try {
+			ORM.engine.executeAsync(sql, function (rows) {
+				local out = []
+				if (rows != null) foreach (r in rows) out.append(r)
+				phoenix.admin.Server.reply(playerId, "dbTableSchema", true, "", { table = table, columns = out })
+			})
+		} catch (e) {
+			phoenix.admin.Server.reply(playerId, "dbTableSchema", false, "exception", null)
+		}
+	}
+
+	function dispatchDbRows(playerId, payload) {
+		local table = (payload != null && "table" in payload) ? phoenix.admin.Server._dbSafeIdent(payload.table) : null
+		if (table == null) { phoenix.admin.Server.reply(playerId, "dbRows", false, "badTable", null); return }
+		local limit = 100
+		if (payload != null && "limit" in payload) limit = payload.limit.tointeger()
+		if (limit < 1) limit = 1
+		if (limit > 500) limit = 500
+		local offset = 0
+		if (payload != null && "offset" in payload) offset = payload.offset.tointeger()
+		if (offset < 0) offset = 0
+		local order = (payload != null && "orderBy" in payload) ? phoenix.admin.Server._dbSafeIdent(payload.orderBy) : null
+		local dir = (payload != null && "orderDir" in payload && payload.orderDir.tostring().toupper() == "ASC") ? "ASC" : "DESC"
+		local where = ""
+		if (payload != null && "filterColumn" in payload && "filterValue" in payload) {
+			local col = phoenix.admin.Server._dbSafeIdent(payload.filterColumn)
+			if (col != null) {
+				where = " WHERE `" + col + "` = " + phoenix.admin.Server._dbEscape(payload.filterValue)
+			}
+		}
+		local sql = "SELECT * FROM `" + table + "`" + where
+		if (order != null) sql += " ORDER BY `" + order + "` " + dir
+		sql += " LIMIT " + limit + " OFFSET " + offset
+		local countSql = "SELECT COUNT(*) AS total FROM `" + table + "`" + where
+		try {
+			ORM.engine.executeAsync(countSql, function (countRows) {
+				local total = 0
+				if (countRows != null && countRows.len() > 0 && "total" in countRows[0]) total = countRows[0].total
+				ORM.engine.executeAsync(sql, function (rows) {
+					local out = []
+					if (rows != null) foreach (r in rows) out.append(r)
+					phoenix.admin.Server.reply(playerId, "dbRows", true, "", { table = table, rows = out, total = total, offset = offset, limit = limit })
+				})
+			})
+		} catch (e) {
+			phoenix.admin.Server.reply(playerId, "dbRows", false, "exception", null)
+		}
+	}
+
+	function dispatchDbRowUpdate(playerId, payload) {
+		local table = (payload != null && "table" in payload) ? phoenix.admin.Server._dbSafeIdent(payload.table) : null
+		if (table == null) { phoenix.admin.Server.reply(playerId, "dbRowUpdate", false, "badTable", null); return }
+		if (!phoenix.admin.Server._dbIsManagedTable(table)) { phoenix.admin.Server.reply(playerId, "dbRowUpdate", false, "tableNotEditable", null); return }
+		if (payload == null || !("pkColumn" in payload) || !("pkValue" in payload) || !("changes" in payload)) {
+			phoenix.admin.Server.reply(playerId, "dbRowUpdate", false, "badPayload", null); return
+		}
+		local pkCol = phoenix.admin.Server._dbSafeIdent(payload.pkColumn)
+		if (pkCol == null) { phoenix.admin.Server.reply(playerId, "dbRowUpdate", false, "badPk", null); return }
+		local sets = []
+		foreach (k, v in payload.changes) {
+			local colName = phoenix.admin.Server._dbSafeIdent(k)
+			if (colName == null) continue
+			sets.append("`" + colName + "` = " + phoenix.admin.Server._dbEscape(v))
+		}
+		if (sets.len() == 0) { phoenix.admin.Server.reply(playerId, "dbRowUpdate", false, "noChanges", null); return }
+		local setSql = sets.reduce(function (a, b) { return a + ", " + b })
+		local sql = "UPDATE `" + table + "` SET " + setSql + " WHERE `" + pkCol + "` = " + phoenix.admin.Server._dbEscape(payload.pkValue) + " LIMIT 1"
+		try {
+			ORM.engine.executeAsync(sql, function (_) {
+				phoenix.admin.Server.audit(playerId, "dbRowUpdate", "db:" + table, null, pkCol + "=" + payload.pkValue, setSql)
+				phoenix.admin.Server.reply(playerId, "dbRowUpdate", true, "", { table = table })
+			})
+		} catch (e) {
+			phoenix.admin.Server.reply(playerId, "dbRowUpdate", false, "exception", null)
+		}
+	}
+
+	function dispatchDbRowInsert(playerId, payload) {
+		local table = (payload != null && "table" in payload) ? phoenix.admin.Server._dbSafeIdent(payload.table) : null
+		if (table == null) { phoenix.admin.Server.reply(playerId, "dbRowInsert", false, "badTable", null); return }
+		if (!phoenix.admin.Server._dbIsManagedTable(table)) { phoenix.admin.Server.reply(playerId, "dbRowInsert", false, "tableNotEditable", null); return }
+		if (payload == null || !("values" in payload)) { phoenix.admin.Server.reply(playerId, "dbRowInsert", false, "badPayload", null); return }
+		local cols = []
+		local vals = []
+		foreach (k, v in payload.values) {
+			local colName = phoenix.admin.Server._dbSafeIdent(k)
+			if (colName == null) continue
+			cols.append("`" + colName + "`")
+			vals.append(phoenix.admin.Server._dbEscape(v))
+		}
+		if (cols.len() == 0) { phoenix.admin.Server.reply(playerId, "dbRowInsert", false, "noValues", null); return }
+		local sql = "INSERT INTO `" + table + "` (" + cols.reduce(function (a, b) { return a + "," + b }) + ") VALUES (" + vals.reduce(function (a, b) { return a + "," + b }) + ")"
+		try {
+			ORM.engine.executeAsync(sql, function (_) {
+				phoenix.admin.Server.audit(playerId, "dbRowInsert", "db:" + table, null, "", "")
+				phoenix.admin.Server.reply(playerId, "dbRowInsert", true, "", { table = table })
+			})
+		} catch (e) {
+			phoenix.admin.Server.reply(playerId, "dbRowInsert", false, "exception", null)
+		}
+	}
+
+	function dispatchDbRowDelete(playerId, payload) {
+		local table = (payload != null && "table" in payload) ? phoenix.admin.Server._dbSafeIdent(payload.table) : null
+		if (table == null) { phoenix.admin.Server.reply(playerId, "dbRowDelete", false, "badTable", null); return }
+		if (!phoenix.admin.Server._dbIsManagedTable(table)) { phoenix.admin.Server.reply(playerId, "dbRowDelete", false, "tableNotEditable", null); return }
+		if (payload == null || !("pkColumn" in payload) || !("pkValue" in payload)) {
+			phoenix.admin.Server.reply(playerId, "dbRowDelete", false, "badPayload", null); return
+		}
+		local pkCol = phoenix.admin.Server._dbSafeIdent(payload.pkColumn)
+		if (pkCol == null) { phoenix.admin.Server.reply(playerId, "dbRowDelete", false, "badPk", null); return }
+		local sql = "DELETE FROM `" + table + "` WHERE `" + pkCol + "` = " + phoenix.admin.Server._dbEscape(payload.pkValue) + " LIMIT 1"
+		try {
+			ORM.engine.executeAsync(sql, function (_) {
+				phoenix.admin.Server.audit(playerId, "dbRowDelete", "db:" + table, null, pkCol + "=" + payload.pkValue, "")
+				phoenix.admin.Server.reply(playerId, "dbRowDelete", true, "", { table = table })
+			})
+		} catch (e) {
+			phoenix.admin.Server.reply(playerId, "dbRowDelete", false, "exception", null)
+		}
+	}
+
+	// ---------------------------------------------------------------------
+	// Spawn / lobby camera configuration — JSON config blobs persisted in
+	// phoenix_admin_config; consumed by client modules at boot.
+	// ---------------------------------------------------------------------
+
+	function _ensureSpawnConfigTable(callback) {
+		local sql = "CREATE TABLE IF NOT EXISTS `phoenix_admin_config` (" +
+			"`id` INT UNSIGNED NOT NULL AUTO_INCREMENT," +
+			"`configKey` VARCHAR(64) NOT NULL," +
+			"`payload` TEXT NOT NULL," +
+			"`updatedAt` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP," +
+			"PRIMARY KEY (`id`),UNIQUE KEY `idx_config_key` (`configKey`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+		try { ORM.engine.executeAsync(sql, function (_) { if (callback != null) callback() }) }
+		catch (e) { if (callback != null) callback() }
+	}
+
+	function dispatchSpawnConfigGet(playerId, _payload) {
+		phoenix.admin.Server._ensureSpawnConfigTable(function () {
+			local sql = "SELECT `configKey`, `payload` FROM `phoenix_admin_config` WHERE `configKey` IN ('lobbyCameras','characterDefaultSpawn','characterScenarios')"
+			ORM.engine.executeAsync(sql, function (rows) {
+				local out = { lobbyCameras = "", characterDefaultSpawn = "", characterScenarios = "" }
+				if (rows != null) foreach (r in rows) {
+					if (!("configKey" in r)) continue
+					local key = r.configKey.tostring()
+					local val = ("payload" in r) ? r.payload.tostring() : ""
+					if (key in out) out[key] = val
+				}
+				phoenix.admin.Server.reply(playerId, "spawnConfigGet", true, "", out)
+			})
+		})
+	}
+
+	function dispatchSpawnConfigSave(playerId, payload) {
+		if (payload == null || !("configKey" in payload) || !("payload" in payload)) {
+			phoenix.admin.Server.reply(playerId, "spawnConfigSave", false, "badPayload", null); return
+		}
+		local key = payload.configKey.tostring()
+		if (key != "lobbyCameras" && key != "characterDefaultSpawn" && key != "characterScenarios") {
+			phoenix.admin.Server.reply(playerId, "spawnConfigSave", false, "badKey", null); return
+		}
+		local raw = payload.payload.tostring()
+		local keyEsc = key
+		try { keyEsc = ORM.engine.escape(key) } catch (e) {}
+		local valEsc = raw
+		try { valEsc = ORM.engine.escape(raw) } catch (e) {}
+		phoenix.admin.Server._ensureSpawnConfigTable(function () {
+			local sql = "INSERT INTO `phoenix_admin_config` (`configKey`,`payload`) VALUES ('" + keyEsc + "','" + valEsc + "') " +
+				"ON DUPLICATE KEY UPDATE `payload`=VALUES(`payload`)"
+			ORM.engine.executeAsync(sql, function (_) {
+				phoenix.admin.Server.audit(playerId, "spawnConfigSave", "config", null, key, "")
+				try { phoenix.player.LobbyConfig.broadcast() } catch (e) {}
+				phoenix.admin.Server.reply(playerId, "spawnConfigSave", true, "", { configKey = key })
+			})
+		})
+	}
+
+	function dispatchSpawnConfigCapture(playerId, payload) {
+		// Returns the admin's current position/angle/world so the UI can append it to the right config blob.
+		try {
+			local p = getPlayerPosition(playerId)
+			local a = getPlayerAngle(playerId)
+			local w = ""; try { w = getPlayerWorld(playerId) } catch (e) {}
+			if (p == null) { phoenix.admin.Server.reply(playerId, "spawnConfigCapture", false, "noPos", null); return }
+			local purpose = (payload != null && "purpose" in payload) ? payload.purpose.tostring() : ""
+			phoenix.admin.Server.reply(playerId, "spawnConfigCapture", true, "", { x = p.x, y = p.y, z = p.z, angle = a, world = w, purpose = purpose })
+		} catch (e) {
+			phoenix.admin.Server.reply(playerId, "spawnConfigCapture", false, "exception", null)
+		}
+	}
+
 	dispatchers = null
 
 	function onRequest(playerId, message) {
@@ -1023,7 +1271,16 @@ phoenix.admin.Server.dispatchers = {
 	houseSave = phoenix.admin.Server.dispatchHouseSave,
 	houseDelete = phoenix.admin.Server.dispatchHouseDelete,
 	adminHouseCapture = phoenix.admin.Server.dispatchAdminHouseCapture,
-	bestiary = phoenix.admin.Server.dispatchBestiary
+	bestiary = phoenix.admin.Server.dispatchBestiary,
+	dbTables = phoenix.admin.Server.dispatchDbTables,
+	dbTableSchema = phoenix.admin.Server.dispatchDbTableSchema,
+	dbRows = phoenix.admin.Server.dispatchDbRows,
+	dbRowUpdate = phoenix.admin.Server.dispatchDbRowUpdate,
+	dbRowInsert = phoenix.admin.Server.dispatchDbRowInsert,
+	dbRowDelete = phoenix.admin.Server.dispatchDbRowDelete,
+	spawnConfigGet = phoenix.admin.Server.dispatchSpawnConfigGet,
+	spawnConfigSave = phoenix.admin.Server.dispatchSpawnConfigSave,
+	spawnConfigCapture = phoenix.admin.Server.dispatchSpawnConfigCapture
 }
 
 phoenix.admin.Message.Request.bind(phoenix.admin.Server.onRequest)
