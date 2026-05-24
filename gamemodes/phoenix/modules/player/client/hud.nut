@@ -55,6 +55,9 @@ phoenix.player.HudClient <- {
 			manaMax = message.manaMax,
 			stamina = message.stamina,
 			staminaMax = message.staminaMax,
+			magicLevel = message.magicLevel,
+			magicXp = message.magicXp,
+			magicXpNext = message.magicXpNext,
 			weaponProgress = message.weaponProgress
 		}
 		phoenix.player.HudClient.lastWeaponProgress = message.weaponProgress

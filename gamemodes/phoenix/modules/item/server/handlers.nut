@@ -37,23 +37,9 @@ phoenix.item.Handlers.onUseRequest <- function(playerId, message) {
 		local amount = (s.effect.mana * manaMult).tointeger()
 		try { setPlayerMana(playerId, getPlayerMana(playerId) + amount) } catch (e) {}
 	}
-	else if (s.onUse == "spell" && s.effect != null) {
-		local spellKey = ("spell" in s.effect && s.effect.spell != null) ? s.effect.spell.tostring() : ""
-		if (spellKey == "") { consume = false }
-		else {
-			local spell = phoenix.item.Spells.find(spellKey)
-			if (spell == null) {
-				try { phoenix.notification.notify(playerId, "warn", "Magia", "Czar nieznany: " + spellKey, 1800) } catch (e) {}
-				consume = false
-			} else {
-				local def = clone(spell)
-				def.key <- spellKey
-				local result = phoenix.item.Spells.cast(playerId, def, s)
-				if (result == null || !result.ok) consume = false
-			}
-		}
-
-		if (s.category == PhoenixItemCategory.Rune) consume = false
+	else if (s.onUse == "spell") {
+		phoenix.item.Spells.castFromInventory(playerId, active.id, rec, s)
+		consume = false
 	}
 	else {
 		consume = false

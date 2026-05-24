@@ -1055,6 +1055,17 @@ phoenix.admin.Server <- {
 		}
 	}
 
+	function _dbReloadAfterEdit(table, pkCol, pkValue) {
+		if (table == null || table == "") return
+		if (table == "phoenix_characters" && pkCol == "id") {
+			local characterId = -1
+			try { characterId = pkValue.tointeger() } catch (e) {}
+			if (characterId > 0) {
+				try { phoenix.character.Structure.reloadByCharacterId(characterId) } catch (eR) {}
+			}
+		}
+	}
+
 	function dispatchDbRowUpdate(playerId, payload) {
 		local table = (payload != null && "table" in payload) ? phoenix.admin.Server._dbSafeIdent(payload.table) : null
 		if (table == null) { phoenix.admin.Server.reply(playerId, "dbRowUpdate", false, "badTable", null); return }
@@ -1077,6 +1088,7 @@ phoenix.admin.Server <- {
 			ORM.engine.executeAsync(sql, function (_) {
 				phoenix.admin.Server.audit(playerId, "dbRowUpdate", "db:" + table, null, pkCol + "=" + payload.pkValue, setSql)
 				phoenix.admin.Server.reply(playerId, "dbRowUpdate", true, "", { table = table })
+				try { phoenix.admin.Server._dbReloadAfterEdit(table, pkCol, payload.pkValue) } catch (eRel) {}
 			})
 		} catch (e) {
 			phoenix.admin.Server.reply(playerId, "dbRowUpdate", false, "exception", null)

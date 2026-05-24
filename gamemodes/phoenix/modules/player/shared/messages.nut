@@ -9,6 +9,9 @@ class phoenix.player.Message.HudSnapshot extends phoenix.net.Message {
 	</ type = phoenix.net.type.UInt16 /> manaMax = 0
 	</ type = phoenix.net.type.UInt16 /> stamina = 100
 	</ type = phoenix.net.type.UInt16 /> staminaMax = 100
+	</ type = phoenix.net.type.UInt16 /> magicLevel = 0
+	</ type = phoenix.net.type.UInt32 /> magicXp = 0
+	</ type = phoenix.net.type.UInt32 /> magicXpNext = 0
 	</ type = phoenix.net.type.String /> weaponProgress = ""
 }
 

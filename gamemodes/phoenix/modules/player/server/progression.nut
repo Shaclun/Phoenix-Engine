@@ -24,14 +24,22 @@ phoenix.player.Progression <- {
 		return record != null && ("klass" in record) && record.klass == 1 ? 50 : 10
 	}
 
+	manaPerMagicLevel = 10
+
+	function _magicLevel(record) {
+		try { if (record != null && "magicLevel" in record && record.magicLevel != null) return record.magicLevel.tointeger() } catch (e) {}
+		return 0
+	}
+
 	function expectedMaxStats(record) {
 		local level = 1
 		try { level = record.level.tointeger() } catch (e) { level = 1 }
 		if (level < 1) level = 1
 		local gained = level - 1
+		local magicBonus = phoenix.player.Progression._magicLevel(record) * phoenix.player.Progression.manaPerMagicLevel
 		return {
 			hpMax = 100 + gained * 10,
-			manaMax = phoenix.player.Progression._baseManaMax(record) + gained * ((record != null && ("klass" in record) && record.klass == 1) ? 8 : 2),
+			manaMax = phoenix.player.Progression._baseManaMax(record) + gained * ((record != null && ("klass" in record) && record.klass == 1) ? 8 : 2) + magicBonus,
 			staminaMax = 100 + gained * 5
 		}
 	}

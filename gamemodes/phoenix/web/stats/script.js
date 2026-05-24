@@ -58,6 +58,14 @@
 						'<div class="stats-block__head"><h2 data-t="stats.section.weapons"></h2><span data-t="stats.section.combatTraining"></span></div>' +
 						'<div class="weapon-grid" data-role="weapons"></div>' +
 					'</aside>' +
+					'<aside class="stats-block stats-block--magic">' +
+						'<div class="stats-block__head"><h2 data-t="stats.section.magic">Magia</h2><span data-t="stats.section.magicHint">Wbijanie poprzez czary</span></div>' +
+						'<article class="weapon-card weapon-card--magic">' +
+							'<div class="weapon-card__top"><span data-t="stats.magic.level">Poziom magii</span><strong data-role="magicLevel">0</strong></div>' +
+							'<div class="weapon-card__meta"><span data-role="magicCircle"></span><span data-role="magicXpText">0 / 0</span></div>' +
+							'<div class="weapon-card__track"><i data-role="magicXpFill" style="width:0%"></i></div>' +
+						'</article>' +
+					'</aside>' +
 				'</section>' +
 				'<footer class="stats-panel__foot"><span class="stats-panel__error" data-role="error"></span></footer>' +
 			'</div>' +
@@ -98,6 +106,10 @@
 		strength: root.querySelector("[data-role='strength']"),
 		dexterity: root.querySelector("[data-role='dexterity']"),
 		weapons: root.querySelector("[data-role='weapons']"),
+		magicLevel: root.querySelector("[data-role='magicLevel']"),
+		magicCircle: root.querySelector("[data-role='magicCircle']"),
+		magicXpText: root.querySelector("[data-role='magicXpText']"),
+		magicXpFill: root.querySelector("[data-role='magicXpFill']"),
 		tabs: root.querySelectorAll("[data-tab]"),
 		bestiaryGrid: root.querySelector("[data-role='bestiary-grid']"),
 		bestiaryEmpty: root.querySelector("[data-role='bestiary-empty']"),
@@ -188,6 +200,24 @@
 		setText(els.dexterity, d.dexterity || 0);
 		setText(els.error, "");
 		renderWeapons(d);
+		renderMagic(d);
+	}
+
+	function renderMagic(d) {
+		if (!els.magicLevel) return;
+		const lv = (d.magicLevel | 0) || 0;
+		const xp = (d.magicXp | 0) || 0;
+		const next = (d.magicXpNext | 0) || 0;
+		const capped = next <= 0;
+		const circle = lv >= 60 ? 6 : Math.max(0, Math.floor(lv / 10));
+		setText(els.magicLevel, lv);
+		if (els.magicCircle) {
+			let label = circle <= 0 ? t("stats.magic.noCircle", "Krąg 0 / 6") : t("stats.magic.circle", "Krąg {0} / 6").replace("{0}", String(circle));
+			if (lv >= 60) label = t("stats.magic.maxCircle", "Krąg 6 / 6 (MAX)");
+			els.magicCircle.textContent = label;
+		}
+		if (els.magicXpText) els.magicXpText.textContent = capped ? t("stats.weaponState.max", "MAX") : (xp + " / " + next);
+		if (els.magicXpFill) els.magicXpFill.style.width = (capped ? 100 : clampPct(xp, next)) + "%";
 	}
 
 	function applyResult(r) {

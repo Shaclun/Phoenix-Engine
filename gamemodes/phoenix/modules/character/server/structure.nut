@@ -127,6 +127,40 @@ phoenix.character.Structure <- {
 		CharacterModel.findOneAsync(@(q) q.where("id", "=", characterId).and("accountId", "=", accountId), callback)
 	}
 
+	function reloadActive(playerId, callback = null) {
+		local current = playerId in active ? active[playerId] : null
+		if (current == null) { if (callback != null) callback(null); return }
+		local cid = current.id
+		try {
+			CharacterModel.findOneAsync(@(q) q.where("id", "=", cid), function (rec) {
+				if (rec != null) {
+					try { rec.hotbar = current.hotbar } catch (eH) {}
+					active[playerId] <- rec
+					try { phoenix.player.Progression.normalizeRecordStats(rec) } catch (eN) {}
+					try { setPlayerMaxHealth(playerId, rec.hpMax) } catch (eA) {}
+					try { setPlayerHealth(playerId, rec.hp > 0 ? rec.hp : rec.hpMax) } catch (eA2) {}
+					try { setPlayerMaxMana(playerId, rec.manaMax) } catch (eA3) {}
+					try { setPlayerMana(playerId, rec.mana > 0 ? rec.mana : rec.manaMax) } catch (eA4) {}
+					try { setPlayerStrength(playerId, rec.strength) } catch (eA5) {}
+					try { setPlayerDexterity(playerId, rec.dexterity) } catch (eA6) {}
+					try { phoenix.player.Stats.pushSnapshot(playerId) } catch (eS) {}
+					try { phoenix.player.Hud.pushSnapshot(playerId) } catch (eHd) {}
+				}
+				if (callback != null) callback(rec)
+			})
+		} catch (e) { if (callback != null) callback(null) }
+	}
+
+	function reloadByCharacterId(characterId) {
+		foreach (pid, rec in active) {
+			if (rec != null && rec.id == characterId) {
+				phoenix.character.Structure.reloadActive(pid)
+				return pid
+			}
+		}
+		return -1
+	}
+
 	function create(accountId, payload, callback) {
 		CharacterModel.findByNormalizedName(payload.name, function(existing) {
 			if (existing != null) return callback("phoenix.character.error.nameTaken", null)

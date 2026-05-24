@@ -30,6 +30,9 @@ phoenix.player.Hud <- {
 		msg.manaMax = manaMax
 		msg.stamina = stamina
 		msg.staminaMax = staminaMax
+		try { msg.magicLevel = ("magicLevel" in record && record.magicLevel != null) ? record.magicLevel : 0 } catch (eMl) { msg.magicLevel = 0 }
+		try { msg.magicXp    = ("magicXp"    in record && record.magicXp    != null) ? record.magicXp    : 0 } catch (eMx) { msg.magicXp = 0 }
+		try { msg.magicXpNext = phoenix.item.Spells != null ? phoenix.item.Spells.xpToNext(msg.magicLevel) : 0 } catch (eMxn) { msg.magicXpNext = 20 + msg.magicLevel * msg.magicLevel * 3 }
 		try { msg.weaponProgress = phoenix.player.WeaponProgression.progressString(playerId) } catch (e) { msg.weaponProgress = "" }
 		msg.serialize().send(playerId, RELIABLE_ORDERED)
 	}

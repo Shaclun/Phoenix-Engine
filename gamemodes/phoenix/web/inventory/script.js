@@ -619,15 +619,26 @@
 		circleRow.innerHTML = "<span>" + t("inv.spell.circle", "Krąg") + "</span><span>" + circle + "</span>";
 		tip_stats.appendChild(circleRow);
 
-		const reqRow = document.createElement("div");
-		reqRow.className = "invui-tooltip__stat";
-		const reqLevel = +sp.requiredLevel || circle * 10;
-		const haveLevel = state.player.magicLevel | 0;
-		const okLevel = haveLevel >= reqLevel;
-		reqRow.innerHTML =
-			"<span>" + t("inv.spell.magicLevel", "Magia") + "</span>" +
-			"<span style='color:" + (okLevel ? "#b5e8b0" : "#ff7a7a") + "'>" + reqLevel + " (" + haveLevel + ")</span>";
-		tip_stats.appendChild(reqRow);
+		if (sp.enforceCircle) {
+			const reqRow = document.createElement("div");
+			reqRow.className = "invui-tooltip__stat";
+			const reqLevel = +sp.requiredLevel || circle * 10;
+			const haveLevel = state.player.magicLevel | 0;
+			const okLevel = haveLevel >= reqLevel;
+			reqRow.innerHTML =
+				"<span>" + t("inv.spell.magicLevel", "Magia") + "</span>" +
+				"<span style='color:" + (okLevel ? "#b5e8b0" : "#ff7a7a") + "'>" + reqLevel + " (" + haveLevel + ")</span>";
+			tip_stats.appendChild(reqRow);
+		}
+
+		const useRow = document.createElement("div");
+		useRow.className = "invui-tooltip__stat";
+		useRow.innerHTML =
+			"<span>" + t("inv.spell.uses", "Użycia") + "</span>" +
+			"<span style='color:" + (sp.consumable ? "#cfd8e8" : "#b5e8b0") + "'>" +
+			(sp.consumable ? t("inv.spell.uses.single", "1× zużyje się") : t("inv.spell.uses.unlimited", "∞ wielokrotne")) +
+			"</span>";
+		tip_stats.appendChild(useRow);
 
 		if (sp.manaCost) {
 			const manaRow = document.createElement("div");

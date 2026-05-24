@@ -70,7 +70,18 @@ phoenix.item.Model._enrich <- function(entry) {
 				spellInfo = {}
 				foreach (k, v in cat) { try { spellInfo[k] <- v } catch (eSc) {} }
 				spellInfo.key <- scheme.effect.spell.tostring().toupper()
-				spellInfo.requiredLevel <- phoenix.item.SpellsCatalog.requiredLevel(("circle" in cat) ? cat.circle : 1)
+				local circleForReq = ("circle" in cat) ? cat.circle : 1
+				local enforce = scheme.category != PhoenixItemCategory.Scroll
+				spellInfo.enforceCircle <- enforce
+				spellInfo.requiredLevel <- enforce ? phoenix.item.SpellsCatalog.requiredLevel(circleForReq) : 0
+				spellInfo.consumable <- scheme.category == PhoenixItemCategory.Scroll
+				if (scheme.category == PhoenixItemCategory.Scroll && "manaCost" in spellInfo) {
+					local mc = spellInfo.manaCost.tointeger()
+					local d = (mc / 3).tointeger()
+					if (d < 5) d = 5
+					if (d > mc && mc > 0) d = mc
+					spellInfo.manaCost = d
+				}
 			}
 		}
 	} catch (eSp) {}

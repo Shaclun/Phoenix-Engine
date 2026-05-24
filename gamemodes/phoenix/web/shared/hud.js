@@ -67,6 +67,7 @@
 				'<div class="phoenix-hud__bar phoenix-hud__bar--stamina"><div class="phoenix-hud__bar-fill" data-role="stamFill"></div><div class="phoenix-hud__bar-label" data-role="stamLabel">0 / 0</div></div>' +
 			'</div>' +
 			'<div class="phoenix-hud__exp"><div class="phoenix-hud__exp-fill" data-role="expFill"></div></div>' +
+			'<div class="phoenix-hud__exp phoenix-hud__exp--magic"><div class="phoenix-hud__exp-fill" data-role="magicFill"></div><span class="phoenix-hud__exp-label" data-role="magicLabel">M 0</span></div>' +
 			'<div class="phoenix-hud__hotbar" data-role="hotbar"></div>';
 		document.body.appendChild(root);
 
@@ -117,6 +118,8 @@
 			stamFill: root.querySelector('[data-role="stamFill"]'),
 			stamLabel: root.querySelector('[data-role="stamLabel"]'),
 			expFill: root.querySelector('[data-role="expFill"]'),
+			magicFill: root.querySelector('[data-role="magicFill"]'),
+			magicLabel: root.querySelector('[data-role="magicLabel"]'),
 			hotbar: hotbar
 		};
 		return nodes;
@@ -293,6 +296,13 @@
 		const expCur = payload.experience | 0;
 		const expCap = (payload.experienceNext | 0) || 1;
 		nodes.expFill.style.width = pct(expCur, expCap) + "%";
+		const magicLv = payload.magicLevel | 0;
+		const magicXp = payload.magicXp | 0;
+		const magicNext = (payload.magicXpNext | 0);
+		const magicCapped = magicNext <= 0;
+		const magicPct = magicCapped ? 100 : pct(magicXp, magicNext);
+		if (nodes.magicFill) nodes.magicFill.style.width = magicPct + "%";
+		if (nodes.magicLabel) nodes.magicLabel.textContent = "M " + magicLv + (magicCapped ? "  MAX" : "  " + magicXp + " / " + magicNext);
 		show();
 	}
 

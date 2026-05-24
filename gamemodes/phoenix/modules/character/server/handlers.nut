@@ -189,3 +189,28 @@ addEventHandler("phoenix.database.OnReady", function () {
 		try { ORM.engine.executeAsync("ALTER TABLE `phoenix_characters` ADD COLUMN `magicXp` INT(11) NOT NULL DEFAULT 0 AFTER `magicLevel`", function (_) {}) } catch (eMx) {}
 	} catch (e) {}
 })
+
+addEventHandler("phoenix.database.OnSyncReady", function () {
+	try {
+		try { ORM.engine.execute("SET SESSION sql_mode = REPLACE(REPLACE(REPLACE(REPLACE(@@SESSION.sql_mode, 'NO_ZERO_DATE', ''), 'NO_ZERO_IN_DATE', ''), 'STRICT_TRANS_TABLES', ''), 'STRICT_ALL_TABLES', '')") } catch (eM) {}
+		try { ORM.engine.execute("SET GLOBAL sql_mode = REPLACE(REPLACE(REPLACE(REPLACE(@@GLOBAL.sql_mode, 'NO_ZERO_DATE', ''), 'NO_ZERO_IN_DATE', ''), 'STRICT_TRANS_TABLES', ''), 'STRICT_ALL_TABLES', '')") } catch (eMg) {}
+
+		local zeroScrubs = [
+			["phoenix_characters", "createdAt"],
+			["phoenix_characters", "lastPlayedAt"],
+			["phoenix_characters", "updatedAt"],
+			["phoenix_houses", "createdAt"],
+			["phoenix_houses", "updatedAt"],
+			["phoenix_items", "createdAt"],
+			["phoenix_items", "updatedAt"],
+			["phoenix_accounts", "createdAt"],
+			["phoenix_accounts", "lastLoginAt"],
+			["phoenix_accounts", "updatedAt"],
+			["phoenix_crafting_recipes", "createdAt"],
+			["phoenix_crafting_recipes", "updatedAt"]
+		]
+		foreach (entry in zeroScrubs) {
+			try { ORM.engine.execute("UPDATE `" + entry[0] + "` SET `" + entry[1] + "` = NULL WHERE CAST(`" + entry[1] + "` AS CHAR) LIKE '0000-%'") } catch (eU) {}
+		}
+	} catch (e) {}
+})
