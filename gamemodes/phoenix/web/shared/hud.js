@@ -177,8 +177,8 @@
 		fallback.textContent = "…";
 		nodes.portrait.appendChild(fallback);
 		const el = document.createElement("gothic-render");
-		el.setAttribute("width", "130");
-		el.setAttribute("height", "130");
+		el.setAttribute("width", "100");
+		el.setAttribute("height", "100");
 		el.setAttribute("rot-x", String(portraitConfig.rotX));
 		el.setAttribute("rot-y", String(portraitConfig.rotY));
 		el.setAttribute("rot-z", String(portraitConfig.rotZ));
