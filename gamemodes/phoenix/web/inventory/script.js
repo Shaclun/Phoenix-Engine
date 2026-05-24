@@ -45,8 +45,8 @@
 	function qualityLabel(q) { return t((QUALITY[q] || QUALITY[2]).key); }
 
 	function slotLabel(slotName) { return t("inv.slot." + slotName, slotName); }
-	const SLOT_NAMES = ["None","MainHand","OffHand","Ranged","Armor","Helmet","Amulet","Ring1","Ring2","Belt"];
-	const SLOT_ORDER = ["Amulet","Armor","Belt","MainHand","Ranged","Ring1","Ring2"];
+	const SLOT_NAMES = ["None","MainHand","OffHand","Ranged","Armor","Helmet","Amulet","Ring1","Ring2","Belt","Spell"];
+	const SLOT_ORDER = ["Amulet","Armor","Belt","MainHand","Ranged","Spell","Ring1","Ring2"];
 	const TOTAL_BAG_CELLS = 64;
 
 	const TABS = [
@@ -66,7 +66,7 @@
 		gold: 0,
 		selectedId: null,
 		activeTab: "all",
-		player: { strength: 0, dexterity: 0, hpMax: 0, manaMax: 0 }
+		player: { strength: 0, dexterity: 0, hpMax: 0, manaMax: 0, magicLevel: 0, magicXp: 0, magicXpNext: 0 }
 	};
 
 	let root = null;
@@ -553,11 +553,12 @@
 		});
 
 		renderRequirements(item);
+		renderSpellInfo(item);
 		renderEffects(item);
 
 		const hints = [];
 		if (item.onUse) hints.push(t("inv.hint.use"));
-		else if (item.slot >= 1 && item.slot <= 9) hints.push(t(item.equipped ? "inv.hint.unequip" : "inv.hint.equip"));
+		else if (item.slot >= 1 && item.slot <= 10) hints.push(t(item.equipped ? "inv.hint.unequip" : "inv.hint.equip"));
 		tip_hint.textContent = hints.join("  •  ");
 		tip_hint.style.display = hints.length ? "block" : "none";
 		tooltipNode.classList.add("is-visible");
@@ -597,6 +598,56 @@
 				"<span style='color:" + (ok ? "#b5e8b0" : "#ff7a7a") + "'>" + r.value + (have > 0 ? " (" + have + ")" : "") + "</span>";
 			tip_stats.appendChild(row);
 		});
+	}
+
+	function renderSpellInfo(item) {
+		if (!item || !item.spell) return;
+		const sp = item.spell;
+		const header = document.createElement("div");
+		header.className = "invui-tooltip__section";
+		header.textContent = t("inv.section.spell", "Czar");
+		tip_stats.appendChild(header);
+
+		const labelRow = document.createElement("div");
+		labelRow.className = "invui-tooltip__stat";
+		labelRow.innerHTML = "<span>" + t("inv.spell.name", "Nazwa") + "</span><span>" + (sp.label || sp.key) + "</span>";
+		tip_stats.appendChild(labelRow);
+
+		const circleRow = document.createElement("div");
+		circleRow.className = "invui-tooltip__stat";
+		const circle = +sp.circle || 1;
+		circleRow.innerHTML = "<span>" + t("inv.spell.circle", "Krąg") + "</span><span>" + circle + "</span>";
+		tip_stats.appendChild(circleRow);
+
+		const reqRow = document.createElement("div");
+		reqRow.className = "invui-tooltip__stat";
+		const reqLevel = +sp.requiredLevel || circle * 10;
+		const haveLevel = state.player.magicLevel | 0;
+		const okLevel = haveLevel >= reqLevel;
+		reqRow.innerHTML =
+			"<span>" + t("inv.spell.magicLevel", "Magia") + "</span>" +
+			"<span style='color:" + (okLevel ? "#b5e8b0" : "#ff7a7a") + "'>" + reqLevel + " (" + haveLevel + ")</span>";
+		tip_stats.appendChild(reqRow);
+
+		if (sp.manaCost) {
+			const manaRow = document.createElement("div");
+			manaRow.className = "invui-tooltip__stat";
+			const haveMana = state.player.manaMax | 0;
+			const okMana = haveMana >= +sp.manaCost;
+			manaRow.innerHTML =
+				"<span>" + t("inv.spell.manaCost", "Koszt many") + "</span>" +
+				"<span style='color:" + (okMana ? "#cfd8e8" : "#ff7a7a") + "'>" + sp.manaCost + "</span>";
+			tip_stats.appendChild(manaRow);
+		}
+
+		if (sp.damage || sp.hp) {
+			const valRow = document.createElement("div");
+			valRow.className = "invui-tooltip__stat";
+			let lbl = sp.damage ? t("inv.spell.damage", "Obrażenia") : t("inv.spell.heal", "Leczenie");
+			let val = sp.damage || sp.hp || 0;
+			valRow.innerHTML = "<span>" + lbl + "</span><span>" + val + "</span>";
+			tip_stats.appendChild(valRow);
+		}
 	}
 
 	function renderEffects(item) {
@@ -647,7 +698,7 @@
 		const item = state.items.find(function (it) { return it.id === itemId; });
 		actionsNode.innerHTML = "";
 		if (!item) return;
-		const canEquip = item.slot >= 1 && item.slot <= 9;
+		const canEquip = item.slot >= 1 && item.slot <= 10;
 		if (item.onUse) actionsNode.appendChild(makeAction(t("inv.action.use"), function () {
 			PhoenixBridge.send("phoenix:item:requestUse", { id: item.id });
 		}));
@@ -716,7 +767,7 @@
 	function quickUse(item) {
 		if (item.onUse) {
 			PhoenixBridge.send("phoenix:item:requestUse", { id: item.id });
-		} else if (item.slot >= 1 && item.slot <= 9) {
+		} else if (item.slot >= 1 && item.slot <= 10) {
 			PhoenixBridge.send("phoenix:item:requestEquip", { id: item.id, equip: !item.equipped });
 		}
 	}
@@ -806,6 +857,10 @@
 		state.player.dexterity = payload.dexterity | 0;
 		state.player.hpMax     = payload.hpMax     | 0;
 		state.player.manaMax   = payload.manaMax   | 0;
+		state.player.magicLevel = payload.magicLevel | 0;
+		state.player.magicXp = payload.magicXp | 0;
+		state.player.magicXpNext = payload.magicXpNext | 0;
+		try { rerender(); } catch (e) {}
 	});
 
 	app.register("inventory", {

@@ -51,6 +51,9 @@ class phoenix.player.Message.StatsSnapshot extends phoenix.net.Message {
 	</ type = phoenix.net.type.UInt16 /> twoHand = 0
 	</ type = phoenix.net.type.UInt16 /> bow = 0
 	</ type = phoenix.net.type.UInt16 /> crossbow = 0
+	</ type = phoenix.net.type.UInt16 /> magicLevel = 0
+	</ type = phoenix.net.type.UInt32 /> magicXp = 0
+	</ type = phoenix.net.type.UInt32 /> magicXpNext = 0
 	</ type = phoenix.net.type.UInt32 /> gold = 0
 	</ type = phoenix.net.type.String /> weaponProgress = ""
 }

@@ -176,7 +176,8 @@ addEventHandler("onPlayerDisconnect", function(playerId, reason) { phoenix.chara
 
 addEventHandler("phoenix.database.OnReady", function () {
 	try {
-		try { ORM.engine.executeAsync("SET SESSION sql_mode = REPLACE(REPLACE(@@SESSION.sql_mode, 'NO_ZERO_DATE', ''), 'NO_ZERO_IN_DATE', '')", function (_) {}) } catch (eM) {}
+		try { ORM.engine.executeAsync("SET SESSION sql_mode = REPLACE(REPLACE(REPLACE(REPLACE(@@SESSION.sql_mode, 'NO_ZERO_DATE', ''), 'NO_ZERO_IN_DATE', ''), 'STRICT_TRANS_TABLES', ''), 'STRICT_ALL_TABLES', '')", function (_) {}) } catch (eM) {}
+		try { ORM.engine.executeAsync("SET GLOBAL sql_mode = REPLACE(REPLACE(REPLACE(REPLACE(@@GLOBAL.sql_mode, 'NO_ZERO_DATE', ''), 'NO_ZERO_IN_DATE', ''), 'STRICT_TRANS_TABLES', ''), 'STRICT_ALL_TABLES', '')", function (_) {}) } catch (eMg) {}
 		ORM.engine.executeAsync("UPDATE `phoenix_characters` SET `createdAt` = NOW() WHERE `createdAt` IS NULL", function (_) {
 			try {
 				ORM.engine.executeAsync("UPDATE `phoenix_characters` SET `createdAt` = NOW() WHERE CAST(`createdAt` AS CHAR) LIKE '0000-%'", function (_) {
@@ -184,5 +185,7 @@ addEventHandler("phoenix.database.OnReady", function () {
 				})
 			} catch (eU2) {}
 		})
+		try { ORM.engine.executeAsync("ALTER TABLE `phoenix_characters` ADD COLUMN `magicLevel` INT(11) NOT NULL DEFAULT 0 AFTER `crossbow`", function (_) {}) } catch (eMl) {}
+		try { ORM.engine.executeAsync("ALTER TABLE `phoenix_characters` ADD COLUMN `magicXp` INT(11) NOT NULL DEFAULT 0 AFTER `magicLevel`", function (_) {}) } catch (eMx) {}
 	} catch (e) {}
 })

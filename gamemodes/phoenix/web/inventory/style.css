@@ -180,6 +180,7 @@
 .invui-eq-slot[data-slot="Ranged"]   { left: 72%; top: 28%; width: 24%; height: 50%; }
 .invui-eq-slot[data-slot="Ring1"]    { left: 4%;  top: 82%; width: 16%; height: 12%; }
 .invui-eq-slot[data-slot="Ring2"]    { left: 80%; top: 82%; width: 16%; height: 12%; }
+.invui-eq-slot[data-slot="Spell"]    { left: 35%; top: 88%; width: 30%; height: 10%; }
 
 .invui-eq-slot gothic-render,
 .invui-eq-slot gothic-render canvas { width: 100% !important; height: 100% !important; object-fit: contain; }

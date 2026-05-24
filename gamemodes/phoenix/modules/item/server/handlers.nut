@@ -25,6 +25,8 @@ phoenix.item.Handlers.onUseRequest <- function(playerId, message) {
 	local s = phoenix.item.Structure.schemeOf(rec)
 	if (s == null || s.onUse == null) return
 
+	local consume = true
+
 	if (s.onUse == "heal" && s.effect != null && "hp" in s.effect) {
 		local healMult = phoenix.item.Quality.getMultiplier(rec.quality)
 		local amount = (s.effect.hp * healMult).tointeger()
@@ -35,8 +37,29 @@ phoenix.item.Handlers.onUseRequest <- function(playerId, message) {
 		local amount = (s.effect.mana * manaMult).tointeger()
 		try { setPlayerMana(playerId, getPlayerMana(playerId) + amount) } catch (e) {}
 	}
+	else if (s.onUse == "spell" && s.effect != null) {
+		local spellKey = ("spell" in s.effect && s.effect.spell != null) ? s.effect.spell.tostring() : ""
+		if (spellKey == "") { consume = false }
+		else {
+			local spell = phoenix.item.Spells.find(spellKey)
+			if (spell == null) {
+				try { phoenix.notification.notify(playerId, "warn", "Magia", "Czar nieznany: " + spellKey, 1800) } catch (e) {}
+				consume = false
+			} else {
+				local def = clone(spell)
+				def.key <- spellKey
+				local result = phoenix.item.Spells.cast(playerId, def, s)
+				if (result == null || !result.ok) consume = false
+			}
+		}
 
-	phoenix.item.Structure.takeItem(PhoenixInventoryOwner.Player, active.id, rec.id, 1)
+		if (s.category == PhoenixItemCategory.Rune) consume = false
+	}
+	else {
+		consume = false
+	}
+
+	if (consume) phoenix.item.Structure.takeItem(PhoenixInventoryOwner.Player, active.id, rec.id, 1)
 }
 
 phoenix.item.Handlers.onEquipRequest <- function(playerId, message) {

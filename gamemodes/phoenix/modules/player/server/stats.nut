@@ -37,6 +37,9 @@ phoenix.player.Stats <- {
 		m.twoHand = record.twoHand
 		m.bow = record.bow
 		m.crossbow = record.crossbow
+		try { m.magicLevel = ("magicLevel" in record && record.magicLevel != null) ? record.magicLevel : 0 } catch (e) { m.magicLevel = 0 }
+		try { m.magicXp    = ("magicXp"    in record && record.magicXp    != null) ? record.magicXp    : 0 } catch (e) { m.magicXp = 0 }
+		try { m.magicXpNext = phoenix.item.Spells != null ? phoenix.item.Spells.xpToNext(m.magicLevel) : 0 } catch (e) { m.magicXpNext = 20 + m.magicLevel * m.magicLevel * 3 }
 		m.gold = phoenix.item.Structure.countInstance(PhoenixInventoryOwner.Player, record.id, "ITMI_GOLD")
 		try { m.weaponProgress = phoenix.player.WeaponProgression.progressString(playerId) } catch (e) { m.weaponProgress = "" }
 		m.serialize().send(playerId, RELIABLE_ORDERED)

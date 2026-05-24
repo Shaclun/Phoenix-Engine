@@ -10,6 +10,7 @@
 	     tools/build-item-visuals.py whenever data.xml changes. -->
 	<script src="shared/items.visuals.nut" type="shared" />
 	<script src="shared/messages.nut"   type="shared" />
+	<script src="shared/spells.catalog.nut" type="shared" />
 
 	<!-- Item definition catalogues — split by category, registered in load order -->
 	<import src="shared/schemes/index.xml" />
@@ -17,6 +18,7 @@
 	<!-- Server-side: persistence, factory, inventory bucket, packet handlers -->
 	<script src="server/structure.nut" type="server" />
 	<script src="server/upgrader.nut"  type="server" />
+	<script src="server/spells.nut"    type="server" />
 	<script src="server/handlers.nut"  type="server" />
 	<script src="server/render.nut"    type="server" />
 

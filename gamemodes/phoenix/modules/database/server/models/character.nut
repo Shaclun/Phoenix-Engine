@@ -100,6 +100,12 @@ class CharacterModel extends ORM.Model
 	</ type = "INT(11)", not_null = true />
 	crossbow = 0
 
+	</ type = "INT(11)", not_null = true />
+	magicLevel = 0
+
+	</ type = "INT(11)", not_null = true />
+	magicXp = 0
+
 	</ type = "BIGINT(20)", not_null = true />
 	gold = 0
 

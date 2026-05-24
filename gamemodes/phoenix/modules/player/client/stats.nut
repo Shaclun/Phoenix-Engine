@@ -72,6 +72,7 @@ phoenix.player.StatsClient <- {
 				strength = message.strength, dexterity = message.dexterity,
 				oneHand = message.oneHand, twoHand = message.twoHand,
 				bow = message.bow, crossbow = message.crossbow,
+				magicLevel = message.magicLevel, magicXp = message.magicXp, magicXpNext = message.magicXpNext,
 				gold = message.gold,
 				weaponProgress = message.weaponProgress
 			})

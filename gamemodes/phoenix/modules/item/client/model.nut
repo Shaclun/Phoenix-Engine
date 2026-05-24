@@ -61,6 +61,20 @@ phoenix.item.Model._enrich <- function(entry) {
 		}
 	} catch (eEf) {}
 	entry.effect <- effect
+
+	local spellInfo = null
+	try {
+		if (scheme.onUse != null && scheme.onUse.tostring() == "spell" && scheme.effect != null && "spell" in scheme.effect && scheme.effect.spell != null) {
+			local cat = phoenix.item.SpellsCatalog.find(scheme.effect.spell)
+			if (cat != null) {
+				spellInfo = {}
+				foreach (k, v in cat) { try { spellInfo[k] <- v } catch (eSc) {} }
+				spellInfo.key <- scheme.effect.spell.tostring().toupper()
+				spellInfo.requiredLevel <- phoenix.item.SpellsCatalog.requiredLevel(("circle" in cat) ? cat.circle : 1)
+			}
+		}
+	} catch (eSp) {}
+	entry.spell <- spellInfo
 	return entry
 }
 

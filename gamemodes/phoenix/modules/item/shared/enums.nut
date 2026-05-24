@@ -50,7 +50,8 @@ enum PhoenixItemSlot {
 	Amulet   = 6,
 	Ring1    = 7,
 	Ring2    = 8,
-	Belt     = 9
+	Belt     = 9,
+	Spell    = 10
 }
 
 enum PhoenixItemFlag {
