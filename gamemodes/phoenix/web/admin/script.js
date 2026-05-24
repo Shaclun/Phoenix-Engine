@@ -3956,6 +3956,35 @@
         if (onMount) onMount(pnl);
     }
 
+    function openConfirmModal(opts) {
+        opts = opts || {};
+        var title = opts.title || "Potwierdź";
+        var message = opts.message || "Czy na pewno?";
+        var okLabel = opts.okLabel || "OK";
+        var cancelLabel = opts.cancelLabel || "Anuluj";
+        var danger = opts.danger !== false;
+        var html = '<h3 class="adm-modal__title">' + escapeHtml(title) + '</h3>';
+        html += '<p class="adm-modal__sub">' + escapeHtml(message) + '</p>';
+        html += '<div class="adm-modal__actions">';
+        html += '<button class="adm-btn" data-mclose>' + escapeHtml(cancelLabel) + '</button>';
+        html += '<button class="adm-btn ' + (danger ? "adm-btn--danger" : "adm-btn--primary") + '" data-mok>' + escapeHtml(okLabel) + '</button>';
+        html += '</div>';
+        openModal(html, function (pnl) {
+            var ok = pnl.querySelector("[data-mok]");
+            try { ok.focus(); } catch (e) {}
+            pnl.querySelector("[data-mclose]").addEventListener("click", function () { closeModal(); if (opts.onCancel) opts.onCancel(); });
+            ok.addEventListener("click", function () {
+                closeModal();
+                if (opts.onConfirm) opts.onConfirm();
+            });
+            var keyHandler = function (e) {
+                if (e.key === "Enter") { e.preventDefault(); ok.click(); }
+                else if (e.key === "Escape") { e.preventDefault(); closeModal(); if (opts.onCancel) opts.onCancel(); }
+            };
+            pnl.addEventListener("keydown", keyHandler);
+        });
+    }
+
     function openKickModal(pid, name) {
         var html = '<h3 class="adm-modal__title">' + escapeHtml(t("admin.modal.kick", "Kick")) + '</h3>';
         html += '<p class="adm-modal__sub">' + escapeHtml(name) + ' <span class="adm-modal__pid">PID ' + pid + '</span></p>';
@@ -5013,8 +5042,14 @@
             if (!dRow) return;
             var dPk = dbPrimaryKey(state.dbSchema.columns);
             if (!dPk) { setStatus("Brak klucza głównego — usuwanie niemożliwe", "error"); return; }
-            if (!confirm("Usunąć wiersz " + dPk + "=" + dRow[dPk] + " z " + state.dbActiveTable + "?")) return;
-            send("dbRowDelete", { table: state.dbActiveTable, pkColumn: dPk, pkValue: dRow[dPk] });
+            openConfirmModal({
+                title: "Usuń wiersz",
+                message: "Usunąć wiersz " + dPk + "=" + dRow[dPk] + " z " + state.dbActiveTable + "?",
+                okLabel: "Usuń",
+                onConfirm: function () {
+                    send("dbRowDelete", { table: state.dbActiveTable, pkColumn: dPk, pkValue: dRow[dPk] });
+                }
+            });
             return;
         }
         if (action === "db-row-new") {
@@ -5058,8 +5093,12 @@
             var dId = +el.dataset.id || 0;
             console.log("[craft] delete", dId);
             if (!dId) return;
-            if (!confirm("Usunąć recepturę #" + dId + "?")) return;
-            send("craftingDelete", { id: dId });
+            openConfirmModal({
+                title: "Usuń recepturę",
+                message: "Usunąć recepturę #" + dId + "?",
+                okLabel: "Usuń",
+                onConfirm: function () { send("craftingDelete", { id: dId }); }
+            });
             return;
         }
         if (action === "craft-pick-open") {
