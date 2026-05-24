@@ -74,6 +74,10 @@ phoenix.player.Gate <- {
 	function lock(playerId) {
 		phoenix.player.Gate.pending[playerId] <- true
 		try { setPlayerVirtualWorld(playerId, phoenix.player.Gate.LOBBY_VIRTUAL_WORLD) } catch (e) {}
+		// Hide the player from everyone (and from NPC AI scans) while they're sitting in the lobby
+		// or character-select screen. Without this, monsters in the open world can still pathfind
+		// and attack the lobby silhouette, killing players who haven't even selected a hero.
+		try { setPlayerInvisible(playerId, true) } catch (e) {}
 		try { setPlayerPosition(playerId, phoenix.player.Gate.LOBBY_X, phoenix.player.Gate.LOBBY_Y, phoenix.player.Gate.LOBBY_Z) } catch (e) {}
 		try { setPlayerAngle(playerId, phoenix.player.Gate.LOBBY_ANGLE) } catch (e) {}
 		try {
@@ -141,10 +145,49 @@ phoenix.player.Gate <- {
 	}
 
 	function _scenarioSpawn(record) {
+		// Prefer the admin-tuned default spawn if it has been saved.
+		// Falls back to the static scenario list shipped with the gamemode.
+		try {
+			if ("LobbyConfig" in phoenix.player) {
+				local raw = phoenix.player.LobbyConfig.cache.characterDefaultSpawn
+				if (raw != null && raw != "") {
+					local x = phoenix.player.Gate._readJsonNumber(raw, "x")
+					local y = phoenix.player.Gate._readJsonNumber(raw, "y")
+					local z = phoenix.player.Gate._readJsonNumber(raw, "z")
+					local a = phoenix.player.Gate._readJsonNumber(raw, "angle")
+					if (x != 0.0 || y != 0.0 || z != 0.0) return { x = x, y = y, z = z, angle = a }
+				}
+			}
+		} catch (e) {}
+		// Fall back to the character's own creation spot if it has one — safer than
+		// the legacy hardcoded scenarios which can spawn the player under the map.
+		if (record != null && "positionX" in record &&
+			(record.positionX != 0.0 || record.positionY != 0.0 || record.positionZ != 0.0)) {
+			return { x = record.positionX, y = record.positionY, z = record.positionZ, angle = record.angle }
+		}
 		local idx = 0
 		try { idx = record.scenario.tointeger() } catch (e) { idx = 0 }
 		if (idx < 0 || idx >= phoenix.character.Scenarios.len()) idx = 0
 		return phoenix.character.Scenarios[idx]
+	}
+
+	function _readJsonNumber(text, key) {
+		// Naive single-key extractor for the JSON blobs persisted in phoenix_admin_config.
+		// Caller is responsible for passing well-formed admin-supplied payloads.
+		if (text == null) return 0.0
+		local needle = "\"" + key + "\""
+		local at = text.find(needle)
+		if (at == null) return 0.0
+		local rest = text.slice(at + needle.len())
+		local started = false
+		local n = ""
+		for (local i = 0; i < rest.len(); i += 1) {
+			local ch = rest[i]
+			if (ch == ',' || ch == '}') break
+			if ((ch >= '0' && ch <= '9') || ch == '-' || ch == '.' || ch == 'e' || ch == 'E' || ch == '+') { n += ch.tochar(); started = true }
+			else if (started) break
+		}
+		try { return n.tofloat() } catch (e) { return 0.0 }
 	}
 
 	function onRespawnChoice(playerId, message) {
@@ -279,6 +322,8 @@ phoenix.player.Gate <- {
 		if (mana > manaMax) mana = manaMax
 
 		try { setPlayerVirtualWorld(playerId, 0) } catch (e) {}
+		// Player has picked a character — make them visible to the world again.
+		try { setPlayerInvisible(playerId, false) } catch (e) {}
 		try { setPlayerInstance(playerId, "PC_HERO") } catch (e) {}
 		try { setPlayerVisual(playerId, body, bodyTex, head, faceTex) } catch (e) {}
 		if (record.positionX != 0.0 || record.positionY != 0.0 || record.positionZ != 0.0) {

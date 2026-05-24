@@ -6,8 +6,7 @@ phoenix.character.Interface <- {
 		try { phoenix.chat.Client.closeInputLocal(false) } catch (e) {}
 		try { phoenix.chat.Client.hide() } catch (e) { try { phoenix.web.Manager.emit("phoenix:chat:hide", null) } catch (e2) {} }
 		try {
-			phoenix.player.Lobby.pickSpot()
-			phoenix.player.Lobby.applyLobbyCamera()
+			phoenix.player.Lobby.applySelectCamera()
 		} catch (e) {}
 		phoenix.web.Manager.show("character")
 		phoenix.character.Model.requestList()

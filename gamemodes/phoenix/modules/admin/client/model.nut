@@ -98,6 +98,33 @@ phoenix.admin.Model <- {
 		lastMoveAt = 0
 	}
 
+	// Ghost used for picking character spawn / scenario points. Acts like a placeable arrow
+	// with a controllable yaw — admin walks the marker around with WASD + Q/E and rotates
+	// the facing direction with the arrow keys, then captures the position into the panel.
+	spawnGhost = {
+		active = false,
+		mode = "spawn",      // "spawn" | "lobby"
+		useHuman = false,    // when true, the marker is a humanoid NPC instead of a VOB
+		obj = null,
+		arrow = null,        // small VOB used as the direction arrow tip
+		npcId = -2147483648, // active humanoid marker (when useHuman=true)
+		visual = "BOOTS.3DS",
+		arrowVisual = "ITAR_LARES.3DS",
+		world = "",
+		x = 0.0,
+		y = 0.0,
+		z = 0.0,
+		angle = 0.0,         // facing yaw of the marker (where the arrow points)
+		camPitch = 0.0,      // for lobby mode — admin-tunable camera pitch
+		camRoll = 0.0,       // for lobby mode — admin-tunable camera roll
+		cameraActive = false,
+		cameraPaused = false,
+		camDistance = 360.0,
+		camCtrlPitch = 22.0, // chase-cam pitch (separate from configured camPitch)
+		camYaw = 0.0,
+		lastMoveAt = 0
+	}
+
 	ui = {
 		locked = false,
 		chatWasVisible = false,
@@ -133,6 +160,10 @@ phoenix.admin.Model <- {
 		if (action == "adminRoutineGhostStart") { phoenix.admin.Model.routineGhostStart(payload); return true }
 		if (action == "adminRoutineGhostSync") { phoenix.admin.Model.routineGhostSync(payload); return true }
 		if (action == "adminRoutineGhostStop") { phoenix.admin.Model.routineGhostStop(); return true }
+		if (action == "adminSpawnGhostStart") { phoenix.admin.Model.spawnGhostStart(payload); return true }
+		if (action == "adminSpawnGhostSync") { phoenix.admin.Model.spawnGhostSync(payload); return true }
+		if (action == "adminSpawnGhostStop") { phoenix.admin.Model.spawnGhostStop(); return true }
+		if (action == "adminSpawnGhostNudge") { phoenix.admin.Model.spawnGhostNudge(payload); return true }
 		return false
 	}
 
@@ -398,6 +429,7 @@ phoenix.admin.Model <- {
 		try { if (phoenix.ui.ActiveGui.is("admin")) phoenix.ui.ActiveGui.clear() } catch (e) {}
 		phoenix.admin.Model.previewStop()
 		phoenix.admin.Model.routineGhostStop()
+		phoenix.admin.Model.spawnGhostStop()
 		try { disableControls(false) } catch (e) {}
 		try { setFreeze(false) } catch (e) {}
 		try { phoenix.camera.Structure.release() } catch (e) {}
@@ -1182,6 +1214,283 @@ phoenix.admin.Model <- {
 		} catch (e) {}
 	}
 
+	// ----------------------------------------------------------------------
+	// Spawn ghost — placeable arrow used by the lobby/spawn admin panel.
+	// Mode "spawn": shows a marker the admin walks around to capture a respawn point.
+	// Mode "lobby": same VOB plus tunable camera pitch/roll for the lobby camera spot.
+	// Controls (when admin panel is open and ghost active): WASD + Q/E for position,
+	// arrows for yaw, [/] for camera pitch, ;/' for camera roll (lobby mode only).
+	// ----------------------------------------------------------------------
+
+	function spawnGhostStart(payload) {
+		if (payload == null) payload = {}
+		if (spawnGhost.active) phoenix.admin.Model.spawnGhostStop()
+		local mode = ("mode" in payload) ? payload.mode.tostring() : "spawn"
+		spawnGhost.mode = (mode == "lobby") ? "lobby" : "spawn"
+		spawnGhost.useHuman = ("useHuman" in payload) && payload.useHuman == true
+		// Initial position: from payload (when editing existing) or admin's current pos.
+		local p = null
+		try { p = getPlayerPosition(heroId) } catch (e) {}
+		if (p != null) { spawnGhost.x = p.x; spawnGhost.y = p.y; spawnGhost.z = p.z }
+		try { spawnGhost.angle = getPlayerAngle(heroId) } catch (e) {}
+		try { spawnGhost.world = getPlayerWorld(heroId) } catch (e) {}
+		if ("x" in payload) spawnGhost.x = payload.x.tofloat()
+		if ("y" in payload) spawnGhost.y = payload.y.tofloat()
+		if ("z" in payload) spawnGhost.z = payload.z.tofloat()
+		if ("angle" in payload) spawnGhost.angle = payload.angle.tofloat()
+		if ("camPitch" in payload) spawnGhost.camPitch = payload.camPitch.tofloat()
+		if ("camRoll" in payload) spawnGhost.camRoll = payload.camRoll.tofloat()
+		if (spawnGhost.useHuman) {
+			// Spawn a humanoid NPC marker so admin sees a player silhouette where the hero will stand.
+			local inst = "PC_HERO"
+			spawnGhost.npcId = phoenix.admin.Model.previewCreateNpc(inst, inst, inst)
+			if (spawnGhost.npcId != phoenix.admin.Model.invalidNpcId) {
+				try { spawnNpc(spawnGhost.npcId) } catch (eS1) { try { spawnNpc(spawnGhost.npcId, inst) } catch (eS2) {} }
+				try { setPlayerInstance(spawnGhost.npcId, inst) } catch (eIn) {}
+				try { setPlayerVisual(spawnGhost.npcId, "Hum_Body_Naked0", 1, "Hum_Head_Pony", 0) } catch (eVi) {}
+				try { setPlayerPosition(spawnGhost.npcId, spawnGhost.x, spawnGhost.y, spawnGhost.z) } catch (eP) {}
+				try { setPlayerAngle(spawnGhost.npcId, spawnGhost.angle, true) } catch (eA) { try { setPlayerAngle(spawnGhost.npcId, spawnGhost.angle) } catch (eA2) {} }
+			}
+		} else {
+			// Build the marker VOB.
+			try { spawnGhost.obj = Vob(spawnGhost.visual) } catch (e) { spawnGhost.obj = null }
+			if (spawnGhost.obj != null) {
+				try { spawnGhost.obj.cdDynamic = false } catch (e2) {}
+				try { spawnGhost.obj.cdStatic = false } catch (e3) {}
+				try { spawnGhost.obj.visualAlpha = 0.65 } catch (e4) {}
+				try { spawnGhost.obj.visible = true } catch (e5) {}
+				try { spawnGhost.obj.setPosition(spawnGhost.x, spawnGhost.y, spawnGhost.z) } catch (e6) {}
+				try { spawnGhost.obj.addToWorld() } catch (e7) {}
+			}
+		}
+		// Direction arrow tip — placed ahead of the marker to indicate facing.
+		try { spawnGhost.arrow = Vob(spawnGhost.arrowVisual) } catch (e8) { spawnGhost.arrow = null }
+		if (spawnGhost.arrow != null) {
+			try { spawnGhost.arrow.cdDynamic = false } catch (e9) {}
+			try { spawnGhost.arrow.cdStatic = false } catch (e10) {}
+			try { spawnGhost.arrow.visualAlpha = 0.55 } catch (e11) {}
+			try { spawnGhost.arrow.visible = true } catch (e12) {}
+			try { spawnGhost.arrow.addToWorld() } catch (e13) {}
+		}
+		spawnGhost.active = true
+		phoenix.admin.Model.spawnGhostUpdateArrow()
+		phoenix.admin.Model.spawnGhostCameraStart(false)
+		phoenix.admin.Model.spawnGhostEmit()
+	}
+
+	function spawnGhostSync(payload) {
+		if (payload == null) return
+		if ("x" in payload) spawnGhost.x = payload.x.tofloat()
+		if ("y" in payload) spawnGhost.y = payload.y.tofloat()
+		if ("z" in payload) spawnGhost.z = payload.z.tofloat()
+		if ("angle" in payload) spawnGhost.angle = payload.angle.tofloat()
+		if ("camPitch" in payload) spawnGhost.camPitch = payload.camPitch.tofloat()
+		if ("camRoll" in payload) spawnGhost.camRoll = payload.camRoll.tofloat()
+		if ("mode" in payload) spawnGhost.mode = payload.mode.tostring()
+		if (!spawnGhost.active) return
+		if (spawnGhost.useHuman && spawnGhost.npcId != phoenix.admin.Model.invalidNpcId) {
+			try { setPlayerPosition(spawnGhost.npcId, spawnGhost.x, spawnGhost.y, spawnGhost.z) } catch (e) {}
+			try { setPlayerAngle(spawnGhost.npcId, spawnGhost.angle, true) } catch (eA) { try { setPlayerAngle(spawnGhost.npcId, spawnGhost.angle) } catch (eA2) {} }
+		} else if (spawnGhost.obj != null) {
+			try { spawnGhost.obj.setPosition(spawnGhost.x, spawnGhost.y, spawnGhost.z) } catch (e) {}
+		}
+		phoenix.admin.Model.spawnGhostUpdateArrow()
+		phoenix.admin.Model.spawnGhostEmit()
+	}
+
+	function spawnGhostUpdateArrow() {
+		if (spawnGhost.arrow == null) return
+		// Place arrow tip 90 units ahead of the marker, in the direction of `angle`.
+		local rad = spawnGhost.angle * 3.14159 / 180.0
+		local ax = spawnGhost.x + sin(rad) * 90.0
+		local az = spawnGhost.z + cos(rad) * 90.0
+		try { spawnGhost.arrow.setPosition(ax, spawnGhost.y + 30.0, az) } catch (e) {}
+	}
+
+	function spawnGhostStop() {
+		phoenix.admin.Model.spawnGhostCameraStop()
+		if (spawnGhost.useHuman && spawnGhost.npcId != phoenix.admin.Model.invalidNpcId && spawnGhost.npcId != heroId) {
+			try { unspawnNpc(spawnGhost.npcId) } catch (eU) {}
+			try { destroyNpc(spawnGhost.npcId) } catch (eD) {}
+		}
+		spawnGhost.npcId = phoenix.admin.Model.invalidNpcId
+		if (spawnGhost.obj != null) {
+			try { spawnGhost.obj.removeFromWorld() } catch (e) {}
+			try { spawnGhost.obj.remove() } catch (e2) {}
+			try { spawnGhost.obj.destroy() } catch (e3) {}
+		}
+		if (spawnGhost.arrow != null) {
+			try { spawnGhost.arrow.removeFromWorld() } catch (e4) {}
+			try { spawnGhost.arrow.remove() } catch (e5) {}
+			try { spawnGhost.arrow.destroy() } catch (e6) {}
+		}
+		spawnGhost.obj = null
+		spawnGhost.arrow = null
+		spawnGhost.active = false
+		spawnGhost.useHuman = false
+		phoenix.admin.Model.spawnGhostEmit()
+	}
+
+	function spawnGhostNudge(payload) {
+		// Allows the panel to step the marker without keyboard (UI buttons for ↑↓ pitch etc).
+		if (!spawnGhost.active) return
+		if (payload == null) return
+		local axis = ("axis" in payload) ? payload.axis.tostring() : ""
+		local step = ("step" in payload) ? payload.step.tofloat() : 50.0
+		if (axis == "x+") spawnGhost.x += step
+		else if (axis == "x-") spawnGhost.x -= step
+		else if (axis == "z+") spawnGhost.z += step
+		else if (axis == "z-") spawnGhost.z -= step
+		else if (axis == "y+") spawnGhost.y += step
+		else if (axis == "y-") spawnGhost.y -= step
+		else if (axis == "a+") spawnGhost.angle += 15.0
+		else if (axis == "a-") spawnGhost.angle -= 15.0
+		else if (axis == "pitch+") spawnGhost.camPitch += 5.0
+		else if (axis == "pitch-") spawnGhost.camPitch -= 5.0
+		else if (axis == "roll+") spawnGhost.camRoll += 5.0
+		else if (axis == "roll-") spawnGhost.camRoll -= 5.0
+		while (spawnGhost.angle >= 360.0) spawnGhost.angle -= 360.0
+		while (spawnGhost.angle < 0.0) spawnGhost.angle += 360.0
+		if (spawnGhost.useHuman && spawnGhost.npcId != phoenix.admin.Model.invalidNpcId) {
+			try { setPlayerPosition(spawnGhost.npcId, spawnGhost.x, spawnGhost.y, spawnGhost.z) } catch (e) {}
+			try { setPlayerAngle(spawnGhost.npcId, spawnGhost.angle, true) } catch (eA) { try { setPlayerAngle(spawnGhost.npcId, spawnGhost.angle) } catch (eA2) {} }
+		} else if (spawnGhost.obj != null) {
+			try { spawnGhost.obj.setPosition(spawnGhost.x, spawnGhost.y, spawnGhost.z) } catch (e) {}
+		}
+		phoenix.admin.Model.spawnGhostUpdateArrow()
+		phoenix.admin.Model.spawnGhostEmit()
+	}
+
+	function spawnGhostCameraStart(force) {
+		if (!spawnGhost.active) return
+		if (!spawnGhost.useHuman && spawnGhost.obj == null) return
+		if (!force && spawnGhost.cameraActive) return
+		spawnGhost.cameraPaused = false
+		if (!ui.locked) {
+			try { phoenix.camera.Structure.freeze(); spawnGhost.cameraPaused = true } catch (e) {}
+		}
+		try { Camera.movementEnabled = false } catch (e2) {}
+		try { Camera.modeChangeEnabled = false } catch (e3) {}
+		spawnGhost.camDistance = 360.0
+		spawnGhost.camCtrlPitch = 22.0
+		spawnGhost.camYaw = spawnGhost.angle + 180.0
+		spawnGhost.cameraActive = true
+	}
+
+	function spawnGhostCameraStop() {
+		spawnGhost.cameraActive = false
+		if (spawnGhost.cameraPaused) {
+			try { phoenix.camera.Structure.release() } catch (e) {}
+		}
+		spawnGhost.cameraPaused = false
+	}
+
+	function spawnGhostCameraTick() {
+		if (!spawnGhost.cameraActive || !spawnGhost.active) return
+		if (spawnGhost.mode == "lobby") {
+			// Lobby preview — the admin sees the *configured* camera, not a chase cam.
+			// Place the camera at the marker, looking forward with the chosen pitch/roll.
+			try { Camera.setPosition(spawnGhost.x, spawnGhost.y, spawnGhost.z) } catch (e) {}
+			try { Camera.setRotation(spawnGhost.camPitch, spawnGhost.angle, spawnGhost.camRoll) } catch (e2) {}
+			return
+		}
+		// Spawn mode — orbital chase cam.
+		local angleRad = spawnGhost.camYaw * 3.14159 / 180.0
+		local cx = spawnGhost.x + sin(angleRad) * spawnGhost.camDistance
+		local cy = spawnGhost.y + 100.0 + spawnGhost.camCtrlPitch
+		local cz = spawnGhost.z + cos(angleRad) * spawnGhost.camDistance
+		try { Camera.setPosition(cx, cy, cz) } catch (e3) {}
+		local dx = spawnGhost.x - cx
+		local dz = spawnGhost.z - cz
+		local dy = (spawnGhost.y + 90.0) - cy
+		local yaw = atan2(dx, dz) * 180.0 / 3.14159
+		local d2 = sqrt(dx * dx + dz * dz)
+		local pitch = -atan2(dy, d2) * 180.0 / 3.14159
+		try { Camera.setRotation(pitch, yaw, 0) } catch (e4) {}
+	}
+
+	function spawnGhostKeyboard() {
+		if (!spawnGhost.active) return
+		if (!spawnGhost.useHuman && spawnGhost.obj == null) return
+		if (ui.inputFocused) return
+		local now = getTickCount()
+		if (now - spawnGhost.lastMoveAt < 30) return
+		spawnGhost.lastMoveAt = now
+		local speed = 5.0
+		try { if (isKeyPressed(KEY_LSHIFT) || isKeyPressed(KEY_RSHIFT)) speed = 50.0 } catch (e) {}
+		try { if (isKeyPressed(KEY_LCONTROL) || isKeyPressed(KEY_RCONTROL)) speed = 0.5 } catch (e2) {}
+		local moved = false
+		// Move along the camera yaw so WASD always feels intuitive.
+		local refYaw = spawnGhost.mode == "lobby" ? spawnGhost.angle : spawnGhost.camYaw
+		try { if (isKeyPressed(KEY_W)) { spawnGhost.x += speed * sin(refYaw * 3.14159 / 180.0); spawnGhost.z += speed * cos(refYaw * 3.14159 / 180.0); moved = true } } catch (e3) {}
+		try { if (isKeyPressed(KEY_S)) { spawnGhost.x -= speed * sin(refYaw * 3.14159 / 180.0); spawnGhost.z -= speed * cos(refYaw * 3.14159 / 180.0); moved = true } } catch (e4) {}
+		try { if (isKeyPressed(KEY_A)) { spawnGhost.x += speed * sin((refYaw - 90.0) * 3.14159 / 180.0); spawnGhost.z += speed * cos((refYaw - 90.0) * 3.14159 / 180.0); moved = true } } catch (e5) {}
+		try { if (isKeyPressed(KEY_D)) { spawnGhost.x += speed * sin((refYaw + 90.0) * 3.14159 / 180.0); spawnGhost.z += speed * cos((refYaw + 90.0) * 3.14159 / 180.0); moved = true } } catch (e6) {}
+		try { if (isKeyPressed(KEY_Q)) { spawnGhost.y += speed; moved = true } } catch (e7) {}
+		try { if (isKeyPressed(KEY_E)) { spawnGhost.y -= speed; moved = true } } catch (e8) {}
+		// Yaw (facing direction of arrow) — left/right arrows.
+		try { if (isKeyPressed(KEY_LEFT)) { spawnGhost.angle += 2.0; moved = true } } catch (e9) {}
+		try { if (isKeyPressed(KEY_RIGHT)) { spawnGhost.angle -= 2.0; moved = true } } catch (e10) {}
+		// Camera pitch / roll (lobby mode only) — UP/DOWN for pitch, page up/down for roll.
+		if (spawnGhost.mode == "lobby") {
+			try { if (isKeyPressed(KEY_UP))   { spawnGhost.camPitch += 1.0; moved = true } } catch (e11) {}
+			try { if (isKeyPressed(KEY_DOWN)) { spawnGhost.camPitch -= 1.0; moved = true } } catch (e12) {}
+			try { if (isKeyPressed(KEY_PRIOR)) { spawnGhost.camRoll += 1.0; moved = true } } catch (e13) {}
+			try { if (isKeyPressed(KEY_NEXT))  { spawnGhost.camRoll -= 1.0; moved = true } } catch (e14) {}
+		}
+		while (spawnGhost.angle >= 360.0) spawnGhost.angle -= 360.0
+		while (spawnGhost.angle < 0.0) spawnGhost.angle += 360.0
+		if (!moved) return
+		if (spawnGhost.useHuman && spawnGhost.npcId != phoenix.admin.Model.invalidNpcId) {
+			try { setPlayerPosition(spawnGhost.npcId, spawnGhost.x, spawnGhost.y, spawnGhost.z) } catch (e15) {}
+			try { setPlayerAngle(spawnGhost.npcId, spawnGhost.angle, true) } catch (eA) { try { setPlayerAngle(spawnGhost.npcId, spawnGhost.angle) } catch (eA2) {} }
+		} else if (spawnGhost.obj != null) {
+			try { spawnGhost.obj.setPosition(spawnGhost.x, spawnGhost.y, spawnGhost.z) } catch (e15b) {}
+		}
+		phoenix.admin.Model.spawnGhostUpdateArrow()
+		phoenix.admin.Model.spawnGhostEmit()
+	}
+
+	function spawnGhostDraw() {
+		if (!spawnGhost.active) return
+		try { if (!("drawLine3d" in getroottable())) return } catch (e) { return }
+		// Vertical pole at the marker.
+		try { drawLine3d(spawnGhost.x, spawnGhost.y, spawnGhost.z, spawnGhost.x, spawnGhost.y + 200.0, spawnGhost.z, 90, 240, 170, true) } catch (e2) {}
+		// Direction line from the marker forward (arrow shaft).
+		local rad = spawnGhost.angle * 3.14159 / 180.0
+		local tipX = spawnGhost.x + sin(rad) * 120.0
+		local tipZ = spawnGhost.z + cos(rad) * 120.0
+		try { drawLine3d(spawnGhost.x, spawnGhost.y + 30.0, spawnGhost.z, tipX, spawnGhost.y + 30.0, tipZ, 255, 220, 90, true) } catch (e3) {}
+		// Arrow head — two short lines forming a V at the tip.
+		local leftRad = (spawnGhost.angle + 25.0) * 3.14159 / 180.0
+		local rightRad = (spawnGhost.angle - 25.0) * 3.14159 / 180.0
+		local lx = tipX - sin(leftRad) * 30.0
+		local lz = tipZ - cos(leftRad) * 30.0
+		local rx = tipX - sin(rightRad) * 30.0
+		local rz = tipZ - cos(rightRad) * 30.0
+		try { drawLine3d(tipX, spawnGhost.y + 30.0, tipZ, lx, spawnGhost.y + 30.0, lz, 255, 220, 90, true) } catch (e4) {}
+		try { drawLine3d(tipX, spawnGhost.y + 30.0, tipZ, rx, spawnGhost.y + 30.0, rz, 255, 220, 90, true) } catch (e5) {}
+	}
+
+	function spawnGhostEmit() {
+		try {
+			phoenix.web.Manager.emit("phoenix:admin:response", {
+				action = "adminSpawnGhost",
+				success = true,
+				error = "",
+				payload = {
+					active = spawnGhost.active ? 1 : 0,
+					mode = spawnGhost.mode,
+					posX = spawnGhost.x, posY = spawnGhost.y, posZ = spawnGhost.z,
+					angle = spawnGhost.angle,
+					camPitch = spawnGhost.camPitch,
+					camRoll = spawnGhost.camRoll,
+					world = spawnGhost.world
+				}
+			})
+		} catch (e) {}
+	}
+
 	function previewEmit() {
 		if (preview.npcId != phoenix.admin.Model.invalidNpcId) {
 			try { local p = getPlayerPosition(preview.npcId); if (p != null) { preview.x = p.x; preview.y = p.y; preview.z = p.z } } catch (e) {}
@@ -1209,6 +1518,9 @@ phoenix.admin.Model <- {
 		phoenix.admin.Model.routineGhostKeyboard()
 		phoenix.admin.Model.routineGhostCameraTick()
 		phoenix.admin.Model.routineGhostDraw()
+		phoenix.admin.Model.spawnGhostKeyboard()
+		phoenix.admin.Model.spawnGhostCameraTick()
+		phoenix.admin.Model.spawnGhostDraw()
 		if (preview.active && preview.npcId != phoenix.admin.Model.invalidNpcId) phoenix.admin.Model.previewApplyAngle()
 	}
 

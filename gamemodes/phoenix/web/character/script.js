@@ -87,6 +87,10 @@
 	let characters = [];
 	let selectedId = null;
 	let optionState = { gender: 0, weapon: 0, ranged: 0, outfit: 0 };
+	// Cache of the latest visuals advertised by the server for each equipment slot.
+	// Used by `itemPanelHtml` so the right-side detail panels can render the actual mesh.
+	let optionVisuals = { weapon: "", ranged: "", outfit: "" };
+	let optionInstances = { weapon: "", ranged: "", outfit: "" };
 	const MAX_SLOTS = 4;
 	const LAST_SLOT_KEY = "phoenix:character:lastSlot";
 	const LAST_ID_KEY = "phoenix:character:lastCharacterId";
@@ -226,24 +230,28 @@
 		return list[idx] || list[0] || null;
 	}
 
-	function itemPanelHtml(key) {
-		const detail = detailFor(key);
-		if (!detail) return "";
-		const labels = {
-			weapon: "character.create.opt.weapon",
-			ranged: "character.create.opt.ranged",
-			outfit: "character.create.opt.outfit"
-		};
-		return `
-			<div class="char-item-panel" data-panel="${key}">
-				<div class="char-item-panel__model">${escapeHtml(tr(detail.modelKey, ""))}</div>
-				<div class="char-item-panel__meta" data-t="${labels[key] || ""}"></div>
-				<div class="char-item-panel__name">${escapeHtml(tr(detail.nameKey, ""))}</div>
-				<div class="char-item-panel__desc">${escapeHtml(tr(detail.descriptionKey, ""))}</div>
-				<div class="char-item-panel__stats">${detail.statKeys.map(function (s) { return `<span>${escapeHtml(tr(s, ""))}</span>`; }).join("")}</div>
-			</div>
-		`;
-	}
+    function itemPanelHtml(key) {
+        const detail = detailFor(key);
+        if (!detail) return "";
+        const labels = {
+            weapon: "character.create.opt.weapon",
+            ranged: "character.create.opt.ranged",
+            outfit: "character.create.opt.outfit"
+        };
+        const visual = optionVisuals[key] || "";
+        const meshHtml = visual
+            ? '<gothic-render width="320" height="160" rot-x="1.584" rot-y="-1.662" rot-z="-0.488" scale="1.4" light-intensity="2.85" visual="' + escapeHtml(visual) + '"></gothic-render>'
+            : escapeHtml(tr(detail.modelKey, ""));
+        return `
+            <div class="char-item-panel" data-panel="${key}">
+                <div class="char-item-panel__model">${meshHtml}</div>
+                <div class="char-item-panel__meta" data-t="${labels[key] || ""}"></div>
+                <div class="char-item-panel__name">${escapeHtml(tr(detail.nameKey, ""))}</div>
+                <div class="char-item-panel__desc">${escapeHtml(tr(detail.descriptionKey, ""))}</div>
+                <div class="char-item-panel__stats">${detail.statKeys.map(function (s) { return `<span>${escapeHtml(tr(s, ""))}</span>`; }).join("")}</div>
+            </div>
+        `;
+    }
 
 	function renderItemPanels() {
 		const panels = root.querySelector('[data-role="item-panels"]');
@@ -448,8 +456,29 @@
 		if (payload.i18n) node.setAttribute("data-t", payload.value); else node.removeAttribute("data-t");
 		const match = String(payload.value || "").match(/\.(\d+)$/);
 		if (match) optionState[payload.key] = parseInt(match[1], 10) || 0;
+		// Cache the visual + instance for equipment slots so the right-side detail panel can render a 3D mesh.
+		if (payload.key === "weapon" || payload.key === "ranged" || payload.key === "outfit") {
+			optionVisuals[payload.key] = payload.visual || "";
+			optionInstances[payload.key] = payload.instance || "";
+			updatePanelMesh(payload.key, payload.visual || "");
+		}
 		renderItemPanels();
 	});
+
+	function updatePanelMesh(key, visual) {
+		const slot = root.querySelector('[data-panel="' + key + '"] .char-item-panel__model');
+		if (!slot) return;
+		if (!visual) {
+			slot.textContent = "";
+			return;
+		}
+		const existing = slot.querySelector("gothic-render");
+		if (existing) {
+			if (existing.getAttribute("visual") !== visual) existing.setAttribute("visual", visual);
+			return;
+		}
+		slot.innerHTML = '<gothic-render width="320" height="160" rot-x="1.584" rot-y="-1.662" rot-z="-0.488" scale="1.4" light-intensity="2.85" visual="' + visual + '"></gothic-render>';
+	}
 
 	PhoenixBridge.on("phoenix:character:createResult", function (payload) {
 		if (!payload) return;

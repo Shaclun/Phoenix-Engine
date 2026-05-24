@@ -8,21 +8,65 @@ phoenix.player.Lobby <- {
 		{ pos = { x = -19000.0,  y = 4500.0,  z = -12000.0 }, rot = { x = 10.0,  y = 270.0, z = 0.0 } }
 	]
 	currentSpot = null
+	createSpot = null
+	selectSpot = null
 
 	function applyServerConfig(payload) {
 		// Server pushes a JSON blob with admin-tuned camera spots; if it parses,
 		// override the hardcoded defaults so admin changes take effect without code edits.
 		if (payload == null) return
-		local raw = ("lobbyCameras" in payload) ? payload.lobbyCameras.tostring() : ""
-		if (raw == null || raw == "") return
-		try {
-			local parsed = phoenix.player.Lobby._parseSpots(raw)
-			if (parsed != null && parsed.len() > 0) {
-				phoenix.player.Lobby.cameraSpots = parsed
-				phoenix.player.Lobby.pickSpot()
-				phoenix.player.Lobby.applyLobbyCamera()
-			}
-		} catch (e) {}
+		local rawLobby = ("lobbyCameras" in payload) ? payload.lobbyCameras.tostring() : ""
+		if (rawLobby != null && rawLobby != "" && rawLobby != "[]") {
+			try {
+				local parsed = phoenix.player.Lobby._parseSpots(rawLobby)
+				if (parsed != null && parsed.len() > 0) {
+					phoenix.player.Lobby.cameraSpots = parsed
+					if (phoenix.player.Lobby.currentSpot != null) {
+						phoenix.player.Lobby.pickSpot()
+						phoenix.player.Lobby.applyLobbyCamera()
+					}
+				}
+			} catch (e) {}
+		}
+		// Single-spot create / select cameras override the chosen lobby spot when admin enters those screens.
+		local rawCreate = ("characterCreateCamera" in payload) ? payload.characterCreateCamera.tostring() : ""
+		phoenix.player.Lobby.createSpot = phoenix.player.Lobby._parseSingleSpot(rawCreate)
+		local rawSelect = ("characterSelectCamera" in payload) ? payload.characterSelectCamera.tostring() : ""
+		phoenix.player.Lobby.selectSpot = phoenix.player.Lobby._parseSingleSpot(rawSelect)
+	}
+
+	function _parseSingleSpot(raw) {
+		if (raw == null || raw == "" || raw == "{}") return null
+		local x = phoenix.player.Lobby._readNumber(raw, "x")
+		local y = phoenix.player.Lobby._readNumber(raw, "y")
+		local z = phoenix.player.Lobby._readNumber(raw, "z")
+		local rx = phoenix.player.Lobby._readNumber(raw, "rotX")
+		local ry = phoenix.player.Lobby._readNumber(raw, "rotY")
+		local rz = phoenix.player.Lobby._readNumber(raw, "rotZ")
+		// All-zero spot means "not configured", fall back to lobby cameras.
+		if (x == 0.0 && y == 0.0 && z == 0.0) return null
+		return { pos = { x = x, y = y, z = z }, rot = { x = rx, y = ry, z = rz } }
+	}
+
+	function applyCreateCamera() {
+		// Use the admin-configured create-screen camera if set; otherwise fall back to the lobby rotation.
+		if (phoenix.player.Lobby.createSpot != null) {
+			phoenix.player.Lobby.currentSpot = phoenix.player.Lobby.createSpot
+			phoenix.player.Lobby.applyLobbyCamera()
+			return
+		}
+		phoenix.player.Lobby.pickSpot()
+		phoenix.player.Lobby.applyLobbyCamera()
+	}
+
+	function applySelectCamera() {
+		if (phoenix.player.Lobby.selectSpot != null) {
+			phoenix.player.Lobby.currentSpot = phoenix.player.Lobby.selectSpot
+			phoenix.player.Lobby.applyLobbyCamera()
+			return
+		}
+		phoenix.player.Lobby.pickSpot()
+		phoenix.player.Lobby.applyLobbyCamera()
 	}
 
 	function _parseSpots(raw) {

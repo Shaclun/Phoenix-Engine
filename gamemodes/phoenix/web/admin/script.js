@@ -153,7 +153,8 @@
         dbInsertDraft: null,
         dbEditing: null,
         spawnConfig: { lobbyCameras: [], characterDefaultSpawn: null, characterScenarios: [] },
-        spawnConfigLoaded: false
+        spawnConfigLoaded: false,
+        spawnGhost: { active: false, mode: "spawn", x: 0, y: 0, z: 0, angle: 0, camPitch: 0, camRoll: 0, world: "", target: null }
     };
 
     function defaultHumanCreator() {
@@ -884,41 +885,87 @@
     }
 
     function renderSpawnConfig() {
-        var cfg = state.spawnConfig || { lobbyCameras: [], characterDefaultSpawn: null, characterScenarios: [] };
+        var cfg = state.spawnConfig || { lobbyCameras: [], characterDefaultSpawn: null, characterScenarios: [], characterCreateCamera: null, characterSelectCamera: null };
+        var ghost = state.spawnGhost;
         var html = '<div class="adm-section adm-section--spawns">';
         html += '<h3>Lobby i punkty startowe</h3>';
-        html += '<p class="adm-muted">Edycja działa na żywo. Po zapisie konfiguracja jest rozsyłana do wszystkich klientów.</p>';
 
-        // ---- Lobby cameras ----
+        // ---- Active editor (when ghost is on) ----
+        if (ghost && ghost.active) {
+            html += renderSpawnGhostEditor();
+        } else {
+            html += '<p class="adm-muted">Kliknij ikonę 📍 obok wybranego punktu, żeby otworzyć edytor 3D ze znacznikiem w grze. Strzałka pokazuje kierunek, w którym patrzy kamera/postać.</p>';
+        }
+
+        // ---- Lobby cameras (rotating background) ----
         html += '<div class="adm-section adm-section--inline">';
-        html += '<div class="adm-db-header"><h4>Kamery lobby (' + (cfg.lobbyCameras || []).length + ')</h4>';
+        html += '<div class="adm-db-header"><h4>Kamery tła lobby (' + (cfg.lobbyCameras || []).length + ')</h4>';
         html += '<div class="adm-db-actions">';
-        html += '<button class="adm-btn" data-action="spawnconfig-capture-lobby">⌖ Dodaj z mojej pozycji</button>';
+        html += '<button class="adm-btn" data-action="spawnconfig-add-lobby">+ Z mojej pozycji</button>';
+        html += '<button class="adm-btn" data-action="spawnconfig-new-lobby">📍 Nowa + Edytor 3D</button>';
         html += '<button class="adm-btn adm-btn--primary" data-action="spawnconfig-save-lobby">Zapisz lobby</button>';
         html += '</div></div>';
+        html += '<p class="adm-muted">Te kamery rotują w tle podczas logowania.</p>';
         if (!(cfg.lobbyCameras || []).length) {
-            html += '<div class="adm-empty">Brak kamer — używane są wbudowane defaults. Stań tam gdzie chcesz mieć kamerę i kliknij „Dodaj z mojej pozycji”.</div>';
+            html += '<div class="adm-empty">Brak kamer — używane są wbudowane defaults. Stań tam gdzie chcesz mieć kamerę i kliknij „+ Z mojej pozycji”, potem dopracuj kąt edytorem 3D.</div>';
         } else {
-            html += '<table class="adm-table"><thead><tr><th>#</th><th>X</th><th>Y</th><th>Z</th><th>Rot X (pitch)</th><th>Rot Y (yaw)</th><th>Rot Z</th><th></th></tr></thead><tbody>';
+            html += '<div class="adm-spawn-cards">';
             (cfg.lobbyCameras || []).forEach(function (spot, idx) {
-                html += '<tr>';
-                html += '<td>' + (idx + 1) + '</td>';
-                ["x","y","z","rotX","rotY","rotZ"].forEach(function (f) {
-                    html += '<td><input class="adm-input adm-input--mini" type="number" step="0.1" data-spawn-lobby-idx="' + idx + '" data-spawn-lobby-field="' + f + '" value="' + (+spot[f] || 0) + '"></td>';
-                });
-                html += '<td><button class="adm-btn adm-btn--mini adm-btn--danger" data-action="spawnconfig-remove-lobby" data-idx="' + idx + '" title="Usuń">×</button></td>';
-                html += '</tr>';
+                var isEditing = ghost && ghost.active && ghost.target && ghost.target.kind === "lobby" && +ghost.target.idx === idx;
+                html += renderSpawnCameraCard("lobby", idx, spot, isEditing);
             });
-            html += '</tbody></table>';
+            html += '</div>';
         }
+        html += '</div>';
+
+        // ---- Character select camera (single static cam used during character selection) ----
+        var selectCam = cfg.characterSelectCamera || { x: 0, y: 0, z: 0, rotX: 0, rotY: 0, rotZ: 0 };
+        var selectEditing = ghost && ghost.active && ghost.target && ghost.target.kind === "select";
+        html += '<div class="adm-section adm-section--inline' + (selectEditing ? " is-editing" : "") + '">';
+        html += '<div class="adm-db-header"><h4>Kamera ekranu wyboru postaci</h4>';
+        html += '<div class="adm-db-actions">';
+        if (selectEditing) {
+            html += '<button class="adm-btn adm-btn--primary" data-action="spawnconfig-ghost-stop">✓ Gotowe</button>';
+        } else {
+            html += '<button class="adm-btn" data-action="spawnconfig-ghost-edit-select">📍 Edytor 3D</button>';
+            html += '<button class="adm-btn" data-action="spawnconfig-add-select">⌖ Z mojej pozycji</button>';
+        }
+        html += '<button class="adm-btn adm-btn--primary" data-action="spawnconfig-save-select">Zapisz</button>';
+        html += '</div></div>';
+        html += '<p class="adm-muted">Statyczna kamera oraz pozycja w której pojawia się hero, kiedy gracz przegląda swoje postacie. Pozostaw zera, żeby użyć rotacji lobby.</p>';
+        html += renderCameraGrid("selectcam", selectCam);
+        html += '</div>';
+
+        // ---- Character create camera (single static cam used during creator) ----
+        var createCam = cfg.characterCreateCamera || { x: 0, y: 0, z: 0, rotX: 0, rotY: 0, rotZ: 0 };
+        var createEditing = ghost && ghost.active && ghost.target && ghost.target.kind === "create";
+        html += '<div class="adm-section adm-section--inline' + (createEditing ? " is-editing" : "") + '">';
+        html += '<div class="adm-db-header"><h4>Pozycja kreatora postaci</h4>';
+        html += '<div class="adm-db-actions">';
+        if (createEditing) {
+            html += '<button class="adm-btn adm-btn--primary" data-action="spawnconfig-ghost-stop">✓ Gotowe</button>';
+        } else {
+            html += '<button class="adm-btn" data-action="spawnconfig-ghost-edit-create">📍 Edytor 3D</button>';
+            html += '<button class="adm-btn" data-action="spawnconfig-add-create">⌖ Z mojej pozycji</button>';
+        }
+        html += '<button class="adm-btn adm-btn--primary" data-action="spawnconfig-save-create">Zapisz</button>';
+        html += '</div></div>';
+        html += '<p class="adm-muted">Miejsce, w którym staje hero podczas tworzenia nowej postaci. Kreator używa orbitalnej kamery wokół postaci — pola rot* są ignorowane.</p>';
+        html += renderCameraGrid("createcam", createCam);
         html += '</div>';
 
         // ---- Character default spawn ----
         var def = cfg.characterDefaultSpawn || { world: "NEWWORLD.ZEN", x: 870.118, y: -96.2501, z: -1848.33, angle: 65.1225 };
-        html += '<div class="adm-section adm-section--inline">';
+        var defEditing = ghost && ghost.active && ghost.target && ghost.target.kind === "default";
+        html += '<div class="adm-section adm-section--inline' + (defEditing ? " is-editing" : "") + '">';
         html += '<div class="adm-db-header"><h4>Domyślny punkt respawnu / startu postaci</h4>';
         html += '<div class="adm-db-actions">';
-        html += '<button class="adm-btn" data-action="spawnconfig-capture-default">⌖ Z mojej pozycji</button>';
+        if (defEditing) {
+            html += '<button class="adm-btn adm-btn--primary" data-action="spawnconfig-ghost-stop">✓ Gotowe</button>';
+        } else {
+            html += '<button class="adm-btn" data-action="spawnconfig-ghost-edit-default">📍 Edytor 3D</button>';
+            html += '<button class="adm-btn" data-action="spawnconfig-add-default">⌖ Z mojej pozycji</button>';
+        }
         html += '<button class="adm-btn adm-btn--primary" data-action="spawnconfig-save-default">Zapisz</button>';
         html += '</div></div>';
         html += '<div class="adm-grid adm-grid--3">';
@@ -929,31 +976,128 @@
         html += '<label>Kąt<input class="adm-input" type="number" step="0.1" data-spawn-def="angle" value="' + (+def.angle || 0) + '"></label>';
         html += '</div></div>';
 
-        // ---- Scenario spots (alternative starting points) ----
+        // ---- Scenario spots ----
         var scenarios = cfg.characterScenarios || [];
         html += '<div class="adm-section adm-section--inline">';
         html += '<div class="adm-db-header"><h4>Alternatywne punkty startowe (' + scenarios.length + ')</h4>';
         html += '<div class="adm-db-actions">';
-        html += '<button class="adm-btn" data-action="spawnconfig-capture-scenario">⌖ Dodaj z mojej pozycji</button>';
+        html += '<button class="adm-btn" data-action="spawnconfig-add-scenario">+ Z mojej pozycji</button>';
+        html += '<button class="adm-btn" data-action="spawnconfig-new-scenario">📍 Nowy + Edytor 3D</button>';
         html += '<button class="adm-btn adm-btn--primary" data-action="spawnconfig-save-scenarios">Zapisz scenariusze</button>';
         html += '</div></div>';
         if (!scenarios.length) {
             html += '<div class="adm-empty">Brak alternatywnych punktów. Pierwszy zalogowany dostaje domyślny.</div>';
         } else {
-            html += '<table class="adm-table"><thead><tr><th>#</th><th>X</th><th>Y</th><th>Z</th><th>Kąt</th><th></th></tr></thead><tbody>';
+            html += '<div class="adm-spawn-cards">';
             scenarios.forEach(function (sc, idx) {
-                html += '<tr>';
-                html += '<td>' + (idx + 1) + '</td>';
-                ["x","y","z","angle"].forEach(function (f) {
-                    html += '<td><input class="adm-input adm-input--mini" type="number" step="0.1" data-spawn-sc-idx="' + idx + '" data-spawn-sc-field="' + f + '" value="' + (+sc[f] || 0) + '"></td>';
-                });
-                html += '<td><button class="adm-btn adm-btn--mini adm-btn--danger" data-action="spawnconfig-remove-scenario" data-idx="' + idx + '" title="Usuń">×</button></td>';
-                html += '</tr>';
+                var isEditing = ghost && ghost.active && ghost.target && ghost.target.kind === "scenario" && +ghost.target.idx === idx;
+                html += renderSpawnSpotCard("scenario", idx, sc, isEditing);
             });
-            html += '</tbody></table>';
+            html += '</div>';
         }
         html += '</div>';
 
+        html += '</div>';
+        return html;
+    }
+
+    function renderCameraGrid(prefix, cam) {
+        var html = '<div class="adm-grid adm-grid--3">';
+        ["x","y","z","rotX","rotY","rotZ"].forEach(function (f) {
+            var label = f === "rotX" ? "Pitch (góra/dół)" : (f === "rotY" ? "Yaw (kierunek)" : (f === "rotZ" ? "Roll (przechył)" : f.toUpperCase()));
+            html += '<label>' + label + '<input class="adm-input" type="number" step="0.1" data-spawn-' + prefix + '="' + f + '" value="' + (Math.round((+cam[f] || 0) * 10) / 10) + '"></label>';
+        });
+        html += '</div>';
+        return html;
+    }
+
+    function renderSpawnCameraCard(kind, idx, spot, isEditing) {
+        var html = '<div class="adm-spawn-card' + (isEditing ? " is-editing" : "") + '">';
+        html += '<div class="adm-spawn-card__head">';
+        html += '<span class="adm-spawn-card__title">Kamera #' + (idx + 1) + '</span>';
+        html += '<div class="adm-spawn-card__actions">';
+        if (isEditing) {
+            html += '<button class="adm-btn adm-btn--mini adm-btn--primary" data-action="spawnconfig-ghost-stop">✓ Gotowe</button>';
+        } else {
+            html += '<button class="adm-btn adm-btn--mini" data-action="spawnconfig-ghost-edit-' + kind + '" data-idx="' + idx + '" title="Edytor 3D">📍</button>';
+        }
+        html += '<button class="adm-btn adm-btn--mini adm-btn--danger" data-action="spawnconfig-remove-' + kind + '" data-idx="' + idx + '" title="Usuń">🗑</button>';
+        html += '</div></div>';
+        html += '<div class="adm-grid adm-grid--3">';
+        ["x","y","z","rotY","rotX","rotZ"].forEach(function (f) {
+            var label = f === "rotX" ? "Pitch" : (f === "rotY" ? "Yaw" : (f === "rotZ" ? "Roll" : f.toUpperCase()));
+            html += '<label>' + label + '<input class="adm-input" type="number" step="0.1" data-spawn-' + kind + '-idx="' + idx + '" data-spawn-' + kind + '-field="' + f + '" value="' + (Math.round((+spot[f] || 0) * 10) / 10) + '"></label>';
+        });
+        html += '</div>';
+        html += '</div>';
+        return html;
+    }
+
+    function renderSpawnSpotCard(kind, idx, spot, isEditing) {
+        var html = '<div class="adm-spawn-card' + (isEditing ? " is-editing" : "") + '">';
+        html += '<div class="adm-spawn-card__head">';
+        html += '<span class="adm-spawn-card__title">Punkt #' + (idx + 1) + '</span>';
+        html += '<div class="adm-spawn-card__actions">';
+        if (isEditing) {
+            html += '<button class="adm-btn adm-btn--mini adm-btn--primary" data-action="spawnconfig-ghost-stop">✓ Gotowe</button>';
+        } else {
+            html += '<button class="adm-btn adm-btn--mini" data-action="spawnconfig-ghost-edit-' + kind + '" data-idx="' + idx + '" title="Edytor 3D">📍</button>';
+        }
+        html += '<button class="adm-btn adm-btn--mini adm-btn--danger" data-action="spawnconfig-remove-' + kind + '" data-idx="' + idx + '" title="Usuń">🗑</button>';
+        html += '</div></div>';
+        html += '<div class="adm-grid adm-grid--2">';
+        html += '<label>X<input class="adm-input" type="number" step="0.1" data-spawn-' + kind + '-idx="' + idx + '" data-spawn-' + kind + '-field="x" value="' + (Math.round((+spot.x || 0) * 10) / 10) + '"></label>';
+        html += '<label>Y<input class="adm-input" type="number" step="0.1" data-spawn-' + kind + '-idx="' + idx + '" data-spawn-' + kind + '-field="y" value="' + (Math.round((+spot.y || 0) * 10) / 10) + '"></label>';
+        html += '<label>Z<input class="adm-input" type="number" step="0.1" data-spawn-' + kind + '-idx="' + idx + '" data-spawn-' + kind + '-field="z" value="' + (Math.round((+spot.z || 0) * 10) / 10) + '"></label>';
+        html += '<label>Kąt<input class="adm-input" type="number" step="0.1" data-spawn-' + kind + '-idx="' + idx + '" data-spawn-' + kind + '-field="angle" value="' + (Math.round((+spot.angle || 0) * 10) / 10) + '"></label>';
+        html += '</div>';
+        html += '</div>';
+        return html;
+    }
+
+    function renderSpawnGhostEditor() {
+        var ghost = state.spawnGhost;
+        var isLobby = ghost.mode === "lobby";
+        var html = '<div class="adm-section adm-section--inline adm-spawn-editor">';
+        html += '<div class="adm-db-header">';
+        html += '<h4>Edytor 3D · ' + (isLobby ? 'kamera lobby' : 'punkt spawnu') + (ghost.target ? ' · #' + ((+ghost.target.idx) + 1) : '') + '</h4>';
+        html += '<div class="adm-db-actions">';
+        html += '<button class="adm-btn adm-btn--primary" data-action="spawnconfig-ghost-apply">✓ Zastosuj</button>';
+        html += '<button class="adm-btn" data-action="spawnconfig-ghost-stop">Anuluj</button>';
+        html += '</div></div>';
+        html += '<p class="adm-muted">W grze: <b>WSAD</b>=ruch, <b>Q/E</b>=góra/dół, <b>←/→</b>=obrót strzałki';
+        if (isLobby) html += ', <b>↑/↓</b>=pitch kamery, <b>PgUp/PgDn</b>=roll kamery';
+        html += '. Trzymaj <b>Shift</b>=szybciej, <b>Ctrl</b>=wolniej.</p>';
+        html += '<div class="adm-grid adm-grid--3">';
+        html += '<label>X<input class="adm-input" type="number" step="0.1" data-spawn-ghost="x" value="' + (Math.round(ghost.x * 10) / 10) + '"></label>';
+        html += '<label>Y<input class="adm-input" type="number" step="0.1" data-spawn-ghost="y" value="' + (Math.round(ghost.y * 10) / 10) + '"></label>';
+        html += '<label>Z<input class="adm-input" type="number" step="0.1" data-spawn-ghost="z" value="' + (Math.round(ghost.z * 10) / 10) + '"></label>';
+        html += '<label>Yaw (kierunek)<input class="adm-input" type="number" step="1" data-spawn-ghost="angle" value="' + (Math.round(ghost.angle * 10) / 10) + '"></label>';
+        if (isLobby) {
+            html += '<label>Camera Pitch<input class="adm-input" type="number" step="1" data-spawn-ghost="camPitch" value="' + (Math.round(ghost.camPitch * 10) / 10) + '"></label>';
+            html += '<label>Camera Roll<input class="adm-input" type="number" step="1" data-spawn-ghost="camRoll" value="' + (Math.round(ghost.camRoll * 10) / 10) + '"></label>';
+        }
+        html += '</div>';
+        // Quick nudge buttons.
+        html += '<div class="adm-spawn-nudge">';
+        html += '<div class="adm-spawn-nudge__row"><span>Pozycja:</span>';
+        [["x-","-X"],["x+","+X"],["y+","+Y"],["y-","-Y"],["z-","-Z"],["z+","+Z"]].forEach(function (b) {
+            html += '<button class="adm-btn adm-btn--mini" data-action="spawnconfig-ghost-nudge" data-axis="' + b[0] + '">' + b[1] + '</button>';
+        });
+        html += '</div>';
+        html += '<div class="adm-spawn-nudge__row"><span>Kierunek:</span>';
+        html += '<button class="adm-btn adm-btn--mini" data-action="spawnconfig-ghost-nudge" data-axis="a-">↺ -15°</button>';
+        html += '<button class="adm-btn adm-btn--mini" data-action="spawnconfig-ghost-nudge" data-axis="a+">↻ +15°</button>';
+        html += '</div>';
+        if (isLobby) {
+            html += '<div class="adm-spawn-nudge__row"><span>Kamera:</span>';
+            html += '<button class="adm-btn adm-btn--mini" data-action="spawnconfig-ghost-nudge" data-axis="pitch-">Pitch -</button>';
+            html += '<button class="adm-btn adm-btn--mini" data-action="spawnconfig-ghost-nudge" data-axis="pitch+">Pitch +</button>';
+            html += '<button class="adm-btn adm-btn--mini" data-action="spawnconfig-ghost-nudge" data-axis="roll-">Roll -</button>';
+            html += '<button class="adm-btn adm-btn--mini" data-action="spawnconfig-ghost-nudge" data-axis="roll+">Roll +</button>';
+            html += '</div>';
+        }
+        html += '</div>';
         html += '</div>';
         return html;
     }
@@ -2512,6 +2656,21 @@
                 state.custom[k] = el.type === "number" ? +el.value : el.value;
             });
         });
+        body.querySelectorAll("[data-spawn-ghost]").forEach(function (el) {
+            el.addEventListener("change", function () {
+                if (!state.spawnGhost) return;
+                var key = el.dataset.spawnGhost;
+                var v = parseFloat(el.value) || 0;
+                state.spawnGhost[key] = v;
+                // Push the manual edit into the in-game ghost so the marker / camera follows.
+                send("adminSpawnGhostSync", {
+                    x: state.spawnGhost.x, y: state.spawnGhost.y, z: state.spawnGhost.z,
+                    angle: state.spawnGhost.angle,
+                    camPitch: state.spawnGhost.camPitch, camRoll: state.spawnGhost.camRoll,
+                    mode: state.spawnGhost.mode
+                });
+            });
+        });
         body.querySelectorAll("[data-render-debug]").forEach(function (el) {
             el.addEventListener("input", function () {
                 state.itemRenderDebug[el.dataset.renderDebug] = parseFloat(el.value) || 0;
@@ -3758,11 +3917,48 @@
         }
         if (p.action === "spawnConfigSave" && p.success) {
             setStatus("Config zapisany i rozesłany do graczy", "ok");
+            // Refresh from server to confirm what's in the DB now.
+            send("spawnConfigGet");
             return;
         }
         if (p.action === "spawnConfigCapture" && p.success) {
             applySpawnCapture(pl);
+            // If the user clicked "+ New + 3D editor", open the ghost editor on the spot we just created.
+            var post = state.spawnConfigPostCapture;
+            state.spawnConfigPostCapture = null;
+            if (post === "lobby") {
+                var arr = state.spawnConfig.lobbyCameras || [];
+                var idx = arr.length - 1;
+                if (idx >= 0) {
+                    var spot = arr[idx];
+                    startGhostEditor("lobby", { idx: idx }, "lobby", spot.x, spot.y, spot.z, spot.rotY, spot.rotX, spot.rotZ);
+                    return;
+                }
+            } else if (post === "scenario") {
+                var sarr = state.spawnConfig.characterScenarios || [];
+                var sidx = sarr.length - 1;
+                if (sidx >= 0) {
+                    var sc = sarr[sidx];
+                    startGhostEditor("scenario", { idx: sidx }, "spawn", sc.x, sc.y, sc.z, sc.angle, 0, 0);
+                    return;
+                }
+            }
             return render(true);
+        }
+        if (p.action === "adminSpawnGhost" && p.success) {
+            // Live update from the in-game ghost while admin moves it around.
+            if (state.spawnGhost && state.spawnGhost.active) {
+                state.spawnGhost.x = +pl.posX || 0;
+                state.spawnGhost.y = +pl.posY || 0;
+                state.spawnGhost.z = +pl.posZ || 0;
+                state.spawnGhost.angle = +pl.angle || 0;
+                state.spawnGhost.camPitch = +pl.camPitch || 0;
+                state.spawnGhost.camRoll = +pl.camRoll || 0;
+                if (pl.world) state.spawnGhost.world = pl.world;
+                // Update DOM inputs in place so we don't blow away keyboard focus.
+                updateSpawnGhostDom();
+            }
+            return;
         }
         if (p.action === "adminHouseGhost" && p.success) {
             state.houseGhostActive = !!(+pl.active || 0);
@@ -4268,20 +4464,75 @@
 
     function handleSpawnConfigAction(action, el) {
         var cfg = state.spawnConfig;
+        if (!cfg.lobbyCameras) cfg.lobbyCameras = [];
+        if (!cfg.characterScenarios) cfg.characterScenarios = [];
         // Sync input values from DOM into state before any save/capture, so the user's edits aren't lost on render.
         flushSpawnConfigInputs();
-        if (action === "spawnconfig-capture-lobby") {
+
+        // ---- Add (new spot from admin's current position) ----
+        if (action === "spawnconfig-add-lobby") { send("spawnConfigCapture", { purpose: "lobby" }); return; }
+        if (action === "spawnconfig-add-default") { send("spawnConfigCapture", { purpose: "default" }); return; }
+        if (action === "spawnconfig-add-scenario") { send("spawnConfigCapture", { purpose: "scenario" }); return; }
+        if (action === "spawnconfig-add-create") { send("spawnConfigCapture", { purpose: "create" }); return; }
+        if (action === "spawnconfig-add-select") { send("spawnConfigCapture", { purpose: "select" }); return; }
+
+        // ---- Add + immediately open the 3D editor on the new spot ----
+        if (action === "spawnconfig-new-lobby") {
+            state.spawnConfigPostCapture = "lobby";
             send("spawnConfigCapture", { purpose: "lobby" });
             return;
         }
-        if (action === "spawnconfig-capture-default") {
-            send("spawnConfigCapture", { purpose: "default" });
-            return;
-        }
-        if (action === "spawnconfig-capture-scenario") {
+        if (action === "spawnconfig-new-scenario") {
+            state.spawnConfigPostCapture = "scenario";
             send("spawnConfigCapture", { purpose: "scenario" });
             return;
         }
+
+        // ---- 3D ghost editor ----
+        if (action === "spawnconfig-ghost-edit-lobby") {
+            var li = +el.dataset.idx;
+            var spot = cfg.lobbyCameras[li];
+            if (!spot) return;
+            startGhostEditor("lobby", { idx: li }, "lobby", spot.x, spot.y, spot.z, spot.rotY, spot.rotX, spot.rotZ);
+            return;
+        }
+        if (action === "spawnconfig-ghost-edit-create") {
+            var c = cfg.characterCreateCamera || { x: 0, y: 0, z: 0, rotX: 0, rotY: 0, rotZ: 0 };
+            startGhostEditor("create", { idx: 0 }, "lobby", c.x, c.y, c.z, c.rotY, c.rotX, c.rotZ);
+            return;
+        }
+        if (action === "spawnconfig-ghost-edit-select") {
+            var s = cfg.characterSelectCamera || { x: 0, y: 0, z: 0, rotX: 0, rotY: 0, rotZ: 0 };
+            startGhostEditor("select", { idx: 0 }, "lobby", s.x, s.y, s.z, s.rotY, s.rotX, s.rotZ);
+            return;
+        }
+        if (action === "spawnconfig-ghost-edit-default") {
+            var def = cfg.characterDefaultSpawn || { x: 0, y: 0, z: 0, angle: 0 };
+            startGhostEditor("default", { idx: 0 }, "spawn", def.x, def.y, def.z, def.angle, 0, 0);
+            return;
+        }
+        if (action === "spawnconfig-ghost-edit-scenario") {
+            var sci = +el.dataset.idx;
+            var sc = cfg.characterScenarios[sci];
+            if (!sc) return;
+            startGhostEditor("scenario", { idx: sci }, "spawn", sc.x, sc.y, sc.z, sc.angle, 0, 0);
+            return;
+        }
+        if (action === "spawnconfig-ghost-stop") {
+            send("adminSpawnGhostStop", {});
+            state.spawnGhost = { active: false, mode: "spawn", x: 0, y: 0, z: 0, angle: 0, camPitch: 0, camRoll: 0, world: "", target: null };
+            return render(true);
+        }
+        if (action === "spawnconfig-ghost-apply") {
+            applySpawnGhostToTarget();
+            return render(true);
+        }
+        if (action === "spawnconfig-ghost-nudge") {
+            send("adminSpawnGhostNudge", { axis: el.dataset.axis, step: 50 });
+            return;
+        }
+
+        // ---- Save ----
         if (action === "spawnconfig-save-lobby") {
             send("spawnConfigSave", { configKey: "lobbyCameras", payload: JSON.stringify(cfg.lobbyCameras || []) });
             return;
@@ -4294,21 +4545,85 @@
             send("spawnConfigSave", { configKey: "characterScenarios", payload: JSON.stringify(cfg.characterScenarios || []) });
             return;
         }
+        if (action === "spawnconfig-save-create") {
+            send("spawnConfigSave", { configKey: "characterCreateCamera", payload: JSON.stringify(cfg.characterCreateCamera || {}) });
+            return;
+        }
+        if (action === "spawnconfig-save-select") {
+            send("spawnConfigSave", { configKey: "characterSelectCamera", payload: JSON.stringify(cfg.characterSelectCamera || {}) });
+            return;
+        }
+
+        // ---- Remove ----
         if (action === "spawnconfig-remove-lobby") {
-            var li = +el.dataset.idx;
-            if (cfg.lobbyCameras && cfg.lobbyCameras[li]) cfg.lobbyCameras.splice(li, 1);
+            var li2 = +el.dataset.idx;
+            if (cfg.lobbyCameras[li2]) cfg.lobbyCameras.splice(li2, 1);
+            // Persist immediately so the in-game lobby reflects the deletion without a separate save click.
+            send("spawnConfigSave", { configKey: "lobbyCameras", payload: JSON.stringify(cfg.lobbyCameras) });
             return render(true);
         }
         if (action === "spawnconfig-remove-scenario") {
-            var si = +el.dataset.idx;
-            if (cfg.characterScenarios && cfg.characterScenarios[si]) cfg.characterScenarios.splice(si, 1);
+            var si2 = +el.dataset.idx;
+            if (cfg.characterScenarios[si2]) cfg.characterScenarios.splice(si2, 1);
+            send("spawnConfigSave", { configKey: "characterScenarios", payload: JSON.stringify(cfg.characterScenarios) });
             return render(true);
+        }
+    }
+
+    function startGhostEditor(kind, target, mode, x, y, z, angle, camPitch, camRoll) {
+        state.spawnGhost = {
+            active: true, mode: mode,
+            x: +x || 0, y: +y || 0, z: +z || 0,
+            angle: +angle || 0,
+            camPitch: +camPitch || 0, camRoll: +camRoll || 0,
+            world: "",
+            target: { kind: kind, idx: target.idx }
+        };
+        // Use a humanoid silhouette (not a placeholder VOB) when picking spots that represent
+        // where the player's hero will physically stand — i.e. spawn / scenario / character-create / character-select.
+        var useHuman = (kind === "default" || kind === "scenario" || kind === "create" || kind === "select");
+        send("adminSpawnGhostStart", {
+            mode: mode,
+            useHuman: useHuman,
+            x: state.spawnGhost.x, y: state.spawnGhost.y, z: state.spawnGhost.z,
+            angle: state.spawnGhost.angle,
+            camPitch: state.spawnGhost.camPitch, camRoll: state.spawnGhost.camRoll
+        });
+        return render(true);
+    }
+
+    function applySpawnGhostToTarget() {
+        var ghost = state.spawnGhost;
+        if (!ghost || !ghost.target) return;
+        var cfg = state.spawnConfig;
+        var kind = ghost.target.kind;
+        if (kind === "lobby") {
+            var spot = cfg.lobbyCameras[ghost.target.idx];
+            if (!spot) return;
+            spot.x = ghost.x; spot.y = ghost.y; spot.z = ghost.z;
+            spot.rotX = ghost.camPitch; spot.rotY = ghost.angle; spot.rotZ = ghost.camRoll;
+        } else if (kind === "create") {
+            cfg.characterCreateCamera = { x: ghost.x, y: ghost.y, z: ghost.z, rotX: ghost.camPitch, rotY: ghost.angle, rotZ: ghost.camRoll };
+        } else if (kind === "select") {
+            cfg.characterSelectCamera = { x: ghost.x, y: ghost.y, z: ghost.z, rotX: ghost.camPitch, rotY: ghost.angle, rotZ: ghost.camRoll };
+        } else if (kind === "default") {
+            cfg.characterDefaultSpawn = cfg.characterDefaultSpawn || {};
+            cfg.characterDefaultSpawn.x = ghost.x;
+            cfg.characterDefaultSpawn.y = ghost.y;
+            cfg.characterDefaultSpawn.z = ghost.z;
+            cfg.characterDefaultSpawn.angle = ghost.angle;
+            if (ghost.world) cfg.characterDefaultSpawn.world = ghost.world;
+        } else if (kind === "scenario") {
+            var sc = cfg.characterScenarios[ghost.target.idx];
+            if (!sc) return;
+            sc.x = ghost.x; sc.y = ghost.y; sc.z = ghost.z; sc.angle = ghost.angle;
         }
     }
 
     function flushSpawnConfigInputs() {
         if (!body) return;
         var cfg = state.spawnConfig;
+        // Lobby cameras (cards): data-spawn-lobby-idx + data-spawn-lobby-field
         body.querySelectorAll("[data-spawn-lobby-idx]").forEach(function (el) {
             var idx = +el.dataset.spawnLobbyIdx;
             var field = el.dataset.spawnLobbyField;
@@ -4316,12 +4631,31 @@
                 cfg.lobbyCameras[idx][field] = parseFloat(el.value) || 0;
             }
         });
+        // Scenario spots (cards)
+        body.querySelectorAll("[data-spawn-scenario-idx]").forEach(function (el) {
+            var idx = +el.dataset.spawnScenarioIdx;
+            var field = el.dataset.spawnScenarioField;
+            if (cfg.characterScenarios && cfg.characterScenarios[idx]) {
+                cfg.characterScenarios[idx][field] = parseFloat(el.value) || 0;
+            }
+        });
+        // Default spawn (form)
         body.querySelectorAll("[data-spawn-def]").forEach(function (el) {
             if (!cfg.characterDefaultSpawn) cfg.characterDefaultSpawn = {};
             var key = el.dataset.spawnDef;
             if (key === "world") cfg.characterDefaultSpawn[key] = el.value;
             else cfg.characterDefaultSpawn[key] = parseFloat(el.value) || 0;
         });
+        // Create/select cameras (single-spot cards)
+        body.querySelectorAll("[data-spawn-createcam]").forEach(function (el) {
+            if (!cfg.characterCreateCamera) cfg.characterCreateCamera = { x: 0, y: 0, z: 0, rotX: 0, rotY: 0, rotZ: 0 };
+            cfg.characterCreateCamera[el.dataset.spawnCreatecam] = parseFloat(el.value) || 0;
+        });
+        body.querySelectorAll("[data-spawn-selectcam]").forEach(function (el) {
+            if (!cfg.characterSelectCamera) cfg.characterSelectCamera = { x: 0, y: 0, z: 0, rotX: 0, rotY: 0, rotZ: 0 };
+            cfg.characterSelectCamera[el.dataset.spawnSelectcam] = parseFloat(el.value) || 0;
+        });
+        // Legacy short-name selector kept for backwards compat (older renders).
         body.querySelectorAll("[data-spawn-sc-idx]").forEach(function (el) {
             var idx = +el.dataset.spawnScIdx;
             var field = el.dataset.spawnScField;
@@ -4332,7 +4666,7 @@
     }
 
     function parseSpawnConfigPayload(pl) {
-        var out = { lobbyCameras: [], characterDefaultSpawn: null, characterScenarios: [] };
+        var out = { lobbyCameras: [], characterDefaultSpawn: null, characterScenarios: [], characterCreateCamera: null, characterSelectCamera: null };
         if (!pl) return out;
         function tryParse(raw) { try { return raw ? JSON.parse(raw) : null; } catch (e) { return null; } }
         var lobby = tryParse(pl.lobbyCameras);
@@ -4341,6 +4675,10 @@
         if (def && typeof def === "object") out.characterDefaultSpawn = def;
         var scen = tryParse(pl.characterScenarios);
         if (Array.isArray(scen)) out.characterScenarios = scen;
+        var cre = tryParse(pl.characterCreateCamera);
+        if (cre && typeof cre === "object") out.characterCreateCamera = cre;
+        var sel = tryParse(pl.characterSelectCamera);
+        if (sel && typeof sel === "object") out.characterSelectCamera = sel;
         return out;
     }
 
@@ -4356,7 +4694,22 @@
         } else if (pl.purpose === "scenario") {
             cfg.characterScenarios = cfg.characterScenarios || [];
             cfg.characterScenarios.push({ x: pl.x, y: pl.y, z: pl.z, angle: pl.angle || 0 });
+        } else if (pl.purpose === "create") {
+            cfg.characterCreateCamera = { x: pl.x, y: pl.y, z: pl.z, rotX: 20, rotY: pl.angle || 0, rotZ: 0 };
+        } else if (pl.purpose === "select") {
+            cfg.characterSelectCamera = { x: pl.x, y: pl.y, z: pl.z, rotX: 20, rotY: pl.angle || 0, rotZ: 0 };
         }
+    }
+
+    function updateSpawnGhostDom() {
+        if (!body) return;
+        var ghost = state.spawnGhost;
+        ["x","y","z","angle","camPitch","camRoll"].forEach(function (key) {
+            var el = body.querySelector('[data-spawn-ghost="' + key + '"]');
+            if (!el || el === document.activeElement) return;
+            var v = ghost[key];
+            el.value = Math.round((+v || 0) * 10) / 10;
+        });
     }
 
     function handleDbAction(action, el) {

@@ -415,7 +415,7 @@ body.phoenix-body--cinematic {
 }
 
 .char-item-panel__model {
-	height: 70px;
+	height: 160px;
 	display: flex;
 	align-items: center;
 	justify-content: center;
@@ -497,8 +497,7 @@ body.phoenix-body--cinematic {
 	padding: 14px 20px;
 	font-size: 15px;
 	font-family: inherit;
-	letter-spacing: 0.12em;
-	text-transform: uppercase;
+	letter-spacing: 0.04em;
 	transition: border-color 120ms ease, background 120ms ease;
 	clip-path: var(--clip-angular-sm, polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px));
 }
@@ -717,4 +716,18 @@ body.phoenix-body--cinematic {
 .phoenix-exit-btn:hover {
 	background: rgba(140, 20, 20, 0.95);
 	transform: scale(1.08);
+}
+
+
+/* Inline 3D mesh next to equipment options in the create view. */
+.option-row__mesh { display: none; }
+.char-item-panel__model {
+	position: relative;
+	overflow: hidden;
+}
+.char-item-panel__model gothic-render {
+	width: 100% !important;
+	height: 100% !important;
+	display: block;
+	object-fit: contain;
 }

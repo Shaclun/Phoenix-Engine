@@ -1,5 +1,6 @@
 phoenix.character.Preview <- {
 	active = false
+	mode = ""        // "create" | "select" — controls whether we play the walk animation
 
 	cameraAngle = 0.0
 	cameraDistance = 300.0
@@ -17,6 +18,24 @@ phoenix.character.Preview <- {
 	anchorX = 870.118
 	anchorY = -96.2501
 	anchorZ = -1848.33
+
+	function syncAnchorFromConfig() {
+		// Pull the admin-configured create/select position out of the LobbyConfig cache so the
+		// preview hero stands wherever the admin set the marker. Falls back to the hardcoded
+		// values above when nothing is configured (or while the client is still parsing them).
+		try {
+			if ("Lobby" in phoenix.player) {
+				local L = phoenix.player.Lobby
+				local target = (("createSpot" in L) && L.createSpot != null) ? L.createSpot
+					: ((("selectSpot" in L) && L.selectSpot != null) ? L.selectSpot : null)
+				if (target != null && "pos" in target) {
+					phoenix.character.Preview.anchorX = target.pos.x
+					phoenix.character.Preview.anchorY = target.pos.y
+					phoenix.character.Preview.anchorZ = target.pos.z
+				}
+			}
+		} catch (e) {}
+	}
 
 	state = {
 		gender = 0
@@ -57,29 +76,10 @@ phoenix.character.Preview <- {
 		"Hum_Head_Thief",
 		"Hum_Head_Psionic",
 		"Hum_Head_Fighter",
-		"Hum_Head_FatBald",
-		"HUM_HEAD_LONGHAIR",
-		"HUM_HEAD_PONYBEARD",
-		"HUM_HEAD_BrodaDuza",
-		"HUM_HEAD_BrodaMala",
-		"HUM_HEAD_BrodaSrednia",
-		"HUM_HEAD_BrodaWas",
-		"HUM_HEAD_PSIONIC_PONY",
-		"HUM_HEAD_WITHOUTPONY",
-		"HUM_HEAD_MARVIN"
+		"Hum_Head_FatBald"
 	]
 	headModelsFemale = [
-		"HUM_HEAD_BABE",
-		"HUM_HEAD_BABE1",
-		"HUM_HEAD_BABE2",
-		"HUM_HEAD_BABE3",
-		"HUM_HEAD_BABE4",
-		"HUM_HEAD_BABE6",
-		"HUM_HEAD_BABE7",
-		"HUM_HEAD_BABE8",
-		"HUM_HEAD_BABE12",
-		"HUM_HEAD_BABEHAIR",
-		"HUM_HEAD_IVY"
+		"Hum_Head_Babe"
 	]
 
 	weapons = [
@@ -99,7 +99,17 @@ phoenix.character.Preview <- {
 	]
 
 	fatnessValues = [-1.0, 0.0, 1.0, 2.0]
-	walkingModes = ["", "S_1HRUNL", "S_2HRUNL", "S_WALKL"]
+	// MDS overlays available in the standard Gothic 2 NoR / Eldoria asset pack.
+	// First entry is the default gait — no overlay applied.
+	walkingModes = [
+		"",                            // Standardowy
+		"HUMANS_TIRED.MDS",            // Zmęczony
+		"HUMANS_BABE.MDS",             // Kobiecy
+		"HUMANS_MILITIA.MDS",          // Wojskowy
+		"HUMANS_RELAXED.MDS",          // Wyluzowany
+		"HUMANS_ARROGANCE.MDS",        // Arogancki
+		"HUMANS_MAGE.MDS"              // Mag
+	]
 
 	scenarios = [
 		{ key = "shipwreck",   x = -37591.7, y = -2033.3,  z = 15142.5,  angle = 91.6603 },
@@ -216,8 +226,13 @@ phoenix.character.Preview.applyVisual <- function() {
 phoenix.character.Preview.applyAnimation <- function() {
 	local idx = phoenix.character.Preview.state.walking
 	local mode = phoenix.character.Preview.walkingModes[idx >= 0 && idx < phoenix.character.Preview.walkingModes.len() ? idx : 0]
+	// Strip every overlay that the cycle could have applied so we don't stack them.
+	foreach (entry in phoenix.character.Preview.walkingModes) {
+		if (entry == null || entry == "") continue
+		try { removePlayerOverlay(heroId, entry) } catch (e) {}
+	}
 	if (mode == "") return
-	try { applyPlayerOverlay(heroId, mode + ".MDS") } catch (e) {}
+	try { applyPlayerOverlay(heroId, mode) } catch (e) {}
 }
 
 phoenix.character.Preview.applyWeaponPreview <- function() {
@@ -375,11 +390,45 @@ phoenix.character.Preview.labelOf <- function(key) {
 }
 
 phoenix.character.Preview.notifyOption <- function(key) {
-	phoenix.web.Manager.emit("phoenix:character:option", {
+	local payload = {
 		key = key
 		value = phoenix.character.Preview.labelOf(key)
 		i18n = true
-	})
+	}
+	// For equipment cycles, expose the underlying instance + .MRM visual so the web UI
+	// can render a real 3D mesh next to the option label.
+	local visual = phoenix.character.Preview.visualForOption(key)
+	if (visual != null) {
+		payload.instance <- visual.instance
+		payload.visual <- visual.visual
+	}
+	phoenix.web.Manager.emit("phoenix:character:option", payload)
+}
+
+phoenix.character.Preview.visualForOption <- function(key) {
+	local s = phoenix.character.Preview.state
+	local instance = ""
+	if (key == "weapon") {
+		if (s.weapon >= 0 && s.weapon < phoenix.character.Preview.weapons.len()) {
+			instance = phoenix.character.Preview.weapons[s.weapon].instance
+		}
+	} else if (key == "ranged") {
+		if (s.ranged >= 0 && s.ranged < phoenix.character.Preview.rangedWeapons.len()) {
+			instance = phoenix.character.Preview.rangedWeapons[s.ranged].instance
+		}
+	} else if (key == "outfit") {
+		if (s.outfit >= 0 && s.outfit < phoenix.character.Preview.outfits.len()) {
+			local entry = phoenix.character.Preview.outfits[s.outfit]
+			instance = (s.gender == 0) ? entry.female : entry.male
+		}
+	} else {
+		return null
+	}
+	if (instance == null || instance == "") return null
+	local vis = ""
+	try { vis = phoenix.item.lookupVisual(instance) } catch (e) { vis = "" }
+	if (vis == null) vis = ""
+	return { instance = instance, visual = vis }
 }
 
 phoenix.character.Preview.broadcastAll <- function() {
@@ -431,7 +480,9 @@ phoenix.character.Preview.start <- function() {
 	phoenix.character.Preview.clearSelectionEquipment()
 	phoenix.character.Preview.clearCreatorEquipment()
 	phoenix.character.Preview.state = phoenix.character.Preview.defaultState()
+	phoenix.character.Preview.syncAnchorFromConfig()
 	phoenix.character.Preview.active = true
+	phoenix.character.Preview.mode = "create"
 	phoenix.character.Preview.cameraAngle = 0.0
 	phoenix.character.Preview.cameraDistance = 300.0
 	phoenix.character.Preview.cameraPitch = 50.0
@@ -454,6 +505,7 @@ phoenix.character.Preview.start <- function() {
 phoenix.character.Preview.stop <- function() {
 	if (!phoenix.character.Preview.active) return
 	phoenix.character.Preview.active = false
+	phoenix.character.Preview.mode = ""
 	if (phoenix.character.Preview.currentEquippedWeapon != "") {
 		try { unequipItem(heroId, phoenix.character.Preview.currentEquippedWeapon) } catch (e) {}
 		try { removeItem(heroId, phoenix.character.Preview.currentEquippedWeapon, 1) } catch (e) {}
@@ -558,6 +610,20 @@ phoenix.character.Preview.onRender <- function() {
 	try { setPlayerPosition(heroId, phoenix.character.Preview.anchorX, phoenix.character.Preview.anchorY, phoenix.character.Preview.anchorZ) } catch (e) {}
 	phoenix.character.Preview.applyAngle()
 
+	// Loop the run animation only in the creator (so the walking-style overlay is visible)
+	// — on the character SELECT screen we want the picked hero to stand still.
+	if (phoenix.character.Preview.mode == "create") {
+		try {
+			local current = getPlayerAni(heroId)
+			if (current != "S_WALKL") playAni(heroId, "S_WALKL")
+		} catch (eAni) {}
+	} else {
+		try {
+			local cur2 = getPlayerAni(heroId)
+			if (cur2 == "S_WALKL") stopAni(heroId, "S_WALKL")
+		} catch (eAni2) {}
+	}
+
 	local px = phoenix.character.Preview.anchorX
 	local py = phoenix.character.Preview.anchorY
 	local pz = phoenix.character.Preview.anchorZ
@@ -620,6 +686,8 @@ phoenix.character.Preview.applyForRecord <- function(record) {
 phoenix.character.Preview.startSelect <- function() {
 	if (phoenix.character.Preview.active) return
 	phoenix.character.Preview.active = true
+	phoenix.character.Preview.mode = "select"
+	phoenix.character.Preview.syncAnchorFromConfig()
 	phoenix.character.Preview.cameraAngle = 0.0
 	phoenix.character.Preview.cameraDistance = 300.0
 	phoenix.character.Preview.cameraPitch = 50.0
@@ -633,6 +701,7 @@ phoenix.character.Preview.startSelect <- function() {
 phoenix.character.Preview.stopSelect <- function() {
 	if (!phoenix.character.Preview.active) return
 	phoenix.character.Preview.active = false
+	phoenix.character.Preview.mode = ""
 	phoenix.character.Preview.clearSelectionEquipment()
 	phoenix.character.Preview.selectionPreviewActive = false
 	phoenix.character.Preview.requestWorldRestore()

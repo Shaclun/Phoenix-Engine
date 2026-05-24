@@ -90,4 +90,6 @@ class phoenix.player.Message.LobbyConfig extends phoenix.net.Message {
 	</ type = phoenix.net.type.String /> lobbyCameras = ""
 	</ type = phoenix.net.type.String /> characterDefaultSpawn = ""
 	</ type = phoenix.net.type.String /> characterScenarios = ""
+	</ type = phoenix.net.type.String /> characterCreateCamera = ""
+	</ type = phoenix.net.type.String /> characterSelectCamera = ""
 }
