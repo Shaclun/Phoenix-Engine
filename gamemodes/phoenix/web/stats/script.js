@@ -224,7 +224,7 @@
 		const killed = entry.killed | 0;
 		const first = formatDate(entry.firstKilledAt);
 		const last = formatDate(entry.lastKilledAt);
-		const cfg = bestiaryRenderConfig[String(instance).toUpperCase()] || { rotX: 1.57, rotY: -1.57, rotZ: 0, scaleValue: 0.9, lightIntensity: 2.2 };
+		const cfg = bestiaryRenderConfig[String(instance).toUpperCase()] || { rotX: 0.158, rotY: -0.853, rotZ: 0, scaleValue: 1.5, lightIntensity: 2.3 };
 		return '<article class="bestiary-card">' +
 			'<div class="bestiary-card__visual">' +
 				(renderable

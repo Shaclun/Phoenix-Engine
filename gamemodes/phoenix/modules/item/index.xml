@@ -18,6 +18,7 @@
 	<script src="server/structure.nut" type="server" />
 	<script src="server/upgrader.nut"  type="server" />
 	<script src="server/handlers.nut"  type="server" />
+	<script src="server/render.nut"    type="server" />
 
 	<!-- Client-side: local cache + UI route bindings -->
 	<script src="client/model.nut"     type="client" />

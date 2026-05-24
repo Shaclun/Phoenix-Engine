@@ -56,3 +56,7 @@ class phoenix.item.Message.DropRequest extends phoenix.net.Message {
 	</ type = phoenix.net.type.String /> name = ""
 	</ type = phoenix.net.type.String /> visual = ""
 }
+
+class phoenix.item.Message.RenderConfig extends phoenix.net.Message {
+	</ type = phoenix.net.type.String /> entries = ""
+}

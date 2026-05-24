@@ -98,6 +98,7 @@
         schemeCategoryFilter: 0,
         selectedScheme: null,
         itemRenderDebug: { rotX: RENDER_DEBUG_DEFAULTS.rotX, rotY: RENDER_DEBUG_DEFAULTS.rotY, rotZ: RENDER_DEBUG_DEFAULTS.rotZ, scale: RENDER_DEBUG_DEFAULTS.scale, light: RENDER_DEBUG_DEFAULTS.light },
+        itemRenderConfig: {},
         details: {},
         giveTarget: null,
         giveAmount: 1,
@@ -781,7 +782,7 @@
                 buildTabs();
                 if (tab.id === "log") send("log", { limit: 100 });
                 if (tab.id === "bans") send("bans");
-                if (tab.id === "items") { send("players"); send("schemes"); }
+                if (tab.id === "items") { send("players"); send("schemes"); send("itemRenderList"); }
                 if (tab.id === "inv") send("players");
                 if (tab.id === "npc") { send("npcCatalog"); send("npcList"); send("npcPresetList"); send("herbCatalog"); send("herbList"); }
                 if (tab.id === "herbs") { send("herbCatalog"); send("herbList"); }
@@ -1112,7 +1113,7 @@
             });
         }
         var selected = state.bestiarySelected || "";
-        var selCfg = state.bestiaryRender[selected.toUpperCase()] || { rotX: 1.57, rotY: -1.57, rotZ: 0, scaleValue: 0.9, lightIntensity: 2.2 };
+        var selCfg = state.bestiaryRender[selected.toUpperCase()] || { rotX: 0.158, rotY: -0.853, rotZ: 0, scaleValue: 1.5, lightIntensity: 2.3 };
         var html = '<div class="adm-section"><h3>Render bestiariusza · ' + monsters.length + ' potworów</h3>';
         html += '<p class="adm-muted">Ustaw kąty i skalę dla każdego potwora osobno. Konfiguracja jest rozsyłana do wszystkich klientów po zapisie.</p>';
         html += renderBestiaryDebug(selected, selCfg);
@@ -1452,15 +1453,37 @@
     }
 
     function renderDebugSlider(key, label, min, max, step) {
-        var value = state.itemRenderDebug[key];
+        var d = currentItemRenderEdit();
+        var value = d[key];
         return '<label class="adm-render-debug__control"><span>' + escapeHtml(label) + '</span><input type="range" min="' + min + '" max="' + max + '" step="' + step + '" data-render-debug="' + key + '" value="' + value + '"><b>' + (+value).toFixed(key === "scale" || key === "light" ? 2 : 3) + '</b></label>';
+    }
+
+    function defaultItemRender() {
+        return { rotX: RENDER_DEBUG_DEFAULTS.rotX, rotY: RENDER_DEBUG_DEFAULTS.rotY, rotZ: RENDER_DEBUG_DEFAULTS.rotZ, scale: RENDER_DEBUG_DEFAULTS.scale, light: RENDER_DEBUG_DEFAULTS.light };
+    }
+
+    function itemRenderForInstance(instance) {
+        if (!instance) return null;
+        var key = String(instance).toUpperCase();
+        return state.itemRenderConfig[key] || null;
+    }
+
+    function currentItemRenderEdit() {
+        var inst = state.selectedScheme ? String(state.selectedScheme).toUpperCase() : "";
+        if (!inst) return state.itemRenderDebug;
+        if (!state.itemRenderConfig[inst]) {
+            state.itemRenderConfig[inst] = { rotX: state.itemRenderDebug.rotX, rotY: state.itemRenderDebug.rotY, rotZ: state.itemRenderDebug.rotZ, scale: state.itemRenderDebug.scale, light: state.itemRenderDebug.light };
+        }
+        return state.itemRenderConfig[inst];
     }
 
     function renderItemRenderDebug() {
         var sch = state.selectedScheme ? state.schemesById[state.selectedScheme] : null;
         var title = sch ? itemName(sch) : "Wybierz item z grida";
         var visual = sch && sch.visual ? sch.visual : "";
-        var d = state.itemRenderDebug;
+        var d = currentItemRenderEdit();
+        var instUp = sch ? String(sch.instance).toUpperCase() : "";
+        var hasOverride = instUp && state.itemRenderConfig[instUp] && state.itemRenderConfig[instUp].__saved === true;
         var html = '<div class="adm-render-debug">';
         html += '<div class="adm-render-debug__preview">';
         if (visual) {
@@ -1468,9 +1491,16 @@
         } else {
             html += '<div class="adm-render-debug__empty">Brak visuala</div>';
         }
-        html += '</div><div class="adm-render-debug__body"><h4>Render debug</h4><p><b>' + escapeHtml(title) + '</b>' + (sch ? ' <small>[' + escapeHtml(sch.instance) + ']</small>' : '') + '</p>';
+        html += '</div><div class="adm-render-debug__body"><h4>Render debug' + (sch ? ' · per-item' : ' · globalny') + '</h4><p><b>' + escapeHtml(title) + '</b>' + (sch ? ' <small>[' + escapeHtml(sch.instance) + ']</small>' : '') + (hasOverride ? ' <span class="adm-pill" style="background:#3a5234;color:#d8e6c7;padding:1px 6px;border-radius:6px;font-size:10px">zapisano</span>' : '') + '</p>';
         html += '<div class="adm-render-debug__grid">' + renderDebugSlider("rotX", "rot-x", -3.142, 3.142, 0.01) + renderDebugSlider("rotY", "rot-y", -3.142, 3.142, 0.01) + renderDebugSlider("rotZ", "rot-z", -3.142, 3.142, 0.01) + renderDebugSlider("scale", "scale", 0.2, 3, 0.05) + renderDebugSlider("light", "light", 0.2, 3, 0.05) + '</div>';
-        html += '<div class="adm-render-debug__values">rot-x=' + d.rotX.toFixed(3) + ' rot-y=' + d.rotY.toFixed(3) + ' rot-z=' + d.rotZ.toFixed(3) + ' scale=' + d.scale.toFixed(2) + ' light=' + d.light.toFixed(2) + '</div>';
+        html += '<div class="adm-render-debug__values">rot-x=' + (+d.rotX).toFixed(3) + ' rot-y=' + (+d.rotY).toFixed(3) + ' rot-z=' + (+d.rotZ).toFixed(3) + ' scale=' + (+d.scale).toFixed(2) + ' light=' + (+d.light).toFixed(2) + '</div>';
+        if (sch) {
+            html += '<div class="adm-toolbar">';
+            html += '<button class="adm-btn adm-btn--primary" data-action="item-render-save">Zapisz dla ' + escapeHtml(sch.instance) + '</button>';
+            html += '<button class="adm-btn" data-action="item-render-reset">Reset domyślny</button>';
+            if (hasOverride) html += '<button class="adm-btn adm-btn--danger" data-action="item-render-delete">Usuń override z DB</button>';
+            html += '</div>';
+        }
         html += '</div></div>';
         return html;
     }
@@ -1497,8 +1527,24 @@
             var fallback = cell.querySelector(".adm-itemcell__fallback");
             var el = document.createElement("gothic-render");
             el.setAttribute("width", "96"); el.setAttribute("height", "96");
-            el.setAttribute("rot-x", String(state.itemRenderDebug.rotX)); el.setAttribute("rot-y", String(state.itemRenderDebug.rotY)); el.setAttribute("rot-z", String(state.itemRenderDebug.rotZ));
-            el.setAttribute("scale", String(state.itemRenderDebug.scale)); el.setAttribute("light-intensity", String(state.itemRenderDebug.light));
+            var inst = cell.dataset.instance ? String(cell.dataset.instance).toUpperCase() : "";
+            var isBestiaryCell = cell.dataset.action === "bestiary-pick";
+            var rotX, rotY, rotZ, sc, lt;
+            if (isBestiaryCell && inst && state.bestiaryRender[inst]) {
+                var b = state.bestiaryRender[inst];
+                rotX = b.rotX; rotY = b.rotY; rotZ = b.rotZ; sc = b.scaleValue; lt = b.lightIntensity;
+            } else if (isBestiaryCell) {
+                rotX = 0.158; rotY = -0.853; rotZ = 0; sc = 1.5; lt = 2.3;
+            } else {
+                var rcfg = inst && state.itemRenderConfig[inst] ? state.itemRenderConfig[inst] : null;
+                rotX = rcfg ? rcfg.rotX : state.itemRenderDebug.rotX;
+                rotY = rcfg ? rcfg.rotY : state.itemRenderDebug.rotY;
+                rotZ = rcfg ? rcfg.rotZ : state.itemRenderDebug.rotZ;
+                sc = rcfg ? rcfg.scale : state.itemRenderDebug.scale;
+                lt = rcfg ? rcfg.light : state.itemRenderDebug.light;
+            }
+            el.setAttribute("rot-x", String(rotX)); el.setAttribute("rot-y", String(rotY)); el.setAttribute("rot-z", String(rotZ));
+            el.setAttribute("scale", String(sc)); el.setAttribute("light-intensity", String(lt));
             el.style.position = "absolute"; el.style.inset = "0"; el.style.zIndex = "1";
             cell.appendChild(el);
             cell.dataset.meshLoaded = "0";
@@ -2728,8 +2774,16 @@
         });
         body.querySelectorAll("[data-render-debug]").forEach(function (el) {
             el.addEventListener("input", function () {
-                state.itemRenderDebug[el.dataset.renderDebug] = parseFloat(el.value) || 0;
-                saveRenderDebug();
+                var key = el.dataset.renderDebug;
+                var val = parseFloat(el.value) || 0;
+                if (state.selectedScheme) {
+                    var k = String(state.selectedScheme).toUpperCase();
+                    if (!state.itemRenderConfig[k]) state.itemRenderConfig[k] = { rotX: state.itemRenderDebug.rotX, rotY: state.itemRenderDebug.rotY, rotZ: state.itemRenderDebug.rotZ, scale: state.itemRenderDebug.scale, light: state.itemRenderDebug.light };
+                    state.itemRenderConfig[k][key] = val;
+                } else {
+                    state.itemRenderDebug[key] = val;
+                    saveRenderDebug();
+                }
                 render();
             });
         });
@@ -2737,7 +2791,7 @@
             el.addEventListener("input", function () {
                 if (!state.bestiarySelected) return;
                 var key = state.bestiarySelected.toUpperCase();
-                if (!state.bestiaryRender[key]) state.bestiaryRender[key] = { rotX: 1.57, rotY: -1.57, rotZ: 0, scaleValue: 0.9, lightIntensity: 2.2 };
+                if (!state.bestiaryRender[key]) state.bestiaryRender[key] = { rotX: 0.158, rotY: -0.853, rotZ: 0, scaleValue: 1.5, lightIntensity: 2.3 };
                 state.bestiaryRender[key][el.dataset.bestiaryDebug] = parseFloat(el.value) || 0;
                 render();
             });
@@ -3012,10 +3066,15 @@
         var rd = body.querySelector(".adm-render-debug .adm-render-debug__preview");
         if (rd) {
             var existing = rd.querySelector("gothic-render");
-            var d = state.itemRenderDebug;
+            var d = currentItemRenderEdit();
             if (visual) {
                 if (existing) {
                     if (existing.getAttribute("visual") !== visual) existing.setAttribute("visual", visual);
+                    existing.setAttribute("rot-x", d.rotX);
+                    existing.setAttribute("rot-y", d.rotY);
+                    existing.setAttribute("rot-z", d.rotZ);
+                    existing.setAttribute("scale", d.scale);
+                    existing.setAttribute("light-intensity", d.light);
                 } else {
                     rd.innerHTML = '<gothic-render width="180" height="180" rot-x="' + d.rotX + '" rot-y="' + d.rotY + '" rot-z="' + d.rotZ + '" scale="' + d.scale + '" light-intensity="' + d.light + '" visual="' + escapeHtml(visual) + '"></gothic-render>';
                 }
@@ -3026,7 +3085,38 @@
         var title = sch ? itemName(sch) : "Wybierz item z grida";
         var titleEl = body.querySelector(".adm-render-debug .adm-render-debug__body p");
         if (titleEl) {
-            titleEl.innerHTML = '<b>' + escapeHtml(title) + '</b>' + (sch ? ' <small>[' + escapeHtml(sch.instance) + ']</small>' : '');
+            var instUp2 = sch ? String(sch.instance).toUpperCase() : "";
+            var hasOverride2 = instUp2 && state.itemRenderConfig[instUp2] && state.itemRenderConfig[instUp2].__saved === true;
+            titleEl.innerHTML = '<b>' + escapeHtml(title) + '</b>' + (sch ? ' <small>[' + escapeHtml(sch.instance) + ']</small>' : '') + (hasOverride2 ? ' <span class="adm-pill" style="background:#3a5234;color:#d8e6c7;padding:1px 6px;border-radius:6px;font-size:10px">zapisano</span>' : '');
+        }
+        var dEdit = currentItemRenderEdit();
+        body.querySelectorAll(".adm-render-debug input[data-render-debug]").forEach(function (inp) {
+            var k = inp.dataset.renderDebug;
+            if (dEdit[k] != null) {
+                inp.value = dEdit[k];
+                var lbl = inp.parentElement && inp.parentElement.querySelector("b");
+                if (lbl) lbl.textContent = (+dEdit[k]).toFixed(k === "scale" || k === "light" ? 2 : 3);
+            }
+        });
+        var valuesEl = body.querySelector(".adm-render-debug .adm-render-debug__values");
+        if (valuesEl) {
+            valuesEl.textContent = "rot-x=" + (+dEdit.rotX).toFixed(3) + " rot-y=" + (+dEdit.rotY).toFixed(3) + " rot-z=" + (+dEdit.rotZ).toFixed(3) + " scale=" + (+dEdit.scale).toFixed(2) + " light=" + (+dEdit.light).toFixed(2);
+        }
+        var toolbar = body.querySelector(".adm-render-debug .adm-render-debug__body .adm-toolbar");
+        if (toolbar) {
+            if (sch) {
+                var instUpT = String(sch.instance).toUpperCase();
+                var hasOverrideT = state.itemRenderConfig[instUpT] && state.itemRenderConfig[instUpT].__saved === true;
+                var html = '<button class="adm-btn adm-btn--primary" data-action="item-render-save">Zapisz dla ' + escapeHtml(sch.instance) + '</button>';
+                html += '<button class="adm-btn" data-action="item-render-reset">Reset domyślny</button>';
+                if (hasOverrideT) html += '<button class="adm-btn adm-btn--danger" data-action="item-render-delete">Usuń override z DB</button>';
+                toolbar.innerHTML = html;
+            } else {
+                toolbar.innerHTML = "";
+            }
+        } else if (sch) {
+            renderPending = true;
+            render();
         }
     }
 
@@ -3146,7 +3236,7 @@
         if (a === "bestiary-save") {
             var inst = state.bestiarySelected;
             if (!inst) return setStatus("Wybierz potwora", "error");
-            var cfg = state.bestiaryRender[inst.toUpperCase()] || { rotX: 1.57, rotY: -1.57, rotZ: 0, scaleValue: 0.9, lightIntensity: 2.2 };
+            var cfg = state.bestiaryRender[inst.toUpperCase()] || { rotX: 0.158, rotY: -0.853, rotZ: 0, scaleValue: 1.5, lightIntensity: 2.3 };
             send("bestiaryRenderSave", {
                 instance: inst,
                 rotX: cfg.rotX, rotY: cfg.rotY, rotZ: cfg.rotZ,
@@ -3157,8 +3247,33 @@
         }
         if (a === "bestiary-reset") {
             if (!state.bestiarySelected) return;
-            state.bestiaryRender[state.bestiarySelected.toUpperCase()] = { rotX: 1.57, rotY: -1.57, rotZ: 0, scaleValue: 0.9, lightIntensity: 2.2 };
+            state.bestiaryRender[state.bestiarySelected.toUpperCase()] = { rotX: 0.158, rotY: -0.853, rotZ: 0, scaleValue: 1.5, lightIntensity: 2.3 };
             return render();
+        }
+        if (a === "item-render-save") {
+            if (!state.selectedScheme) return setStatus("Wybierz item z grida", "error");
+            var k = String(state.selectedScheme).toUpperCase();
+            var cfg = state.itemRenderConfig[k] || { rotX: state.itemRenderDebug.rotX, rotY: state.itemRenderDebug.rotY, rotZ: state.itemRenderDebug.rotZ, scale: state.itemRenderDebug.scale, light: state.itemRenderDebug.light };
+            send("itemRenderSave", {
+                instance: k,
+                rotX: cfg.rotX, rotY: cfg.rotY, rotZ: cfg.rotZ,
+                scaleValue: cfg.scale,
+                lightIntensity: cfg.light
+            });
+            return setStatus("Zapisuję " + k, "");
+        }
+        if (a === "item-render-reset") {
+            if (!state.selectedScheme) return;
+            var rk = String(state.selectedScheme).toUpperCase();
+            state.itemRenderConfig[rk] = { rotX: RENDER_DEBUG_DEFAULTS.rotX, rotY: RENDER_DEBUG_DEFAULTS.rotY, rotZ: RENDER_DEBUG_DEFAULTS.rotZ, scale: RENDER_DEBUG_DEFAULTS.scale, light: RENDER_DEBUG_DEFAULTS.light };
+            return render();
+        }
+        if (a === "item-render-delete") {
+            if (!state.selectedScheme) return;
+            var dk = String(state.selectedScheme).toUpperCase();
+            send("itemRenderDelete", { instance: dk });
+            delete state.itemRenderConfig[dk];
+            return setStatus("Usuwam override " + dk, "");
         }
         if (a === "npc-view") {
             var prevView = state.npcView;
@@ -3968,14 +4083,51 @@
                     rotX: +e.rotX || 0,
                     rotY: +e.rotY || 0,
                     rotZ: +e.rotZ || 0,
-                    scaleValue: +e.scaleValue || 0.9,
-                    lightIntensity: +e.lightIntensity || 2.2
+                    scaleValue: +e.scaleValue || 1.5,
+                    lightIntensity: +e.lightIntensity || 2.3
                 };
             });
             return render();
         }
         if (p.action === "bestiaryRenderSave" && p.success) {
             return setStatus("Zapisano render bestiariusza", "ok");
+        }
+        if (p.action === "itemRenderList" && p.success) {
+            state.itemRenderConfig = {};
+            (pl.entries || []).forEach(function (e) {
+                if (!e || !e.instance) return;
+                state.itemRenderConfig[String(e.instance).toUpperCase()] = {
+                    rotX: +e.rotX || 0,
+                    rotY: +e.rotY || 0,
+                    rotZ: +e.rotZ || 0,
+                    scale: +e.scaleValue || 1.4,
+                    light: +e.lightIntensity || 2.85,
+                    __saved: true
+                };
+            });
+            return render();
+        }
+        if (p.action === "itemRenderSave" && p.success) {
+            if (pl && pl.instance) {
+                var sk = String(pl.instance).toUpperCase();
+                state.itemRenderConfig[sk] = {
+                    rotX: +pl.rotX || 0,
+                    rotY: +pl.rotY || 0,
+                    rotZ: +pl.rotZ || 0,
+                    scale: +pl.scaleValue || 1.4,
+                    light: +pl.lightIntensity || 2.85,
+                    __saved: true
+                };
+                render();
+            }
+            return setStatus("Zapisano render itemu", "ok");
+        }
+        if (p.action === "itemRenderDelete" && p.success) {
+            if (pl && pl.instance) {
+                delete state.itemRenderConfig[String(pl.instance).toUpperCase()];
+                render();
+            }
+            return setStatus("Usunięto override", "ok");
         }
         if (p.action === "npcList" && p.success)    { state.npcSpawns  = pl.spawns  || []; return render(); }
         if (p.action === "npcPresetList" && p.success) { state.npcPresets = pl.presets || []; return render(); }

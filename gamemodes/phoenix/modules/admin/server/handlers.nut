@@ -1196,11 +1196,11 @@ phoenix.admin.Server <- {
 	function _ensureBestiaryRenderTable(callback) {
 		local sql = "CREATE TABLE IF NOT EXISTS `phoenix_bestiary_render` (" +
 			"`instance` VARCHAR(64) NOT NULL," +
-			"`rotX` FLOAT NOT NULL DEFAULT 1.57," +
-			"`rotY` FLOAT NOT NULL DEFAULT -1.57," +
+			"`rotX` FLOAT NOT NULL DEFAULT 0.158," +
+			"`rotY` FLOAT NOT NULL DEFAULT -0.853," +
 			"`rotZ` FLOAT NOT NULL DEFAULT 0," +
-			"`scaleValue` FLOAT NOT NULL DEFAULT 0.9," +
-			"`lightIntensity` FLOAT NOT NULL DEFAULT 2.2," +
+			"`scaleValue` FLOAT NOT NULL DEFAULT 1.5," +
+			"`lightIntensity` FLOAT NOT NULL DEFAULT 2.3," +
 			"`updatedAt` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP," +
 			"PRIMARY KEY (`instance`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
 		try { ORM.engine.executeAsync(sql, function (_) { if (callback != null) callback() }) }
@@ -1226,11 +1226,11 @@ phoenix.admin.Server <- {
 			if (!(key in payload)) return fallback
 			try { return payload[key].tofloat() } catch (e) { return fallback }
 		}
-		local rotX = cleanFloat("rotX", 1.57)
-		local rotY = cleanFloat("rotY", -1.57)
+		local rotX = cleanFloat("rotX", 0.158)
+		local rotY = cleanFloat("rotY", -0.853)
 		local rotZ = cleanFloat("rotZ", 0.0)
-		local scaleValue = cleanFloat("scaleValue", 0.9)
-		local lightIntensity = cleanFloat("lightIntensity", 2.2)
+		local scaleValue = cleanFloat("scaleValue", 1.5)
+		local lightIntensity = cleanFloat("lightIntensity", 2.3)
 		local instEsc = instance
 		try { instEsc = ORM.engine.escape(instance) } catch (e) {}
 		phoenix.admin.Server._ensureBestiaryRenderTable(function () {
@@ -1239,6 +1239,72 @@ phoenix.admin.Server <- {
 				phoenix.admin.Server.audit(playerId, "bestiaryRenderSave", "bestiary", null, instance, "rotX=" + rotX + " rotY=" + rotY + " scale=" + scaleValue)
 				try { phoenix.npc.BestiaryRender.broadcast() } catch (eB) {}
 				phoenix.admin.Server.reply(playerId, "bestiaryRenderSave", true, "", { instance = instance, rotX = rotX, rotY = rotY, rotZ = rotZ, scaleValue = scaleValue, lightIntensity = lightIntensity })
+			})
+		})
+	}
+
+	function _ensureItemRenderTable(callback) {
+		local sql = "CREATE TABLE IF NOT EXISTS `phoenix_item_render` (" +
+			"`instance` VARCHAR(64) NOT NULL," +
+			"`rotX` FLOAT NOT NULL DEFAULT 1.584," +
+			"`rotY` FLOAT NOT NULL DEFAULT -1.662," +
+			"`rotZ` FLOAT NOT NULL DEFAULT -0.488," +
+			"`scaleValue` FLOAT NOT NULL DEFAULT 1.4," +
+			"`lightIntensity` FLOAT NOT NULL DEFAULT 2.85," +
+			"`updatedAt` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP," +
+			"PRIMARY KEY (`instance`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+		try { ORM.engine.executeAsync(sql, function (_) { if (callback != null) callback() }) }
+		catch (e) { if (callback != null) callback() }
+	}
+
+	function dispatchItemRenderList(playerId, _payload) {
+		phoenix.admin.Server._ensureItemRenderTable(function () {
+			ORM.engine.executeAsync("SELECT `instance`,`rotX`,`rotY`,`rotZ`,`scaleValue`,`lightIntensity` FROM `phoenix_item_render`", function (rows) {
+				local out = []
+				if (rows != null) foreach (r in rows) out.append(r)
+				phoenix.admin.Server.reply(playerId, "itemRenderList", true, "", { entries = out })
+			})
+		})
+	}
+
+	function dispatchItemRenderSave(playerId, payload) {
+		if (payload == null || !("instance" in payload)) {
+			phoenix.admin.Server.reply(playerId, "itemRenderSave", false, "badPayload", null); return
+		}
+		local instance = payload.instance.tostring().toupper()
+		local function cleanFloat(key, fallback) {
+			if (!(key in payload)) return fallback
+			try { return payload[key].tofloat() } catch (e) { return fallback }
+		}
+		local rotX = cleanFloat("rotX", 1.584)
+		local rotY = cleanFloat("rotY", -1.662)
+		local rotZ = cleanFloat("rotZ", -0.488)
+		local scaleValue = cleanFloat("scaleValue", 1.4)
+		local lightIntensity = cleanFloat("lightIntensity", 2.85)
+		local instEsc = instance
+		try { instEsc = ORM.engine.escape(instance) } catch (e) {}
+		phoenix.admin.Server._ensureItemRenderTable(function () {
+			local sql = "INSERT INTO `phoenix_item_render` (`instance`,`rotX`,`rotY`,`rotZ`,`scaleValue`,`lightIntensity`) VALUES ('" + instEsc + "'," + rotX + "," + rotY + "," + rotZ + "," + scaleValue + "," + lightIntensity + ") ON DUPLICATE KEY UPDATE `rotX`=VALUES(`rotX`),`rotY`=VALUES(`rotY`),`rotZ`=VALUES(`rotZ`),`scaleValue`=VALUES(`scaleValue`),`lightIntensity`=VALUES(`lightIntensity`)"
+			ORM.engine.executeAsync(sql, function (_) {
+				phoenix.admin.Server.audit(playerId, "itemRenderSave", "item", null, instance, "rotX=" + rotX + " rotY=" + rotY + " scale=" + scaleValue)
+				try { phoenix.item.RenderConfig.broadcast() } catch (eB) {}
+				phoenix.admin.Server.reply(playerId, "itemRenderSave", true, "", { instance = instance, rotX = rotX, rotY = rotY, rotZ = rotZ, scaleValue = scaleValue, lightIntensity = lightIntensity })
+			})
+		})
+	}
+
+	function dispatchItemRenderDelete(playerId, payload) {
+		if (payload == null || !("instance" in payload)) {
+			phoenix.admin.Server.reply(playerId, "itemRenderDelete", false, "badPayload", null); return
+		}
+		local instance = payload.instance.tostring().toupper()
+		local instEsc = instance
+		try { instEsc = ORM.engine.escape(instance) } catch (e) {}
+		phoenix.admin.Server._ensureItemRenderTable(function () {
+			ORM.engine.executeAsync("DELETE FROM `phoenix_item_render` WHERE `instance` = '" + instEsc + "'", function (_) {
+				phoenix.admin.Server.audit(playerId, "itemRenderDelete", "item", null, instance, "")
+				try { phoenix.item.RenderConfig.broadcast() } catch (eB) {}
+				phoenix.admin.Server.reply(playerId, "itemRenderDelete", true, "", { instance = instance })
 			})
 		})
 	}
@@ -1317,7 +1383,10 @@ phoenix.admin.Server.dispatchers = {
 	spawnConfigSave = phoenix.admin.Server.dispatchSpawnConfigSave,
 	spawnConfigCapture = phoenix.admin.Server.dispatchSpawnConfigCapture,
 	bestiaryRenderList = phoenix.admin.Server.dispatchBestiaryRenderList,
-	bestiaryRenderSave = phoenix.admin.Server.dispatchBestiaryRenderSave
+	bestiaryRenderSave = phoenix.admin.Server.dispatchBestiaryRenderSave,
+	itemRenderList = phoenix.admin.Server.dispatchItemRenderList,
+	itemRenderSave = phoenix.admin.Server.dispatchItemRenderSave,
+	itemRenderDelete = phoenix.admin.Server.dispatchItemRenderDelete
 }
 
 phoenix.admin.Message.Request.bind(phoenix.admin.Server.onRequest)

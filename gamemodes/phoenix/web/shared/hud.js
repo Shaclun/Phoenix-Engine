@@ -2,6 +2,19 @@
 	const HOTBAR_SLOTS = 8;
 	const STORAGE_KEY = "phoenix:hotbar:v1";
 	const HOTBAR_RENDER = { rotX: "1.584", rotY: "-1.662", rotZ: "-0.488", scale: "1.35", light: "2.6" };
+	const hotbarRenderConfig = {};
+	function hotbarRenderFor(instance) {
+		if (!instance) return HOTBAR_RENDER;
+		const cfg = hotbarRenderConfig[String(instance).toUpperCase()];
+		if (!cfg) return HOTBAR_RENDER;
+		return {
+			rotX: String(cfg.rotX),
+			rotY: String(cfg.rotY),
+			rotZ: String(cfg.rotZ),
+			scale: String(cfg.scaleValue),
+			light: String(cfg.lightIntensity)
+		};
+	}
 
 	const state = {
 		visible: false,
@@ -391,11 +404,12 @@
 		const el = document.createElement("gothic-render");
 		el.setAttribute("width", "96");
 		el.setAttribute("height", "96");
-		el.setAttribute("rot-x", HOTBAR_RENDER.rotX);
-		el.setAttribute("rot-y", HOTBAR_RENDER.rotY);
-		el.setAttribute("rot-z", HOTBAR_RENDER.rotZ);
-		el.setAttribute("scale", HOTBAR_RENDER.scale);
-		el.setAttribute("light-intensity", HOTBAR_RENDER.light);
+		const hcfg = hotbarRenderFor(entry.instance || (item && item.instance));
+		el.setAttribute("rot-x", hcfg.rotX);
+		el.setAttribute("rot-y", hcfg.rotY);
+		el.setAttribute("rot-z", hcfg.rotZ);
+		el.setAttribute("scale", hcfg.scale);
+		el.setAttribute("light-intensity", hcfg.light);
 		el.setAttribute("visual", visual);
 		icon.appendChild(el);
 	}
@@ -617,6 +631,15 @@
 		PhoenixBridge.on("phoenix:inventory:update", onInventoryUpdate);
 		PhoenixBridge.on("phoenix:item:inventory", onInventoryUpdate);
 		PhoenixBridge.on("phoenix:hotbar:snapshot", applyHotbarSnapshot);
+		PhoenixBridge.on("phoenix:item:renderConfig", function (payload) {
+			if (!payload) return;
+			Object.keys(hotbarRenderConfig).forEach(function (k) { delete hotbarRenderConfig[k]; });
+			(payload.entries || []).forEach(function (e) {
+				if (!e || !e.instance) return;
+				hotbarRenderConfig[String(e.instance).toUpperCase()] = e;
+			});
+			try { renderHotbar(); } catch (e2) {}
+		});
 		PhoenixBridge.on("phoenix:hud:hide", hide);
 		PhoenixBridge.on("phoenix:hud:show", show);
 		PhoenixBridge.on("phoenix:worldclock:update", applyWorldClock);

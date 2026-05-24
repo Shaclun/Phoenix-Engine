@@ -29,6 +29,19 @@
 		{ key: "inv.quality.5", color: "#ffb84d" }
 	];
 	const ITEM_RENDER = { rotX: "1.584", rotY: "-1.662", rotZ: "-0.488", scale: "1.40", light: "2.85" };
+	const itemRenderConfig = {};
+	function renderForInstance(instance) {
+		if (!instance) return ITEM_RENDER;
+		const cfg = itemRenderConfig[String(instance).toUpperCase()];
+		if (!cfg) return ITEM_RENDER;
+		return {
+			rotX: String(cfg.rotX),
+			rotY: String(cfg.rotY),
+			rotZ: String(cfg.rotZ),
+			scale: String(cfg.scaleValue),
+			light: String(cfg.lightIntensity)
+		};
+	}
 	function qualityLabel(q) { return t((QUALITY[q] || QUALITY[2]).key); }
 
 	function slotLabel(slotName) { return t("inv.slot." + slotName, slotName); }
@@ -223,7 +236,8 @@
 		}
 
 		renderFallback(target, item);
-		meshQueue.schedule(target, visual, opts);
+		const merged = Object.assign({}, opts || {}, { instance: item ? item.instance : "" });
+		meshQueue.schedule(target, visual, merged);
 	}
 
 	const MESH_QUEUE_CONCURRENCY = 1;
@@ -263,11 +277,12 @@
 			const h = (task.opts && task.opts.height) || 192;
 			el.setAttribute("width",  String(w));
 			el.setAttribute("height", String(h));
-			el.setAttribute("rot-x", ITEM_RENDER.rotX);
-			el.setAttribute("rot-y", ITEM_RENDER.rotY);
-			el.setAttribute("rot-z", ITEM_RENDER.rotZ);
-			el.setAttribute("scale", ITEM_RENDER.scale);
-			el.setAttribute("light-intensity", ITEM_RENDER.light);
+			const rcfg = renderForInstance(task.opts && task.opts.instance);
+			el.setAttribute("rot-x", rcfg.rotX);
+			el.setAttribute("rot-y", rcfg.rotY);
+			el.setAttribute("rot-z", rcfg.rotZ);
+			el.setAttribute("scale", rcfg.scale);
+			el.setAttribute("light-intensity", rcfg.light);
 			el.style.position = "absolute";
 			el.style.inset = "0";
 			el.style.zIndex = "1";
@@ -772,6 +787,17 @@
 			cell.style.background = payload.success ? "rgba(80, 200, 100, 0.3)" : "rgba(220, 80, 80, 0.35)";
 			setTimeout(function () { cell.style.background = ""; }, 600);
 		}
+	});
+
+	PhoenixBridge.on("phoenix:item:renderConfig", function (payload) {
+		if (!payload) return;
+		Object.keys(itemRenderConfig).forEach(function (k) { delete itemRenderConfig[k]; });
+		const entries = Array.isArray(payload.entries) ? payload.entries : [];
+		entries.forEach(function (e) {
+			if (!e || !e.instance) return;
+			itemRenderConfig[String(e.instance).toUpperCase()] = e;
+		});
+		try { rerender(); } catch (e2) {}
 	});
 
 	PhoenixBridge.on("phoenix:stats:snapshot", function (payload) {

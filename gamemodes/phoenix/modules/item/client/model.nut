@@ -179,8 +179,32 @@ phoenix.item.Model.requestDrop <- function(itemId, amount, name = "", visual = "
 	} catch (e) {}
 }
 
+phoenix.item.Model.onRenderConfig <- function(message) {
+	local raw = ""
+	try { raw = message.entries.tostring() } catch (e) { raw = "" }
+	local entries = []
+	if (raw != null && raw != "") {
+		local lines = split(raw, "\n")
+		foreach (line in lines) {
+			if (line == "") continue
+			local parts = split(line, "|")
+			if (parts.len() < 6) continue
+			entries.append({
+				instance = parts[0],
+				rotX = parts[1].tofloat(),
+				rotY = parts[2].tofloat(),
+				rotZ = parts[3].tofloat(),
+				scaleValue = parts[4].tofloat(),
+				lightIntensity = parts[5].tofloat()
+			})
+		}
+	}
+	phoenix.item.Model._emit("phoenix:item:renderConfig", { entries = entries })
+}
+
 phoenix.item.Message.Inventory.bind(phoenix.item.Model.onInventory)
 phoenix.item.Message.Add.bind(phoenix.item.Model.onAdd)
 phoenix.item.Message.Remove.bind(phoenix.item.Model.onRemove)
 phoenix.item.Message.Update.bind(phoenix.item.Model.onUpdate)
 phoenix.item.Message.UpgradeResult.bind(phoenix.item.Model.onUpgradeResult)
+phoenix.item.Message.RenderConfig.bind(phoenix.item.Model.onRenderConfig)
