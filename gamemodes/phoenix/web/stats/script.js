@@ -6,6 +6,7 @@
 	const weaponOrder = ["oneHand", "twoHand", "bow", "crossbow"];
 	let lastSnapshot = null;
 	let lastBestiary = null;
+	let bestiaryRenderConfig = {};
 	let activeTab = "stats";
 
 	function t(key, fallback) {
@@ -223,10 +224,11 @@
 		const killed = entry.killed | 0;
 		const first = formatDate(entry.firstKilledAt);
 		const last = formatDate(entry.lastKilledAt);
+		const cfg = bestiaryRenderConfig[String(instance).toUpperCase()] || { rotX: 1.57, rotY: -1.57, rotZ: 0, scaleValue: 0.9, lightIntensity: 2.2 };
 		return '<article class="bestiary-card">' +
 			'<div class="bestiary-card__visual">' +
 				(renderable
-					? '<gothic-render width="160" height="200" rot-x="1.57" rot-y="-1.57" rot-z="0" scale="0.9" light-intensity="2.2" visual="' + renderable + '"></gothic-render>'
+					? '<gothic-render width="160" height="200" rot-x="' + cfg.rotX + '" rot-y="' + cfg.rotY + '" rot-z="' + cfg.rotZ + '" scale="' + cfg.scaleValue + '" light-intensity="' + cfg.lightIntensity + '" visual="' + renderable + '"></gothic-render>'
 					: '<div class="bestiary-card__visual-fallback">' + (label ? label.charAt(0) : "?") + '</div>') +
 			'</div>' +
 			'<div class="bestiary-card__body">' +
@@ -280,6 +282,15 @@
 	PhoenixBridge.on("phoenix:stats:snapshot", applySnapshot);
 	PhoenixBridge.on("phoenix:stats:result", applyResult);
 	PhoenixBridge.on("phoenix:bestiary:snapshot", applyBestiary);
+	PhoenixBridge.on("phoenix:bestiary:renderConfig", function (payload) {
+		const entries = payload && Array.isArray(payload.entries) ? payload.entries : [];
+		bestiaryRenderConfig = {};
+		entries.forEach(function (e) {
+			if (!e || !e.instance) return;
+			bestiaryRenderConfig[String(e.instance).toUpperCase()] = e;
+		});
+		if (lastBestiary && activeTab === "bestiary") applyBestiary(lastBestiary);
+	});
 
 	const page = {
 		onShow: function () {

@@ -33,7 +33,33 @@ phoenix.npc.BestiaryClient <- {
 			phoenix.web.Manager.emit("phoenix:bestiary:snapshot", { entries = entries })
 		} catch (e) {}
 	}
+
+	function onRenderConfig(message) {
+		local raw = ""
+		try { raw = message.entries.tostring() } catch (e) { raw = "" }
+		local entries = []
+		if (raw != null && raw != "") {
+			local lines = split(raw, "\n")
+			foreach (line in lines) {
+				if (line == "") continue
+				local parts = split(line, "|")
+				if (parts.len() < 6) continue
+				entries.append({
+					instance = parts[0],
+					rotX = parts[1].tofloat(),
+					rotY = parts[2].tofloat(),
+					rotZ = parts[3].tofloat(),
+					scaleValue = parts[4].tofloat(),
+					lightIntensity = parts[5].tofloat()
+				})
+			}
+		}
+		try {
+			phoenix.web.Manager.emit("phoenix:bestiary:renderConfig", { entries = entries })
+		} catch (e) {}
+	}
 }
 
 phoenix.npc.Message.BestiarySnapshot.bind(phoenix.npc.BestiaryClient.onSnapshot)
+phoenix.npc.Message.BestiaryRenderConfig.bind(phoenix.npc.BestiaryClient.onRenderConfig)
 phoenix.npc.BestiaryClient.init()

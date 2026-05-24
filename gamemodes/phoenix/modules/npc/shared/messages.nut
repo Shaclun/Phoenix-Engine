@@ -86,3 +86,8 @@ class phoenix.npc.Message.BestiaryRequest extends phoenix.net.Message {
 class phoenix.npc.Message.BestiarySnapshot extends phoenix.net.Message {
 	</ type = phoenix.net.type.String /> entries = ""
 }
+
+
+class phoenix.npc.Message.BestiaryRenderConfig extends phoenix.net.Message {
+	</ type = phoenix.net.type.String /> entries = ""
+}

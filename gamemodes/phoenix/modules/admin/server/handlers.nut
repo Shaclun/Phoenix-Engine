@@ -1193,6 +1193,56 @@ phoenix.admin.Server <- {
 		}
 	}
 
+	function _ensureBestiaryRenderTable(callback) {
+		local sql = "CREATE TABLE IF NOT EXISTS `phoenix_bestiary_render` (" +
+			"`instance` VARCHAR(64) NOT NULL," +
+			"`rotX` FLOAT NOT NULL DEFAULT 1.57," +
+			"`rotY` FLOAT NOT NULL DEFAULT -1.57," +
+			"`rotZ` FLOAT NOT NULL DEFAULT 0," +
+			"`scaleValue` FLOAT NOT NULL DEFAULT 0.9," +
+			"`lightIntensity` FLOAT NOT NULL DEFAULT 2.2," +
+			"`updatedAt` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP," +
+			"PRIMARY KEY (`instance`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+		try { ORM.engine.executeAsync(sql, function (_) { if (callback != null) callback() }) }
+		catch (e) { if (callback != null) callback() }
+	}
+
+	function dispatchBestiaryRenderList(playerId, _payload) {
+		phoenix.admin.Server._ensureBestiaryRenderTable(function () {
+			ORM.engine.executeAsync("SELECT `instance`,`rotX`,`rotY`,`rotZ`,`scaleValue`,`lightIntensity` FROM `phoenix_bestiary_render`", function (rows) {
+				local out = []
+				if (rows != null) foreach (r in rows) out.append(r)
+				phoenix.admin.Server.reply(playerId, "bestiaryRenderList", true, "", { entries = out })
+			})
+		})
+	}
+
+	function dispatchBestiaryRenderSave(playerId, payload) {
+		if (payload == null || !("instance" in payload)) {
+			phoenix.admin.Server.reply(playerId, "bestiaryRenderSave", false, "badPayload", null); return
+		}
+		local instance = payload.instance.tostring().toupper()
+		local function cleanFloat(key, fallback) {
+			if (!(key in payload)) return fallback
+			try { return payload[key].tofloat() } catch (e) { return fallback }
+		}
+		local rotX = cleanFloat("rotX", 1.57)
+		local rotY = cleanFloat("rotY", -1.57)
+		local rotZ = cleanFloat("rotZ", 0.0)
+		local scaleValue = cleanFloat("scaleValue", 0.9)
+		local lightIntensity = cleanFloat("lightIntensity", 2.2)
+		local instEsc = instance
+		try { instEsc = ORM.engine.escape(instance) } catch (e) {}
+		phoenix.admin.Server._ensureBestiaryRenderTable(function () {
+			local sql = "INSERT INTO `phoenix_bestiary_render` (`instance`,`rotX`,`rotY`,`rotZ`,`scaleValue`,`lightIntensity`) VALUES ('" + instEsc + "'," + rotX + "," + rotY + "," + rotZ + "," + scaleValue + "," + lightIntensity + ") ON DUPLICATE KEY UPDATE `rotX`=VALUES(`rotX`),`rotY`=VALUES(`rotY`),`rotZ`=VALUES(`rotZ`),`scaleValue`=VALUES(`scaleValue`),`lightIntensity`=VALUES(`lightIntensity`)"
+			ORM.engine.executeAsync(sql, function (_) {
+				phoenix.admin.Server.audit(playerId, "bestiaryRenderSave", "bestiary", null, instance, "rotX=" + rotX + " rotY=" + rotY + " scale=" + scaleValue)
+				try { phoenix.npc.BestiaryRender.broadcast() } catch (eB) {}
+				phoenix.admin.Server.reply(playerId, "bestiaryRenderSave", true, "", { instance = instance, rotX = rotX, rotY = rotY, rotZ = rotZ, scaleValue = scaleValue, lightIntensity = lightIntensity })
+			})
+		})
+	}
+
 	dispatchers = null
 
 	function onRequest(playerId, message) {
@@ -1265,7 +1315,9 @@ phoenix.admin.Server.dispatchers = {
 	dbRowDelete = phoenix.admin.Server.dispatchDbRowDelete,
 	spawnConfigGet = phoenix.admin.Server.dispatchSpawnConfigGet,
 	spawnConfigSave = phoenix.admin.Server.dispatchSpawnConfigSave,
-	spawnConfigCapture = phoenix.admin.Server.dispatchSpawnConfigCapture
+	spawnConfigCapture = phoenix.admin.Server.dispatchSpawnConfigCapture,
+	bestiaryRenderList = phoenix.admin.Server.dispatchBestiaryRenderList,
+	bestiaryRenderSave = phoenix.admin.Server.dispatchBestiaryRenderSave
 }
 
 phoenix.admin.Message.Request.bind(phoenix.admin.Server.onRequest)

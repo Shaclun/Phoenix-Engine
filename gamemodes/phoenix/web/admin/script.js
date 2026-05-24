@@ -23,6 +23,7 @@
         { id: "houses",  labelKey: "admin.tab.houses",  fallback: "Domy" },
         { id: "craft",   labelKey: "admin.tab.craft",   fallback: "Crafty" },
         { id: "spawns",  labelKey: "admin.tab.spawns",  fallback: "Lobby/Spawny" },
+        { id: "bestiary", labelKey: "admin.tab.bestiary", fallback: "Bestiariusz" },
         { id: "db",      labelKey: "admin.tab.db",      fallback: "Baza danych" },
         { id: "debug",   labelKey: "admin.tab.debug",   fallback: "Debug" },
         { id: "log",     labelKey: "admin.tab.log",     fallback: "Historia" }
@@ -154,7 +155,10 @@
         dbEditing: null,
         spawnConfig: { lobbyCameras: [], characterDefaultSpawn: null, characterScenarios: [] },
         spawnConfigLoaded: false,
-        spawnGhost: { active: false, mode: "spawn", x: 0, y: 0, z: 0, angle: 0, camPitch: 0, camRoll: 0, world: "", target: null }
+        spawnGhost: { active: false, mode: "spawn", x: 0, y: 0, z: 0, angle: 0, camPitch: 0, camRoll: 0, world: "", target: null },
+        bestiaryRender: {},
+        bestiaryFilter: "",
+        bestiarySelected: ""
     };
 
     function defaultHumanCreator() {
@@ -785,6 +789,7 @@
                 if (tab.id === "houses") send("houseList");
                 if (tab.id === "craft") { send("craftingList"); send("schemes"); requestVobCatalog(); send("vobList"); }
                 if (tab.id === "spawns") send("spawnConfigGet");
+                if (tab.id === "bestiary") { send("npcCatalog"); send("bestiaryRenderList"); }
                 if (tab.id === "db") send("dbTables");
                 render();
             });
@@ -811,6 +816,7 @@
         else if (activeTab === "houses") html = renderHouses();
         else if (activeTab === "craft") html = renderCraft();
         else if (activeTab === "spawns") html = renderSpawnConfig();
+        else if (activeTab === "bestiary") html = renderBestiaryRender();
         else if (activeTab === "db") html = renderDatabase();
         else if (activeTab === "debug") html = renderDebug();
         else if (activeTab === "log") html = renderLog();
@@ -821,7 +827,7 @@
         }
         body.innerHTML = html;
         bindHandlers();
-        if (activeTab === "items" || activeTab === "npc" || activeTab === "vobs" || activeTab === "craft") populateItemMeshes();
+        if (activeTab === "items" || activeTab === "npc" || activeTab === "vobs" || activeTab === "craft" || activeTab === "bestiary") populateItemMeshes();
     }
 
     function renderPlayers() {
@@ -1090,6 +1096,71 @@
         html += '</div>';
         html += '</div>';
         return html;
+    }
+
+    function renderBestiaryRender() {
+        var catalog = state.npcCatalog || [];
+        var monsters = catalog.filter(function (e) {
+            var inst = String(e.instance || "").toUpperCase();
+            return window.PhoenixNpcVisuals && PhoenixNpcVisuals.get(inst);
+        });
+        var filter = (state.bestiaryFilter || "").toLowerCase();
+        if (filter) {
+            monsters = monsters.filter(function (e) {
+                return String(e.instance || "").toLowerCase().indexOf(filter) >= 0
+                    || String(e.label || "").toLowerCase().indexOf(filter) >= 0;
+            });
+        }
+        var selected = state.bestiarySelected || "";
+        var selCfg = state.bestiaryRender[selected.toUpperCase()] || { rotX: 1.57, rotY: -1.57, rotZ: 0, scaleValue: 0.9, lightIntensity: 2.2 };
+        var html = '<div class="adm-section"><h3>Render bestiariusza · ' + monsters.length + ' potworów</h3>';
+        html += '<p class="adm-muted">Ustaw kąty i skalę dla każdego potwora osobno. Konfiguracja jest rozsyłana do wszystkich klientów po zapisie.</p>';
+        html += renderBestiaryDebug(selected, selCfg);
+        html += '<div class="adm-toolbar">';
+        html += '<input type="text" class="adm-search" data-role="bestiary-filter" value="' + escapeHtml(state.bestiaryFilter) + '" placeholder="Filtruj potwory">';
+        html += '</div>';
+        html += '<div class="adm-itemgrid" data-role="itemgrid">';
+        monsters.forEach(function (m) {
+            var inst = String(m.instance || "").toUpperCase();
+            var visual = PhoenixNpcVisuals.get(inst) || "";
+            var label = m.label || inst;
+            var sel = selected === inst ? " is-selected" : "";
+            html += '<div class="adm-itemcell' + sel + '" data-action="bestiary-pick" data-instance="' + escapeHtml(inst) + '" data-visual="' + escapeHtml(visual) + '" data-preview-visual="' + escapeHtml(visual) + '" title="' + escapeHtml(label) + '">';
+            html += '<div class="adm-itemcell__fallback"><span class="adm-itemcell__label">' + escapeHtml(label.slice(0, 18)) + '</span></div>';
+            html += '<span class="adm-itemcell__cat">' + escapeHtml(inst) + '</span>';
+            html += '</div>';
+        });
+        html += '</div></div>';
+        return html;
+    }
+
+    function renderBestiaryDebug(instance, cfg) {
+        var visual = instance && window.PhoenixNpcVisuals ? PhoenixNpcVisuals.get(instance) : "";
+        var html = '<div class="adm-render-debug">';
+        html += '<div class="adm-render-debug__preview">';
+        if (visual) {
+            html += '<gothic-render width="180" height="220" rot-x="' + cfg.rotX + '" rot-y="' + cfg.rotY + '" rot-z="' + cfg.rotZ + '" scale="' + cfg.scaleValue + '" light-intensity="' + cfg.lightIntensity + '" visual="' + escapeHtml(visual) + '"></gothic-render>';
+        } else {
+            html += '<div class="adm-render-debug__empty">Wybierz potwora z gridu</div>';
+        }
+        html += '</div><div class="adm-render-debug__body"><h4>Bestiary render</h4>';
+        html += '<p><b>' + escapeHtml(instance || "—") + '</b>' + (visual ? ' <small>[' + escapeHtml(visual) + ']</small>' : '') + '</p>';
+        html += '<div class="adm-render-debug__grid">';
+        html += renderBestiarySlider("rotX", "rot-x", -3.142, 3.142, 0.01, cfg.rotX);
+        html += renderBestiarySlider("rotY", "rot-y", -3.142, 3.142, 0.01, cfg.rotY);
+        html += renderBestiarySlider("rotZ", "rot-z", -3.142, 3.142, 0.01, cfg.rotZ);
+        html += renderBestiarySlider("scaleValue", "scale", 0.2, 3, 0.05, cfg.scaleValue);
+        html += renderBestiarySlider("lightIntensity", "light", 0.2, 5, 0.05, cfg.lightIntensity);
+        html += '</div>';
+        html += '<div class="adm-render-debug__values">rot-x=' + (+cfg.rotX).toFixed(3) + ' rot-y=' + (+cfg.rotY).toFixed(3) + ' rot-z=' + (+cfg.rotZ).toFixed(3) + ' scale=' + (+cfg.scaleValue).toFixed(2) + ' light=' + (+cfg.lightIntensity).toFixed(2) + '</div>';
+        html += '<div class="adm-toolbar"><button class="adm-btn adm-btn--primary" data-action="bestiary-save"' + (instance ? '' : ' disabled') + '>Zapisz dla ' + escapeHtml(instance || "—") + '</button>';
+        html += '<button class="adm-btn" data-action="bestiary-reset">Reset domyślny</button></div>';
+        html += '</div></div>';
+        return html;
+    }
+
+    function renderBestiarySlider(key, label, min, max, step, value) {
+        return '<label class="adm-render-debug__control"><span>' + escapeHtml(label) + '</span><input type="range" min="' + min + '" max="' + max + '" step="' + step + '" data-bestiary-debug="' + key + '" value="' + value + '"><b>' + (+value).toFixed(key === "scaleValue" || key === "lightIntensity" ? 2 : 3) + '</b></label>';
     }
 
     function renderDatabase() {
@@ -2662,6 +2733,22 @@
                 render();
             });
         });
+        body.querySelectorAll("[data-bestiary-debug]").forEach(function (el) {
+            el.addEventListener("input", function () {
+                if (!state.bestiarySelected) return;
+                var key = state.bestiarySelected.toUpperCase();
+                if (!state.bestiaryRender[key]) state.bestiaryRender[key] = { rotX: 1.57, rotY: -1.57, rotZ: 0, scaleValue: 0.9, lightIntensity: 2.2 };
+                state.bestiaryRender[key][el.dataset.bestiaryDebug] = parseFloat(el.value) || 0;
+                render();
+            });
+        });
+        var bf = body.querySelector("[data-role='bestiary-filter']");
+        if (bf) bf.addEventListener("input", debounce(function () {
+            state.bestiaryFilter = bf.value;
+            render();
+            var f = body.querySelector("[data-role='bestiary-filter']");
+            if (f) { f.focus(); f.setSelectionRange(f.value.length, f.value.length); }
+        }, 120));
         body.querySelectorAll("[data-ef]").forEach(function (el) {
             var ev = el.tagName === "SELECT" ? "change" : "input";
             el.addEventListener(ev, function () {
@@ -3052,6 +3139,27 @@
         }
         if (a === "custom-reset") { state.custom = defaultCustom(); return render(); }
         if (a === "refresh-npc") { send("npcCatalog"); send("npcList"); send("npcPresetList"); return; }
+        if (a === "bestiary-pick") {
+            state.bestiarySelected = String(el.dataset.instance || "").toUpperCase();
+            return render();
+        }
+        if (a === "bestiary-save") {
+            var inst = state.bestiarySelected;
+            if (!inst) return setStatus("Wybierz potwora", "error");
+            var cfg = state.bestiaryRender[inst.toUpperCase()] || { rotX: 1.57, rotY: -1.57, rotZ: 0, scaleValue: 0.9, lightIntensity: 2.2 };
+            send("bestiaryRenderSave", {
+                instance: inst,
+                rotX: cfg.rotX, rotY: cfg.rotY, rotZ: cfg.rotZ,
+                scaleValue: cfg.scaleValue,
+                lightIntensity: cfg.lightIntensity
+            });
+            return setStatus("Zapisuję " + inst, "");
+        }
+        if (a === "bestiary-reset") {
+            if (!state.bestiarySelected) return;
+            state.bestiaryRender[state.bestiarySelected.toUpperCase()] = { rotX: 1.57, rotY: -1.57, rotZ: 0, scaleValue: 0.9, lightIntensity: 2.2 };
+            return render();
+        }
         if (a === "npc-view") {
             var prevView = state.npcView;
             state.npcView = el.dataset.view || "presets";
@@ -3852,6 +3960,23 @@
         if (p.action === "inv"  && p.success) { state.inv  = pl; return render(); }
         if (p.action === "npcCatalog" && p.success) { state.npcCatalog = pl.entries || []; return render(); }
         if (p.action === "npcCatalogSave" && p.success) { send("npcCatalog"); return setStatus("Zapisano bazowy schemat NPC", "ok"); }
+        if (p.action === "bestiaryRenderList" && p.success) {
+            state.bestiaryRender = {};
+            (pl.entries || []).forEach(function (e) {
+                if (!e || !e.instance) return;
+                state.bestiaryRender[String(e.instance).toUpperCase()] = {
+                    rotX: +e.rotX || 0,
+                    rotY: +e.rotY || 0,
+                    rotZ: +e.rotZ || 0,
+                    scaleValue: +e.scaleValue || 0.9,
+                    lightIntensity: +e.lightIntensity || 2.2
+                };
+            });
+            return render();
+        }
+        if (p.action === "bestiaryRenderSave" && p.success) {
+            return setStatus("Zapisano render bestiariusza", "ok");
+        }
         if (p.action === "npcList" && p.success)    { state.npcSpawns  = pl.spawns  || []; return render(); }
         if (p.action === "npcPresetList" && p.success) { state.npcPresets = pl.presets || []; return render(); }
         if (p.action === "herbCatalog" && p.success) { state.herbCatalog = pl.entries || []; return render(); }

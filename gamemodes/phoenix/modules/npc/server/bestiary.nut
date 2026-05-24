@@ -208,3 +208,82 @@ phoenix.npc.Bestiary._escape <- function (s) {
 
 phoenix.npc.Message.BestiaryRequest.bind(phoenix.npc.Bestiary.onRequest)
 
+
+
+phoenix.npc.BestiaryRender <- {
+	cache = ""
+	loaded = false
+
+	function ensureTable(callback) {
+		local sql = "CREATE TABLE IF NOT EXISTS `phoenix_bestiary_render` (" +
+			"`instance` VARCHAR(64) NOT NULL," +
+			"`rotX` FLOAT NOT NULL DEFAULT 1.57," +
+			"`rotY` FLOAT NOT NULL DEFAULT -1.57," +
+			"`rotZ` FLOAT NOT NULL DEFAULT 0," +
+			"`scaleValue` FLOAT NOT NULL DEFAULT 0.9," +
+			"`lightIntensity` FLOAT NOT NULL DEFAULT 2.2," +
+			"`updatedAt` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP," +
+			"PRIMARY KEY (`instance`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+		try { ORM.engine.executeAsync(sql, function (_) { if (callback != null) callback() }) }
+		catch (e) { if (callback != null) callback() }
+	}
+
+	function load(callback) {
+		phoenix.npc.BestiaryRender.ensureTable(function () {
+			ORM.engine.executeAsync("SELECT `instance`,`rotX`,`rotY`,`rotZ`,`scaleValue`,`lightIntensity` FROM `phoenix_bestiary_render`", function (rows) {
+				local payload = ""
+				if (rows != null) {
+					local first = true
+					foreach (r in rows) {
+						local line = r.instance + "|" + r.rotX + "|" + r.rotY + "|" + r.rotZ + "|" + r.scaleValue + "|" + r.lightIntensity
+						if (first) { payload = line; first = false }
+						else payload = payload + "\n" + line
+					}
+				}
+				phoenix.npc.BestiaryRender.cache = payload
+				phoenix.npc.BestiaryRender.loaded = true
+				if (callback != null) callback()
+			})
+		})
+	}
+
+	function buildMessage() {
+		local m = phoenix.npc.Message.BestiaryRenderConfig()
+		m.entries = phoenix.npc.BestiaryRender.cache
+		return m
+	}
+
+	function pushTo(playerId) {
+		try {
+			if (!phoenix.npc.BestiaryRender.loaded) {
+				phoenix.npc.BestiaryRender.load(function () {
+					try { phoenix.npc.BestiaryRender.buildMessage().serialize().send(playerId, RELIABLE_ORDERED) } catch (e) {}
+				})
+				return
+			}
+			phoenix.npc.BestiaryRender.buildMessage().serialize().send(playerId, RELIABLE_ORDERED)
+		} catch (e) {}
+	}
+
+	function broadcast() {
+		phoenix.npc.BestiaryRender.load(function () {
+			try {
+				local serialized = phoenix.npc.BestiaryRender.buildMessage().serialize()
+				local maxSlots = getMaxSlots()
+				for (local pid = 0; pid < maxSlots; pid += 1) {
+					try { if (isPlayerConnected(pid)) serialized.send(pid, RELIABLE_ORDERED) } catch (e) {}
+				}
+			} catch (e2) {}
+		})
+	}
+}
+
+addEventHandler("phoenix.database.OnReady", function () {
+	try { phoenix.npc.BestiaryRender.load(null) } catch (e) {}
+})
+
+addEventHandler("onPlayerJoin", function (playerId) {
+	setTimer(function () {
+		try { phoenix.npc.BestiaryRender.pushTo(playerId) } catch (e) {}
+	}, 600, 1)
+})
