@@ -1,6 +1,6 @@
 phoenix.character.Preview <- {
 	active = false
-	mode = ""        // "create" | "select" — controls whether we play the walk animation
+	mode = ""
 
 	cameraAngle = 0.0
 	cameraDistance = 300.0
@@ -20,9 +20,6 @@ phoenix.character.Preview <- {
 	anchorZ = -1848.33
 
 	function syncAnchorFromConfig() {
-		// Pull the admin-configured create/select position out of the LobbyConfig cache so the
-		// preview hero stands wherever the admin set the marker. Falls back to the hardcoded
-		// values above when nothing is configured (or while the client is still parsing them).
 		try {
 			if ("Lobby" in phoenix.player) {
 				local L = phoenix.player.Lobby
@@ -99,16 +96,14 @@ phoenix.character.Preview <- {
 	]
 
 	fatnessValues = [-1.0, 0.0, 1.0, 2.0]
-	// MDS overlays available in the standard Gothic 2 NoR / Eldoria asset pack.
-	// First entry is the default gait — no overlay applied.
 	walkingModes = [
-		"",                            // Standardowy
-		"HUMANS_TIRED.MDS",            // Zmęczony
-		"HUMANS_BABE.MDS",             // Kobiecy
-		"HUMANS_MILITIA.MDS",          // Wojskowy
-		"HUMANS_RELAXED.MDS",          // Wyluzowany
-		"HUMANS_ARROGANCE.MDS",        // Arogancki
-		"HUMANS_MAGE.MDS"              // Mag
+		"",
+		"HUMANS_TIRED.MDS",
+		"HUMANS_BABE.MDS",
+		"HUMANS_MILITIA.MDS",
+		"HUMANS_RELAXED.MDS",
+		"HUMANS_ARROGANCE.MDS",
+		"HUMANS_MAGE.MDS"
 	]
 
 	scenarios = [
@@ -226,7 +221,6 @@ phoenix.character.Preview.applyVisual <- function() {
 phoenix.character.Preview.applyAnimation <- function() {
 	local idx = phoenix.character.Preview.state.walking
 	local mode = phoenix.character.Preview.walkingModes[idx >= 0 && idx < phoenix.character.Preview.walkingModes.len() ? idx : 0]
-	// Strip every overlay that the cycle could have applied so we don't stack them.
 	foreach (entry in phoenix.character.Preview.walkingModes) {
 		if (entry == null || entry == "") continue
 		try { removePlayerOverlay(heroId, entry) } catch (e) {}
@@ -395,8 +389,6 @@ phoenix.character.Preview.notifyOption <- function(key) {
 		value = phoenix.character.Preview.labelOf(key)
 		i18n = true
 	}
-	// For equipment cycles, expose the underlying instance + .MRM visual so the web UI
-	// can render a real 3D mesh next to the option label.
 	local visual = phoenix.character.Preview.visualForOption(key)
 	if (visual != null) {
 		payload.instance <- visual.instance
@@ -610,8 +602,6 @@ phoenix.character.Preview.onRender <- function() {
 	try { setPlayerPosition(heroId, phoenix.character.Preview.anchorX, phoenix.character.Preview.anchorY, phoenix.character.Preview.anchorZ) } catch (e) {}
 	phoenix.character.Preview.applyAngle()
 
-	// Loop the run animation only in the creator (so the walking-style overlay is visible)
-	// — on the character SELECT screen we want the picked hero to stand still.
 	if (phoenix.character.Preview.mode == "create") {
 		try {
 			local current = getPlayerAni(heroId)

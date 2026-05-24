@@ -57,6 +57,7 @@ class phoenix.character.Message.Delete extends phoenix.net.Message {
 class phoenix.character.Message.AfterSelect extends phoenix.net.Message {
 	</ type = phoenix.net.type.UInt32 /> characterId = 0
 	</ type = phoenix.net.type.String /> name = ""
+	</ type = phoenix.net.type.UInt8 /> walking = 0
 }
 
 class phoenix.character.Message.PreviewRestore extends phoenix.net.Message {

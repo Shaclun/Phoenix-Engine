@@ -132,8 +132,6 @@ phoenix.admin.Server <- {
 				rows.append(entry)
 			}
 		} catch (e) {}
-		// BPacketAny encodes array length as UInt8 (max 255). With 437+ schemes
-		// the payload corrupts. Send in chunks of 200.
 		local total = rows.len()
 		local chunkSize = 200
 		local chunkCount = (total <= 0) ? 1 : (((total - 1) / chunkSize) + 1)
@@ -960,13 +958,7 @@ phoenix.admin.Server <- {
 		}
 	}
 
-	// ---------------------------------------------------------------------
-	// Database browser / editor — read-only by default for SELECT,
-	// insert/update/delete are restricted to phoenix_* tables and audited.
-	// ---------------------------------------------------------------------
-
 	function _dbSafeIdent(name) {
-		// Allow only [A-Za-z0-9_]; otherwise return null.
 		if (name == null) return null
 		local s = name.tostring()
 		if (s.len() == 0 || s.len() > 64) return null
@@ -981,7 +973,6 @@ phoenix.admin.Server <- {
 	function _dbIsManagedTable(table) {
 		if (table == null) return false
 		local s = table.tostring()
-		// Restrict mutations to the phoenix_ namespace so admins can't trash mysql.* etc.
 		if (s.len() < 8) return false
 		return s.slice(0, 8) == "phoenix_"
 	}
@@ -994,7 +985,6 @@ phoenix.admin.Server <- {
 		if (typeof v == "integer" || typeof v == "float" || typeof v == "bool") {
 			return v.tostring()
 		}
-		// Fallback — coerce to string and escape.
 		try { return "'" + ORM.engine.escape(v.tostring()) + "'" } catch (e) { return "'" + v.tostring() + "'" }
 	}
 
@@ -1138,11 +1128,6 @@ phoenix.admin.Server <- {
 		}
 	}
 
-	// ---------------------------------------------------------------------
-	// Spawn / lobby camera configuration — JSON config blobs persisted in
-	// phoenix_admin_config; consumed by client modules at boot.
-	// ---------------------------------------------------------------------
-
 	function _ensureSpawnConfigTable(callback) {
 		local sql = "CREATE TABLE IF NOT EXISTS `phoenix_admin_config` (" +
 			"`id` INT UNSIGNED NOT NULL AUTO_INCREMENT," +
@@ -1196,7 +1181,6 @@ phoenix.admin.Server <- {
 	}
 
 	function dispatchSpawnConfigCapture(playerId, payload) {
-		// Returns the admin's current position/angle/world so the UI can append it to the right config blob.
 		try {
 			local p = getPlayerPosition(playerId)
 			local a = getPlayerAngle(playerId)

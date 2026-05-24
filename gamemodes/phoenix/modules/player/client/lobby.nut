@@ -12,8 +12,6 @@ phoenix.player.Lobby <- {
 	selectSpot = null
 
 	function applyServerConfig(payload) {
-		// Server pushes a JSON blob with admin-tuned camera spots; if it parses,
-		// override the hardcoded defaults so admin changes take effect without code edits.
 		if (payload == null) return
 		local rawLobby = ("lobbyCameras" in payload) ? payload.lobbyCameras.tostring() : ""
 		if (rawLobby != null && rawLobby != "" && rawLobby != "[]") {
@@ -28,7 +26,6 @@ phoenix.player.Lobby <- {
 				}
 			} catch (e) {}
 		}
-		// Single-spot create / select cameras override the chosen lobby spot when admin enters those screens.
 		local rawCreate = ("characterCreateCamera" in payload) ? payload.characterCreateCamera.tostring() : ""
 		phoenix.player.Lobby.createSpot = phoenix.player.Lobby._parseSingleSpot(rawCreate)
 		local rawSelect = ("characterSelectCamera" in payload) ? payload.characterSelectCamera.tostring() : ""
@@ -43,13 +40,11 @@ phoenix.player.Lobby <- {
 		local rx = phoenix.player.Lobby._readNumber(raw, "rotX")
 		local ry = phoenix.player.Lobby._readNumber(raw, "rotY")
 		local rz = phoenix.player.Lobby._readNumber(raw, "rotZ")
-		// All-zero spot means "not configured", fall back to lobby cameras.
 		if (x == 0.0 && y == 0.0 && z == 0.0) return null
 		return { pos = { x = x, y = y, z = z }, rot = { x = rx, y = ry, z = rz } }
 	}
 
 	function applyCreateCamera() {
-		// Use the admin-configured create-screen camera if set; otherwise fall back to the lobby rotation.
 		if (phoenix.player.Lobby.createSpot != null) {
 			phoenix.player.Lobby.currentSpot = phoenix.player.Lobby.createSpot
 			phoenix.player.Lobby.applyLobbyCamera()
@@ -70,13 +65,10 @@ phoenix.player.Lobby <- {
 	}
 
 	function _parseSpots(raw) {
-		// Accept the shape [{x,y,z,rotX,rotY,rotZ}, ...]; falls back to null on shape mismatch.
 		local result = []
 		local trimmed = raw
 		try { trimmed = raw.tostring() } catch (e) { return null }
 		if (trimmed == null || trimmed == "") return null
-		// Naive JSON-like parser: rely on the admin tool to send well-formed payloads.
-		// Split on closing braces and parse each {key:value} pair.
 		local entries = []
 		local depth = 0
 		local start = -1
@@ -107,7 +99,6 @@ phoenix.player.Lobby <- {
 		local at = text.find(needle)
 		if (at == null) return 0.0
 		local after = text.slice(at + needle.len())
-		// Skip ': '
 		local n = ""
 		local started = false
 		for (local i = 0; i < after.len(); i += 1) {

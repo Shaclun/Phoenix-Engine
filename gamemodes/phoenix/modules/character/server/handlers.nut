@@ -137,7 +137,9 @@ phoenix.character.Handlers <- {
 				if (bans != null && bans.len() > 0) return
 				phoenix.character.Structure.setActive(playerId, record)
 				phoenix.character.Structure.markPlayed(record.id)
-				phoenix.character.Handlers.send(playerId, phoenix.character.Message.AfterSelect(record.id, record.name))
+				local afterSelect = phoenix.character.Message.AfterSelect(record.id, record.name)
+				try { afterSelect.walking = ("walking" in record && record.walking != null) ? record.walking : 0 } catch (eW) {}
+				phoenix.character.Handlers.send(playerId, afterSelect)
 				callEvent("phoenix.character.OnSelected", playerId, record.id)
 			})
 		})

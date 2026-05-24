@@ -53,6 +53,15 @@ phoenix.character.Model <- {
 	function onAfterSelect(message) {
 		phoenix.character.Model.activeId = message.characterId
 		phoenix.web.Manager.hide()
+		try {
+			local walkId = ("walking" in message) ? message.walking : 0
+			if (walkId > 0 && walkId < phoenix.character.Preview.walkingModes.len()) {
+				local mds = phoenix.character.Preview.walkingModes[walkId]
+				if (mds != null && mds != "") {
+					try { applyPlayerOverlay(heroId, mds) } catch (eOv) {}
+				}
+			}
+		} catch (eW) {}
 		callEvent("phoenix.character.OnSelected", message.characterId, message.name)
 	}
 }

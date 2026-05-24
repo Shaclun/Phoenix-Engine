@@ -87,8 +87,6 @@
 	let characters = [];
 	let selectedId = null;
 	let optionState = { gender: 0, weapon: 0, ranged: 0, outfit: 0 };
-	// Cache of the latest visuals advertised by the server for each equipment slot.
-	// Used by `itemPanelHtml` so the right-side detail panels can render the actual mesh.
 	let optionVisuals = { weapon: "", ranged: "", outfit: "" };
 	let optionInstances = { weapon: "", ranged: "", outfit: "" };
 	const MAX_SLOTS = 4;
@@ -456,7 +454,6 @@
 		if (payload.i18n) node.setAttribute("data-t", payload.value); else node.removeAttribute("data-t");
 		const match = String(payload.value || "").match(/\.(\d+)$/);
 		if (match) optionState[payload.key] = parseInt(match[1], 10) || 0;
-		// Cache the visual + instance for equipment slots so the right-side detail panel can render a 3D mesh.
 		if (payload.key === "weapon" || payload.key === "ranged" || payload.key === "outfit") {
 			optionVisuals[payload.key] = payload.visual || "";
 			optionInstances[payload.key] = payload.instance || "";

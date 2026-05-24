@@ -74,9 +74,6 @@ phoenix.player.Gate <- {
 	function lock(playerId) {
 		phoenix.player.Gate.pending[playerId] <- true
 		try { setPlayerVirtualWorld(playerId, phoenix.player.Gate.LOBBY_VIRTUAL_WORLD) } catch (e) {}
-		// Hide the player from everyone (and from NPC AI scans) while they're sitting in the lobby
-		// or character-select screen. Without this, monsters in the open world can still pathfind
-		// and attack the lobby silhouette, killing players who haven't even selected a hero.
 		try { setPlayerInvisible(playerId, true) } catch (e) {}
 		try { setPlayerPosition(playerId, phoenix.player.Gate.LOBBY_X, phoenix.player.Gate.LOBBY_Y, phoenix.player.Gate.LOBBY_Z) } catch (e) {}
 		try { setPlayerAngle(playerId, phoenix.player.Gate.LOBBY_ANGLE) } catch (e) {}
@@ -145,8 +142,6 @@ phoenix.player.Gate <- {
 	}
 
 	function _scenarioSpawn(record) {
-		// Prefer the admin-tuned default spawn if it has been saved.
-		// Falls back to the static scenario list shipped with the gamemode.
 		try {
 			if ("LobbyConfig" in phoenix.player) {
 				local raw = phoenix.player.LobbyConfig.cache.characterDefaultSpawn
@@ -159,8 +154,6 @@ phoenix.player.Gate <- {
 				}
 			}
 		} catch (e) {}
-		// Fall back to the character's own creation spot if it has one — safer than
-		// the legacy hardcoded scenarios which can spawn the player under the map.
 		if (record != null && "positionX" in record &&
 			(record.positionX != 0.0 || record.positionY != 0.0 || record.positionZ != 0.0)) {
 			return { x = record.positionX, y = record.positionY, z = record.positionZ, angle = record.angle }
@@ -172,8 +165,6 @@ phoenix.player.Gate <- {
 	}
 
 	function _readJsonNumber(text, key) {
-		// Naive single-key extractor for the JSON blobs persisted in phoenix_admin_config.
-		// Caller is responsible for passing well-formed admin-supplied payloads.
 		if (text == null) return 0.0
 		local needle = "\"" + key + "\""
 		local at = text.find(needle)
@@ -322,7 +313,6 @@ phoenix.player.Gate <- {
 		if (mana > manaMax) mana = manaMax
 
 		try { setPlayerVirtualWorld(playerId, 0) } catch (e) {}
-		// Player has picked a character — make them visible to the world again.
 		try { setPlayerInvisible(playerId, false) } catch (e) {}
 		try { setPlayerInstance(playerId, "PC_HERO") } catch (e) {}
 		try { setPlayerVisual(playerId, body, bodyTex, head, faceTex) } catch (e) {}

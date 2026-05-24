@@ -256,7 +256,6 @@ phoenix.npc.Spawn <- {
 				try { giveItem(npcId, "ITRW_BOLT", 1000) } catch (e) {}
 			}
 		}
-		// G2O may be case-sensitive — try lowercase variant too
 		foreach (key in ["armor", "weapon", "melee", "ranged", "shield", "helmet"]) {
 			local inst = phoenix.npc.Spawn._metadataValue(row.metadata, key)
 			if (inst == "") continue
@@ -265,8 +264,6 @@ phoenix.npc.Spawn <- {
 	}
 
 	function _autoStats(row) {
-		// Auto-adjust NPC strength/dexterity so they can always wield their weapon.
-		// Only raises stats, never lowers them — if admin set higher, keep higher.
 		local weapon = ("weapon" in row) ? row.weapon : ""
 		if (weapon == null || weapon == "") return
 		try {
@@ -439,9 +436,7 @@ phoenix.npc.Spawn <- {
 			try { serverWorld = getServerWorld() } catch (e) {}
 			try { setPlayerRespawnTime(npcId, (row.respawnSec > 0 ? row.respawnSec : 60) * 1000) } catch (e) {}
 			try { setPlayerInstance(npcId, row.instance.toupper()) } catch (e) { try { setPlayerInstance(npcId, row.instance) } catch (e2) {} }
-			// Auto-adjust strength/dexterity to meet weapon requirements
 			phoenix.npc.Spawn._autoStats(row)
-			// Level → auto HP/Mana (10 HP per level, 5 mana per level, min 100)
 			local levelVal = row.level > 0 ? row.level : 1
 			local hpVal = row.hp > 0 ? row.hp : (100 + (levelVal - 1) * 10)
 			local manaVal = 50 + (levelVal - 1) * 5
@@ -895,7 +890,6 @@ addEventHandler("onPlayerDamage", function (victimId, killerId, desc) {
 		if (getPlayerHealth(victimId) <= 0) {
 			phoenix.npc.Spawn.onNpcKilled(victimId, killerId)
 		}
-		// If an NPC killed a player via ranged attack, mark killedPlayer for loot AI
 		if (entry == null && killerId != null && killerId >= 0) {
 			local attackerEntry = phoenix.npc.Spawn._liveByNpcId(killerId)
 			if (attackerEntry != null) {

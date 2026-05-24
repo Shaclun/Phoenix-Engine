@@ -1,5 +1,4 @@
 
-
 body.phoenix-body--cinematic {
 	background: transparent !important;
 }
@@ -718,8 +717,6 @@ body.phoenix-body--cinematic {
 	transform: scale(1.08);
 }
 
-
-/* Inline 3D mesh next to equipment options in the create view. */
 .option-row__mesh { display: none; }
 .char-item-panel__model {
 	position: relative;

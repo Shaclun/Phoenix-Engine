@@ -202,7 +202,6 @@
         };
     }
 
-    // Maps an existing spawn row (from npcList) into humanCreator state so the same form can edit it.
     function hydrateHumanCreatorFromSpawn(sp) {
         var base = defaultHumanCreator();
         base.instance = sp.instance || base.instance;
@@ -234,7 +233,6 @@
         base.posZ = +sp.posZ || 0;
         base.angle = +sp.angle || 0;
         base.world = sp.world || "";
-        // Heuristic for gender: female bodies map to gender index 0 (in HUMAN_OPTIONS).
         var bm = String(base.bodyModel || "").toUpperCase();
         if (bm.indexOf("BABE") >= 0) { base.gender = 0; }
         else { base.gender = 1; }
@@ -559,7 +557,6 @@
             fatness: +h.fatness || 0,
             cameraMode: h.cameraMode || "orbital"
         };
-        // Equipment is only included when set, so clearing/cycling visuals doesn't strip the gear in preview.
         if (h.weapon) payload.weapon = h.weapon;
         if (h.armor)  payload.armor  = h.armor;
         if (h.ranged) payload.ranged = h.ranged;
@@ -890,14 +887,12 @@
         var html = '<div class="adm-section adm-section--spawns">';
         html += '<h3>Lobby i punkty startowe</h3>';
 
-        // ---- Active editor (when ghost is on) ----
         if (ghost && ghost.active) {
             html += renderSpawnGhostEditor();
         } else {
             html += '<p class="adm-muted">Kliknij ikonę 📍 obok wybranego punktu, żeby otworzyć edytor 3D ze znacznikiem w grze. Strzałka pokazuje kierunek, w którym patrzy kamera/postać.</p>';
         }
 
-        // ---- Lobby cameras (rotating background) ----
         html += '<div class="adm-section adm-section--inline">';
         html += '<div class="adm-db-header"><h4>Kamery tła lobby (' + (cfg.lobbyCameras || []).length + ')</h4>';
         html += '<div class="adm-db-actions">';
@@ -918,7 +913,6 @@
         }
         html += '</div>';
 
-        // ---- Character select camera (single static cam used during character selection) ----
         var selectCam = cfg.characterSelectCamera || { x: 0, y: 0, z: 0, rotX: 0, rotY: 0, rotZ: 0 };
         var selectEditing = ghost && ghost.active && ghost.target && ghost.target.kind === "select";
         html += '<div class="adm-section adm-section--inline' + (selectEditing ? " is-editing" : "") + '">';
@@ -936,7 +930,6 @@
         html += renderCameraGrid("selectcam", selectCam);
         html += '</div>';
 
-        // ---- Character create camera (single static cam used during creator) ----
         var createCam = cfg.characterCreateCamera || { x: 0, y: 0, z: 0, rotX: 0, rotY: 0, rotZ: 0 };
         var createEditing = ghost && ghost.active && ghost.target && ghost.target.kind === "create";
         html += '<div class="adm-section adm-section--inline' + (createEditing ? " is-editing" : "") + '">';
@@ -954,7 +947,6 @@
         html += renderCameraGrid("createcam", createCam);
         html += '</div>';
 
-        // ---- Character default spawn ----
         var def = cfg.characterDefaultSpawn || { world: "NEWWORLD.ZEN", x: 870.118, y: -96.2501, z: -1848.33, angle: 65.1225 };
         var defEditing = ghost && ghost.active && ghost.target && ghost.target.kind === "default";
         html += '<div class="adm-section adm-section--inline' + (defEditing ? " is-editing" : "") + '">';
@@ -976,7 +968,6 @@
         html += '<label>Kąt<input class="adm-input" type="number" step="0.1" data-spawn-def="angle" value="' + (+def.angle || 0) + '"></label>';
         html += '</div></div>';
 
-        // ---- Scenario spots ----
         var scenarios = cfg.characterScenarios || [];
         html += '<div class="adm-section adm-section--inline">';
         html += '<div class="adm-db-header"><h4>Alternatywne punkty startowe (' + scenarios.length + ')</h4>';
@@ -1078,7 +1069,6 @@
             html += '<label>Camera Roll<input class="adm-input" type="number" step="1" data-spawn-ghost="camRoll" value="' + (Math.round(ghost.camRoll * 10) / 10) + '"></label>';
         }
         html += '</div>';
-        // Quick nudge buttons.
         html += '<div class="adm-spawn-nudge">';
         html += '<div class="adm-spawn-nudge__row"><span>Pozycja:</span>';
         [["x-","-X"],["x+","+X"],["y+","+Y"],["y-","-Y"],["z-","-Z"],["z+","+Z"]].forEach(function (b) {
@@ -1111,7 +1101,6 @@
         html += '<h3>' + escapeHtml(t("admin.tab.db", "Baza danych")) + '</h3>';
         html += '<div class="adm-db-layout">';
 
-        // Table list
         html += '<aside class="adm-db-sidebar"><h4>Tabele (' + tables.length + ')</h4>';
         html += '<input class="adm-search" data-role="db-table-filter" value="' + escapeHtml(state.dbFilter || "") + '" placeholder="Filtruj tabele">';
         html += '<div class="adm-db-tables">';
@@ -1124,7 +1113,6 @@
         });
         html += '</div></aside>';
 
-        // Table editor
         html += '<div class="adm-db-main">';
         if (!active) {
             html += '<div class="adm-empty">Wybierz tabelę z listy po lewej.</div>';
@@ -1175,7 +1163,6 @@
             html += '</tbody></table>';
             html += '</div>';
 
-            // Pagination
             var pageSize = rowsView.limit || 100;
             var page = Math.floor((rowsView.offset || 0) / pageSize);
             var totalPages = Math.max(1, Math.ceil((rowsView.total || 0) / pageSize));
@@ -1192,9 +1179,9 @@
                 html += renderDbEditModal(schema.columns, rowsView.rows || []);
             }
         }
-        html += '</div>'; // adm-db-main
+        html += '</div>';
 
-        html += '</div></div>'; // layout, section
+        html += '</div></div>';
         return html;
     }
 
@@ -1240,7 +1227,6 @@
         html += '<div class="adm-modal__head"><h3>Nowy wiersz · <code>' + escapeHtml(draft.table || "") + '</code></h3></div>';
         html += '<div class="adm-modal__body"><div class="adm-grid adm-grid--db-edit">';
         columns.forEach(function (c) {
-            // Skip auto-increment primary keys.
             if (String(c.extra || "").toLowerCase().indexOf("auto_increment") >= 0) return;
             var v = draft.values[c.name] != null ? draft.values[c.name] : "";
             var typ = String(c.type || "").toLowerCase();
@@ -2618,7 +2604,6 @@
         return html;
     }
 
-
     function bindHandlers() {
         body.querySelectorAll("input, textarea, select").forEach(function (el) {
             el.addEventListener("focus", function () { send("adminInputFocus", {}); });
@@ -2662,7 +2647,6 @@
                 var key = el.dataset.spawnGhost;
                 var v = parseFloat(el.value) || 0;
                 state.spawnGhost[key] = v;
-                // Push the manual edit into the in-game ghost so the marker / camera follows.
                 send("adminSpawnGhostSync", {
                     x: state.spawnGhost.x, y: state.spawnGhost.y, z: state.spawnGhost.z,
                     angle: state.spawnGhost.angle,
@@ -3182,7 +3166,6 @@
             var equipment = { weapon: hc.weapon || "", armor: hc.armor || "", ranged: hc.ranged || "" };
             var metadataJson = JSON.stringify({ equipment: equipment, weapon: hc.weapon || "", armor: hc.armor || "", ranged: hc.ranged || "", expReward: +hc.baseExperience || 0, animation: hc.idleAnimation || "", merchantItems: hc.merchantItems || "" });
             if (state.npcEditingId > 0) {
-                // Update existing spawn in place, no new NPC.
                 var fields = {
                     name: hc.name || "",
                     instance: hc.instance,
@@ -3851,7 +3834,7 @@
             if (chunkIndex === 0) state._schemeBuf = [];
             if (!state._schemeBuf) state._schemeBuf = [];
             (pl.schemes || []).forEach(function (s) { state._schemeBuf.push(s); });
-            if (chunkIndex + 1 < chunkCount) return; // wait for more chunks
+            if (chunkIndex + 1 < chunkCount) return;
             state.schemes = state._schemeBuf;
             state._schemeBuf = null;
             state.schemesById = {};
@@ -3917,13 +3900,11 @@
         }
         if (p.action === "spawnConfigSave" && p.success) {
             setStatus("Config zapisany i rozesłany do graczy", "ok");
-            // Refresh from server to confirm what's in the DB now.
             send("spawnConfigGet");
             return;
         }
         if (p.action === "spawnConfigCapture" && p.success) {
             applySpawnCapture(pl);
-            // If the user clicked "+ New + 3D editor", open the ghost editor on the spot we just created.
             var post = state.spawnConfigPostCapture;
             state.spawnConfigPostCapture = null;
             if (post === "lobby") {
@@ -3946,7 +3927,6 @@
             return render(true);
         }
         if (p.action === "adminSpawnGhost" && p.success) {
-            // Live update from the in-game ghost while admin moves it around.
             if (state.spawnGhost && state.spawnGhost.active) {
                 state.spawnGhost.x = +pl.posX || 0;
                 state.spawnGhost.y = +pl.posY || 0;
@@ -3955,7 +3935,6 @@
                 state.spawnGhost.camPitch = +pl.camPitch || 0;
                 state.spawnGhost.camRoll = +pl.camRoll || 0;
                 if (pl.world) state.spawnGhost.world = pl.world;
-                // Update DOM inputs in place so we don't blow away keyboard focus.
                 updateSpawnGhostDom();
             }
             return;
@@ -4085,14 +4064,12 @@
             return render();
         }
         if (p.action === "npcUpdate" && p.success) {
-            // Was the user editing via the unified human creator? Bail out cleanly.
             if (state.npcEditingId && (!pl || +pl.id === +state.npcEditingId)) {
                 state.npcEditingId = 0;
                 state.humanCreator = defaultHumanCreator();
                 state.humanCreator.preview = 0;
                 state.npcView = "active";
             }
-            // Legacy spawn-edit form fallback
             if (state.npcView === "spawn-edit") {
                 state.npcSpawnEdit = null;
                 state.npcView = "active";
@@ -4466,17 +4443,14 @@
         var cfg = state.spawnConfig;
         if (!cfg.lobbyCameras) cfg.lobbyCameras = [];
         if (!cfg.characterScenarios) cfg.characterScenarios = [];
-        // Sync input values from DOM into state before any save/capture, so the user's edits aren't lost on render.
         flushSpawnConfigInputs();
 
-        // ---- Add (new spot from admin's current position) ----
         if (action === "spawnconfig-add-lobby") { send("spawnConfigCapture", { purpose: "lobby" }); return; }
         if (action === "spawnconfig-add-default") { send("spawnConfigCapture", { purpose: "default" }); return; }
         if (action === "spawnconfig-add-scenario") { send("spawnConfigCapture", { purpose: "scenario" }); return; }
         if (action === "spawnconfig-add-create") { send("spawnConfigCapture", { purpose: "create" }); return; }
         if (action === "spawnconfig-add-select") { send("spawnConfigCapture", { purpose: "select" }); return; }
 
-        // ---- Add + immediately open the 3D editor on the new spot ----
         if (action === "spawnconfig-new-lobby") {
             state.spawnConfigPostCapture = "lobby";
             send("spawnConfigCapture", { purpose: "lobby" });
@@ -4488,7 +4462,6 @@
             return;
         }
 
-        // ---- 3D ghost editor ----
         if (action === "spawnconfig-ghost-edit-lobby") {
             var li = +el.dataset.idx;
             var spot = cfg.lobbyCameras[li];
@@ -4532,7 +4505,6 @@
             return;
         }
 
-        // ---- Save ----
         if (action === "spawnconfig-save-lobby") {
             send("spawnConfigSave", { configKey: "lobbyCameras", payload: JSON.stringify(cfg.lobbyCameras || []) });
             return;
@@ -4554,11 +4526,9 @@
             return;
         }
 
-        // ---- Remove ----
         if (action === "spawnconfig-remove-lobby") {
             var li2 = +el.dataset.idx;
             if (cfg.lobbyCameras[li2]) cfg.lobbyCameras.splice(li2, 1);
-            // Persist immediately so the in-game lobby reflects the deletion without a separate save click.
             send("spawnConfigSave", { configKey: "lobbyCameras", payload: JSON.stringify(cfg.lobbyCameras) });
             return render(true);
         }
@@ -4579,8 +4549,6 @@
             world: "",
             target: { kind: kind, idx: target.idx }
         };
-        // Use a humanoid silhouette (not a placeholder VOB) when picking spots that represent
-        // where the player's hero will physically stand — i.e. spawn / scenario / character-create / character-select.
         var useHuman = (kind === "default" || kind === "scenario" || kind === "create" || kind === "select");
         send("adminSpawnGhostStart", {
             mode: mode,
@@ -4623,7 +4591,6 @@
     function flushSpawnConfigInputs() {
         if (!body) return;
         var cfg = state.spawnConfig;
-        // Lobby cameras (cards): data-spawn-lobby-idx + data-spawn-lobby-field
         body.querySelectorAll("[data-spawn-lobby-idx]").forEach(function (el) {
             var idx = +el.dataset.spawnLobbyIdx;
             var field = el.dataset.spawnLobbyField;
@@ -4631,7 +4598,6 @@
                 cfg.lobbyCameras[idx][field] = parseFloat(el.value) || 0;
             }
         });
-        // Scenario spots (cards)
         body.querySelectorAll("[data-spawn-scenario-idx]").forEach(function (el) {
             var idx = +el.dataset.spawnScenarioIdx;
             var field = el.dataset.spawnScenarioField;
@@ -4639,14 +4605,12 @@
                 cfg.characterScenarios[idx][field] = parseFloat(el.value) || 0;
             }
         });
-        // Default spawn (form)
         body.querySelectorAll("[data-spawn-def]").forEach(function (el) {
             if (!cfg.characterDefaultSpawn) cfg.characterDefaultSpawn = {};
             var key = el.dataset.spawnDef;
             if (key === "world") cfg.characterDefaultSpawn[key] = el.value;
             else cfg.characterDefaultSpawn[key] = parseFloat(el.value) || 0;
         });
-        // Create/select cameras (single-spot cards)
         body.querySelectorAll("[data-spawn-createcam]").forEach(function (el) {
             if (!cfg.characterCreateCamera) cfg.characterCreateCamera = { x: 0, y: 0, z: 0, rotX: 0, rotY: 0, rotZ: 0 };
             cfg.characterCreateCamera[el.dataset.spawnCreatecam] = parseFloat(el.value) || 0;
@@ -4655,7 +4619,6 @@
             if (!cfg.characterSelectCamera) cfg.characterSelectCamera = { x: 0, y: 0, z: 0, rotX: 0, rotY: 0, rotZ: 0 };
             cfg.characterSelectCamera[el.dataset.spawnSelectcam] = parseFloat(el.value) || 0;
         });
-        // Legacy short-name selector kept for backwards compat (older renders).
         body.querySelectorAll("[data-spawn-sc-idx]").forEach(function (el) {
             var idx = +el.dataset.spawnScIdx;
             var field = el.dataset.spawnScField;
@@ -4686,7 +4649,6 @@
         if (!pl || !pl.purpose) return;
         var cfg = state.spawnConfig;
         if (pl.purpose === "lobby") {
-            // Convert game position into a camera spot. Pitch 20° looks roughly natural for the default Gothic camera.
             cfg.lobbyCameras = cfg.lobbyCameras || [];
             cfg.lobbyCameras.push({ x: pl.x, y: pl.y, z: pl.z, rotX: 20, rotY: pl.angle || 0, rotZ: 0 });
         } else if (pl.purpose === "default") {
@@ -4758,7 +4720,6 @@
             (body.querySelectorAll("[data-db-edit]") || []).forEach(function (input) {
                 changes[input.dataset.dbEdit] = input.value;
             });
-            // Drop the primary key column from changes — it can't be modified.
             delete changes[state.dbEditing.pkColumn];
             send("dbRowUpdate", {
                 table: state.dbEditing.table,

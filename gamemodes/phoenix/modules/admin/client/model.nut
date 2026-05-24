@@ -98,29 +98,26 @@ phoenix.admin.Model <- {
 		lastMoveAt = 0
 	}
 
-	// Ghost used for picking character spawn / scenario points. Acts like a placeable arrow
-	// with a controllable yaw — admin walks the marker around with WASD + Q/E and rotates
-	// the facing direction with the arrow keys, then captures the position into the panel.
 	spawnGhost = {
 		active = false,
-		mode = "spawn",      // "spawn" | "lobby"
-		useHuman = false,    // when true, the marker is a humanoid NPC instead of a VOB
+		mode = "spawn",
+		useHuman = false,
 		obj = null,
-		arrow = null,        // small VOB used as the direction arrow tip
-		npcId = -2147483648, // active humanoid marker (when useHuman=true)
+		arrow = null,
+		npcId = -2147483648,
 		visual = "BOOTS.3DS",
 		arrowVisual = "ITAR_LARES.3DS",
 		world = "",
 		x = 0.0,
 		y = 0.0,
 		z = 0.0,
-		angle = 0.0,         // facing yaw of the marker (where the arrow points)
-		camPitch = 0.0,      // for lobby mode — admin-tunable camera pitch
-		camRoll = 0.0,       // for lobby mode — admin-tunable camera roll
+		angle = 0.0,
+		camPitch = 0.0,
+		camRoll = 0.0,
 		cameraActive = false,
 		cameraPaused = false,
 		camDistance = 360.0,
-		camCtrlPitch = 22.0, // chase-cam pitch (separate from configured camPitch)
+		camCtrlPitch = 22.0,
 		camYaw = 0.0,
 		lastMoveAt = 0
 	}
@@ -178,7 +175,6 @@ phoenix.admin.Model <- {
 	function previewStart(payload) {
 		if (preview.active) phoenix.admin.Model.previewStop()
 		local requestedMode = (payload != null && "mode" in payload) ? payload.mode : "npc"
-		// Honour explicit position from caller (e.g. editing an existing spawn) — fall back to the admin's position otherwise.
 		local hasExplicitPos = payload != null && ("posX" in payload || "posY" in payload || "posZ" in payload)
 		local p = null
 		try { p = getPlayerPosition(heroId) } catch (e) {}
@@ -230,8 +226,6 @@ phoenix.admin.Model <- {
 		local instance = ("instance" in payload && payload.instance != "") ? payload.instance.tostring() : (preview.instance != "" ? preview.instance : "PC_HERO")
 		local needsRecreate = preview.npcId == phoenix.admin.Model.invalidNpcId || preview.instance != instance
 		if (needsRecreate) phoenix.admin.Model.previewCreate(instance)
-		// Only push instance to engine when it's a fresh NPC — otherwise this is a no-op that costs nothing,
-		// but in some G2O builds it triggers a visual rebind which can drop equipment.
 		if (needsRecreate) {
 			if (preview.mode == "human") {
 				try { setPlayerInstance(preview.npcId, instance.toupper()) } catch (e) { try { setPlayerInstance(preview.npcId, instance) } catch (e2) {} }
@@ -239,15 +233,12 @@ phoenix.admin.Model <- {
 				phoenix.admin.Model.previewSetMonsterInstance(instance)
 			}
 		}
-		// Visual fields are only applied when present in payload, so delta payloads (e.g. equipment swap)
-		// don't reset the body model and trigger a costly rebind.
 		local hasVisualKey = "bodyModel" in payload || "headModel" in payload || "bodyTex" in payload || "headTex" in payload
 		if (preview.mode == "human" && (needsRecreate || hasVisualKey)) {
 			local body = ("bodyModel" in payload && payload.bodyModel != "") ? payload.bodyModel : (preview.bodyModel != "" ? preview.bodyModel : "Hum_Body_Naked0")
 			local head = ("headModel" in payload && payload.headModel != "") ? payload.headModel : (preview.headModel != "" ? preview.headModel : "Hum_Head_Bald")
 			local bodyTex = ("bodyTex" in payload) ? payload.bodyTex : preview.bodyTex
 			local headTex = ("headTex" in payload) ? payload.headTex : preview.headTex
-			// Skip the engine call if nothing actually changed — setPlayerVisual rebinds the model and drops equipment.
 			local visualChanged = needsRecreate || body != preview.bodyModel || head != preview.headModel || bodyTex != preview.bodyTex || headTex != preview.headTex
 			if (visualChanged) {
 				try { setPlayerVisual(preview.npcId, body, bodyTex, head, headTex) } catch (e) {}
@@ -255,7 +246,6 @@ phoenix.admin.Model <- {
 				preview.headModel = head
 				preview.bodyTex = bodyTex
 				preview.headTex = headTex
-				// Rebinding the model usually clears items — re-apply whatever we still have cached.
 				if (!needsRecreate) {
 					local cachedWeapon = preview.weapon
 					local cachedArmor = preview.armor
@@ -285,10 +275,7 @@ phoenix.admin.Model <- {
 		if ("angle" in payload) preview.angle = payload.angle.tofloat()
 		if ("world" in payload && payload.world != "") preview.world = payload.world
 		if ("virtualWorld" in payload) preview.virtualWorld = payload.virtualWorld.tointeger()
-		// Don't re-place an unchanged NPC every tick — setPlayerPosition can re-snap it and stutter the camera.
 		if (needsRecreate || hasPosKey) phoenix.admin.Model.previewPlace()
-		// Equipment is only touched when its slot key is present in the payload.
-		// This prevents partial updates (e.g. visual cycling) from stripping gear that's already equipped.
 		if (needsRecreate && preview.mode == "human") {
 			if ("weapon" in payload && payload.weapon != "") phoenix.admin.Model.previewAutoStat(payload.weapon)
 			if ("ranged" in payload && payload.ranged != "") phoenix.admin.Model.previewAutoStat(payload.ranged)
@@ -310,8 +297,6 @@ phoenix.admin.Model <- {
 		phoenix.admin.Model.previewEmit()
 	}
 
-	// Raises NPC strength/dexterity to meet weapon requirements so it can wield it in preview.
-	// Mirrors phoenix.npc.Spawn._autoStats on the server. Never lowers stats.
 	function previewAutoStat(instance) {
 		if (preview.npcId == phoenix.admin.Model.invalidNpcId) return
 		if (instance == null || instance == "") return
@@ -1214,21 +1199,12 @@ phoenix.admin.Model <- {
 		} catch (e) {}
 	}
 
-	// ----------------------------------------------------------------------
-	// Spawn ghost — placeable arrow used by the lobby/spawn admin panel.
-	// Mode "spawn": shows a marker the admin walks around to capture a respawn point.
-	// Mode "lobby": same VOB plus tunable camera pitch/roll for the lobby camera spot.
-	// Controls (when admin panel is open and ghost active): WASD + Q/E for position,
-	// arrows for yaw, [/] for camera pitch, ;/' for camera roll (lobby mode only).
-	// ----------------------------------------------------------------------
-
 	function spawnGhostStart(payload) {
 		if (payload == null) payload = {}
 		if (spawnGhost.active) phoenix.admin.Model.spawnGhostStop()
 		local mode = ("mode" in payload) ? payload.mode.tostring() : "spawn"
 		spawnGhost.mode = (mode == "lobby") ? "lobby" : "spawn"
 		spawnGhost.useHuman = ("useHuman" in payload) && payload.useHuman == true
-		// Initial position: from payload (when editing existing) or admin's current pos.
 		local p = null
 		try { p = getPlayerPosition(heroId) } catch (e) {}
 		if (p != null) { spawnGhost.x = p.x; spawnGhost.y = p.y; spawnGhost.z = p.z }
@@ -1241,7 +1217,6 @@ phoenix.admin.Model <- {
 		if ("camPitch" in payload) spawnGhost.camPitch = payload.camPitch.tofloat()
 		if ("camRoll" in payload) spawnGhost.camRoll = payload.camRoll.tofloat()
 		if (spawnGhost.useHuman) {
-			// Spawn a humanoid NPC marker so admin sees a player silhouette where the hero will stand.
 			local inst = "PC_HERO"
 			spawnGhost.npcId = phoenix.admin.Model.previewCreateNpc(inst, inst, inst)
 			if (spawnGhost.npcId != phoenix.admin.Model.invalidNpcId) {
@@ -1252,7 +1227,6 @@ phoenix.admin.Model <- {
 				try { setPlayerAngle(spawnGhost.npcId, spawnGhost.angle, true) } catch (eA) { try { setPlayerAngle(spawnGhost.npcId, spawnGhost.angle) } catch (eA2) {} }
 			}
 		} else {
-			// Build the marker VOB.
 			try { spawnGhost.obj = Vob(spawnGhost.visual) } catch (e) { spawnGhost.obj = null }
 			if (spawnGhost.obj != null) {
 				try { spawnGhost.obj.cdDynamic = false } catch (e2) {}
@@ -1263,7 +1237,6 @@ phoenix.admin.Model <- {
 				try { spawnGhost.obj.addToWorld() } catch (e7) {}
 			}
 		}
-		// Direction arrow tip — placed ahead of the marker to indicate facing.
 		try { spawnGhost.arrow = Vob(spawnGhost.arrowVisual) } catch (e8) { spawnGhost.arrow = null }
 		if (spawnGhost.arrow != null) {
 			try { spawnGhost.arrow.cdDynamic = false } catch (e9) {}
@@ -1300,7 +1273,6 @@ phoenix.admin.Model <- {
 
 	function spawnGhostUpdateArrow() {
 		if (spawnGhost.arrow == null) return
-		// Place arrow tip 90 units ahead of the marker, in the direction of `angle`.
 		local rad = spawnGhost.angle * 3.14159 / 180.0
 		local ax = spawnGhost.x + sin(rad) * 90.0
 		local az = spawnGhost.z + cos(rad) * 90.0
@@ -1332,7 +1304,6 @@ phoenix.admin.Model <- {
 	}
 
 	function spawnGhostNudge(payload) {
-		// Allows the panel to step the marker without keyboard (UI buttons for ↑↓ pitch etc).
 		if (!spawnGhost.active) return
 		if (payload == null) return
 		local axis = ("axis" in payload) ? payload.axis.tostring() : ""
@@ -1388,13 +1359,10 @@ phoenix.admin.Model <- {
 	function spawnGhostCameraTick() {
 		if (!spawnGhost.cameraActive || !spawnGhost.active) return
 		if (spawnGhost.mode == "lobby") {
-			// Lobby preview — the admin sees the *configured* camera, not a chase cam.
-			// Place the camera at the marker, looking forward with the chosen pitch/roll.
 			try { Camera.setPosition(spawnGhost.x, spawnGhost.y, spawnGhost.z) } catch (e) {}
 			try { Camera.setRotation(spawnGhost.camPitch, spawnGhost.angle, spawnGhost.camRoll) } catch (e2) {}
 			return
 		}
-		// Spawn mode — orbital chase cam.
 		local angleRad = spawnGhost.camYaw * 3.14159 / 180.0
 		local cx = spawnGhost.x + sin(angleRad) * spawnGhost.camDistance
 		local cy = spawnGhost.y + 100.0 + spawnGhost.camCtrlPitch
@@ -1420,7 +1388,6 @@ phoenix.admin.Model <- {
 		try { if (isKeyPressed(KEY_LSHIFT) || isKeyPressed(KEY_RSHIFT)) speed = 50.0 } catch (e) {}
 		try { if (isKeyPressed(KEY_LCONTROL) || isKeyPressed(KEY_RCONTROL)) speed = 0.5 } catch (e2) {}
 		local moved = false
-		// Move along the camera yaw so WASD always feels intuitive.
 		local refYaw = spawnGhost.mode == "lobby" ? spawnGhost.angle : spawnGhost.camYaw
 		try { if (isKeyPressed(KEY_W)) { spawnGhost.x += speed * sin(refYaw * 3.14159 / 180.0); spawnGhost.z += speed * cos(refYaw * 3.14159 / 180.0); moved = true } } catch (e3) {}
 		try { if (isKeyPressed(KEY_S)) { spawnGhost.x -= speed * sin(refYaw * 3.14159 / 180.0); spawnGhost.z -= speed * cos(refYaw * 3.14159 / 180.0); moved = true } } catch (e4) {}
@@ -1428,10 +1395,8 @@ phoenix.admin.Model <- {
 		try { if (isKeyPressed(KEY_D)) { spawnGhost.x += speed * sin((refYaw + 90.0) * 3.14159 / 180.0); spawnGhost.z += speed * cos((refYaw + 90.0) * 3.14159 / 180.0); moved = true } } catch (e6) {}
 		try { if (isKeyPressed(KEY_Q)) { spawnGhost.y += speed; moved = true } } catch (e7) {}
 		try { if (isKeyPressed(KEY_E)) { spawnGhost.y -= speed; moved = true } } catch (e8) {}
-		// Yaw (facing direction of arrow) — left/right arrows.
 		try { if (isKeyPressed(KEY_LEFT)) { spawnGhost.angle += 2.0; moved = true } } catch (e9) {}
 		try { if (isKeyPressed(KEY_RIGHT)) { spawnGhost.angle -= 2.0; moved = true } } catch (e10) {}
-		// Camera pitch / roll (lobby mode only) — UP/DOWN for pitch, page up/down for roll.
 		if (spawnGhost.mode == "lobby") {
 			try { if (isKeyPressed(KEY_UP))   { spawnGhost.camPitch += 1.0; moved = true } } catch (e11) {}
 			try { if (isKeyPressed(KEY_DOWN)) { spawnGhost.camPitch -= 1.0; moved = true } } catch (e12) {}
@@ -1454,14 +1419,11 @@ phoenix.admin.Model <- {
 	function spawnGhostDraw() {
 		if (!spawnGhost.active) return
 		try { if (!("drawLine3d" in getroottable())) return } catch (e) { return }
-		// Vertical pole at the marker.
 		try { drawLine3d(spawnGhost.x, spawnGhost.y, spawnGhost.z, spawnGhost.x, spawnGhost.y + 200.0, spawnGhost.z, 90, 240, 170, true) } catch (e2) {}
-		// Direction line from the marker forward (arrow shaft).
 		local rad = spawnGhost.angle * 3.14159 / 180.0
 		local tipX = spawnGhost.x + sin(rad) * 120.0
 		local tipZ = spawnGhost.z + cos(rad) * 120.0
 		try { drawLine3d(spawnGhost.x, spawnGhost.y + 30.0, spawnGhost.z, tipX, spawnGhost.y + 30.0, tipZ, 255, 220, 90, true) } catch (e3) {}
-		// Arrow head — two short lines forming a V at the tip.
 		local leftRad = (spawnGhost.angle + 25.0) * 3.14159 / 180.0
 		local rightRad = (spawnGhost.angle - 25.0) * 3.14159 / 180.0
 		local lx = tipX - sin(leftRad) * 30.0
