@@ -5,11 +5,9 @@ phoenix.crafting.Admin <- {
 			phoenix.crafting.Structure.loadAll(function () {
 				local recipes = phoenix.crafting.Structure.allRecipes()
 				local stations = phoenix.crafting.Structure.stationsListing()
-				print("[crafting.admin] craftingList recipes=" + recipes.len() + " stations=" + stations.len() + "\n")
 				phoenix.admin.Server.reply(playerId, "craftingList", true, "", { recipes = recipes, stations = stations })
 			})
 		} catch (e) {
-			print("[crafting.admin] craftingList exception\n")
 			phoenix.admin.Server.reply(playerId, "craftingList", false, "exception", null)
 		}
 	}
@@ -17,9 +15,6 @@ phoenix.crafting.Admin <- {
 	function dispatchSave(playerId, payload) {
 		if (payload == null) { phoenix.admin.Server.reply(playerId, "craftingSave", false, "empty", null); return }
 		try {
-			if ("visuals" in payload && payload.visuals != null) print("[crafting.admin] save visuals.len=" + payload.visuals.len() + "\n")
-			if ("ingredients" in payload && payload.ingredients != null) print("[crafting.admin] save ingredients.len=" + payload.ingredients.len() + "\n")
-			if ("outputs" in payload && payload.outputs != null) print("[crafting.admin] save outputs.len=" + payload.outputs.len() + "\n")
 		} catch (eD) {}
 		try {
 			phoenix.crafting.Structure.saveRecipe(payload, function (ok, err, newId) {
@@ -32,7 +27,6 @@ phoenix.crafting.Admin <- {
 				phoenix.admin.Server.reply(playerId, "craftingSave", true, "", { id = newId })
 			})
 		} catch (e) {
-			print("[crafting.admin] save exception\n")
 			phoenix.admin.Server.reply(playerId, "craftingSave", false, "exception", null)
 		}
 	}
@@ -59,7 +53,6 @@ addEventHandler("onInit", function () {
 				phoenix.admin.Server.dispatchers.craftingList <- phoenix.crafting.Admin.dispatchList
 				phoenix.admin.Server.dispatchers.craftingSave <- phoenix.crafting.Admin.dispatchSave
 				phoenix.admin.Server.dispatchers.craftingDelete <- phoenix.crafting.Admin.dispatchDelete
-				print("[crafting.admin] dispatchers registered\n")
 			}
 		} catch (e) {}
 	}, 3000, 1)

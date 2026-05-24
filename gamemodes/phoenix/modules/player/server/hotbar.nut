@@ -136,12 +136,10 @@ phoenix.player.Hotbar <- {
 		local now = getTickCount()
 		if (playerId in phoenix.player.Hotbar.lastActivate) {
 			if (now - phoenix.player.Hotbar.lastActivate[playerId] < 600) {
-				print("[hotbar] dedup slot=" + slotIdx + " pid=" + playerId + "\n")
 				return
 			}
 		}
 		phoenix.player.Hotbar.lastActivate[playerId] <- now
-		print("[hotbar] activate slot=" + slotIdx + " pid=" + playerId + "\n")
 		local slots = (playerId in phoenix.player.Hotbar.bySession)
 			? phoenix.player.Hotbar.bySession[playerId]
 			: null
@@ -198,20 +196,15 @@ phoenix.player.Hotbar <- {
 	function _useWeapon(playerId, characterId, target, scheme, mode) {
 		local current = WEAPONMODE_NONE
 		try { current = getPlayerWeaponMode(playerId) } catch (e) {}
-		print("[hotbar] _useWeapon equipped=" + target.equipped + " current=" + current + " mode=" + mode + "\n")
-
 		if (target.equipped == 1) {
 			if (current == mode) {
-				print("[hotbar] SHEATHE (toggle off)\n")
 				try { setPlayerWeaponMode(playerId, 0) } catch (e) {}
 			} else if (current != WEAPONMODE_NONE) {
-				print("[hotbar] SHEATHE current + DRAW mode (swap draw)\n")
 				try { setPlayerWeaponMode(playerId, 0) } catch (e) {}
 				setTimer(function() {
 					try { drawWeapon(playerId, mode) } catch (e) {}
 				}, 400, 1)
 			} else {
-				print("[hotbar] DRAW mode (fresh)\n")
 				try { drawWeapon(playerId, mode) } catch (e) {}
 			}
 			return

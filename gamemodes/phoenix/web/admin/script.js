@@ -962,7 +962,7 @@
         reset: function () { this.gen++; this.pending.length = 0; },
         _tick: function () {
             var self = this;
-            while (self.active < 1 && self.pending.length) {
+            while (self.active < 4 && self.pending.length) {
                 var task = self.pending.shift();
                 if (task.gen !== self.gen) continue;
                 self._run(task);
@@ -1133,7 +1133,6 @@
         var view = state.npcView || "presets";
         var presets = state.npcPresets || [];
         var spawns = state.npcSpawns || [];
-        var herbs = state.herbSpots || [];
         var html = '<div class="adm-section">';
         html += '<div class="adm-tabs adm-tabs--sub">';
         var subTabs = [
@@ -1141,8 +1140,7 @@
             ["human", t("admin.npc.subtab.human")],
             ["presets", t("admin.npc.subtab.presets")],
             ["editor",  t("admin.npc.subtab.editor")],
-            ["active",  tFmt("admin.npc.subtab.active", spawns.length)],
-            ["herbs", tFmt("admin.herbs.subtab", herbs.length)]
+            ["active",  tFmt("admin.npc.subtab.active", spawns.length)]
         ];
         subTabs.forEach(function (st) {
             var cls = "adm-tab" + (view === st[0] ? " is-active" : "");
@@ -1155,7 +1153,6 @@
         else if (view === "editor") html += renderNpcEditor();
         else if (view === "routine") html += renderNpcRoutine();
         else if (view === "spawn-edit") html += renderNpcSpawnEditor();
-        else if (view === "herbs") html += renderHerbs();
         else html += renderNpcActive(spawns);
         html += '</div>';
         return html;
@@ -1329,6 +1326,32 @@
             if (el) el.value = state.herbForm[key] || "";
         });
     }
+
+    function updateHumanEquipPickerDom(slot) {
+        if (!body || activeTab !== "npc" || state.npcView !== "human") return;
+        var h = state.humanCreator;
+        var selected = h[slot] || "";
+        var sch = selected ? state.schemesById[selected] : null;
+        var labelKey = HUMAN_EQUIP_LABELS[slot] || "";
+        var title = sch ? itemName(sch) : t("admin.npc.human.none");
+        var toggle = body.querySelector('[data-action="human-equip-toggle"][data-slot="' + slot + '"]');
+        if (toggle) {
+            toggle.innerHTML = '<b>' + escapeHtml(t(labelKey)) + '</b><br><small>' + escapeHtml(title) + (selected ? ' [' + escapeHtml(selected) + ']' : '') + '</small>';
+        }
+        var picker = toggle ? toggle.parentElement : null;
+        if (picker) {
+            var grid = picker.querySelector(".adm-itemgrid");
+            if (grid) {
+                grid.parentNode.removeChild(grid);
+            }
+        }
+    }
+
+    var HUMAN_EQUIP_LABELS = {
+        weapon: "admin.npc.human.weapon",
+        ranged: "admin.npc.human.ranged",
+        armor: "admin.npc.human.armor"
+    };
 
     function updateNpcPreviewDom(mode) {
         if (!body || activeTab !== "npc") return;
@@ -2384,8 +2407,59 @@
         var cell = e.target.closest(".adm-itemcell");
         if (!cell) return;
         if (cell.classList.contains("adm-human-itemcell")) return;
-        state.selectedScheme = cell.dataset.instance;
-        render();
+        var instance = cell.dataset.instance || "";
+        state.selectedScheme = instance;
+        if (activeTab === "items") {
+            updateItemSelectionDom(instance, cell);
+        } else {
+            render();
+        }
+    }
+
+    function updateItemSelectionDom(instance, clickedCell) {
+        if (!body) return;
+        var grid = body.querySelector("[data-role='itemgrid']");
+        if (grid) {
+            grid.querySelectorAll(".adm-itemcell.is-selected").forEach(function (c) { c.classList.remove("is-selected"); });
+            if (clickedCell) clickedCell.classList.add("is-selected");
+        }
+        var sch = instance ? state.schemesById[instance] : null;
+        var nm = sch ? itemName(sch) : "";
+        var pickEl = body.querySelector(".adm-form .adm-pick");
+        if (pickEl) {
+            if (sch) {
+                pickEl.classList.remove("adm-pick--empty");
+                pickEl.innerHTML = '<b style="color:#f0d785">' + escapeHtml(nm) + '</b>' +
+                    ' <span style="color:#8a7c5a;font-size:11px">[' + escapeHtml(sch.instance) + ']</span>';
+            } else {
+                pickEl.classList.add("adm-pick--empty");
+                pickEl.textContent = t("admin.items.pickBelow");
+            }
+        }
+        var bindInput = body.querySelector("input[data-bind='selectedScheme']");
+        if (bindInput && document.activeElement !== bindInput) {
+            bindInput.value = instance || "";
+        }
+        var visual = sch && sch.visual ? sch.visual : "";
+        var rd = body.querySelector(".adm-render-debug .adm-render-debug__preview");
+        if (rd) {
+            var existing = rd.querySelector("gothic-render");
+            var d = state.itemRenderDebug;
+            if (visual) {
+                if (existing) {
+                    if (existing.getAttribute("visual") !== visual) existing.setAttribute("visual", visual);
+                } else {
+                    rd.innerHTML = '<gothic-render width="180" height="180" rot-x="' + d.rotX + '" rot-y="' + d.rotY + '" rot-z="' + d.rotZ + '" scale="' + d.scale + '" light-intensity="' + d.light + '" visual="' + escapeHtml(visual) + '"></gothic-render>';
+                }
+            } else {
+                rd.innerHTML = '<div class="adm-render-debug__empty">Brak visuala</div>';
+            }
+        }
+        var title = sch ? itemName(sch) : "Wybierz item z grida";
+        var titleEl = body.querySelector(".adm-render-debug .adm-render-debug__body p");
+        if (titleEl) {
+            titleEl.innerHTML = '<b>' + escapeHtml(title) + '</b>' + (sch ? ' <small>[' + escapeHtml(sch.instance) + ']</small>' : '');
+        }
     }
 
     var QUALITY_COLOR_DEFAULT = "#d4af37";
@@ -2492,7 +2566,6 @@
         if (a === "npc-view") {
             state.npcView = el.dataset.view || "presets";
             if (state.npcView === "active") send("npcList");
-            if (state.npcView === "herbs") { send("herbCatalog"); send("herbList"); }
             if (state.npcView === "presets") send("npcPresetList");
             if (state.npcView === "catalog") send("npcCatalog");
             if (state.npcView === "human") { if (!state.schemes.length) send("schemes"); state.humanCreator.preview = 1; send("adminNpcPreviewStart", humanPayload(false)); }
@@ -2514,10 +2587,12 @@
         }
         if (a === "human-equip-pick") {
             var pickSlot = el.dataset.slot || "";
-            state.humanCreator[pickSlot] = el.dataset.instance || "";
+            var pickedInstance = el.dataset.instance || "";
+            state.humanCreator[pickSlot] = pickedInstance;
             state.humanPickSlot = "";
             syncHumanPreview();
-            return render();
+            updateHumanEquipPickerDom(pickSlot);
+            return;
         }
         if (a === "merchant-stock-toggle") {
             state.humanMerchantPick = !state.humanMerchantPick;

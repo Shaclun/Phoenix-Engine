@@ -225,9 +225,7 @@ phoenix.crafting.Crafter <- {
 		local first = queue[0]
 		local rest = queue.slice(1)
 		local instUp = first.instance != null ? first.instance.tostring().toupper() : ""
-		print("[craft] consume " + instUp + " x" + first.amount + " charId=" + characterId + "\n")
 		local have = phoenix.item.Structure.countInstance(PhoenixInventoryOwner.Player, characterId, instUp)
-		print("[craft] have=" + have + "\n")
 		phoenix.item.Structure.takeInstance(PhoenixInventoryOwner.Player, characterId, instUp, first.amount, function (ok) {
 			print("[craft] takeInstance ok=" + (ok ? 1 : 0) + "\n")
 			if (!ok) { if (callback != null) callback(false); return }

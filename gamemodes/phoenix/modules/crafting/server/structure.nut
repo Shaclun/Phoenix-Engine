@@ -11,7 +11,6 @@ phoenix.crafting.Structure <- {
 		try {
 			local rows = ORM.engine.execute("SHOW COLUMNS FROM `phoenix_crafting_ingredients` LIKE 'instance'")
 			if (rows == null || rows.len() == 0) return
-			print("[crafting] legacy 'instance' column detected, dropping old tables so ORM recreates schema\n")
 			try { ORM.engine.execute("DROP TABLE IF EXISTS `phoenix_crafting_outputs`") } catch (e1) {}
 			try { ORM.engine.execute("DROP TABLE IF EXISTS `phoenix_crafting_stations`") } catch (e2) {}
 			try { ORM.engine.execute("DROP TABLE IF EXISTS `phoenix_crafting_ingredients`") } catch (e3) {}
@@ -92,7 +91,6 @@ phoenix.crafting.Structure <- {
 			})
 		} catch (e) {
 			phoenix.crafting.Structure.loading = false
-			print("[crafting] loadAll exception\n")
 			if (callback != null) callback()
 		}
 	}
@@ -171,12 +169,10 @@ phoenix.crafting.Structure <- {
 		try { if ("description" in data && data.description != null) description = data.description.tostring() } catch (e) {}
 		if (resultAmount < 1) resultAmount = 1
 		if (resultInstance == "") {
-			print("[crafting] saveRecipe rejected: empty resultInstance\n")
 			if (callback != null) callback(false, "noResult", 0)
 			return
 		}
 		if (name == "") name = resultInstance
-		print("[crafting] saveRecipe id=" + id + " instance=" + resultInstance + " name=" + name + "\n")
 
 		local onPersisted = function (newId) {
 			phoenix.crafting.Structure._replaceChildren(newId, data, function () {
@@ -189,7 +185,6 @@ phoenix.crafting.Structure <- {
 		if (id > 0) {
 			CraftingRecipeModel.findOneAsync(@(q) q.where("id", "=", id), function (existing) {
 				if (existing == null) {
-					print("[crafting] saveRecipe update: id=" + id + " not found, inserting new\n")
 					local model = CraftingRecipeModel()
 					model.name = name
 					model.resultInstance = resultInstance
@@ -200,7 +195,6 @@ phoenix.crafting.Structure <- {
 					model.description = description
 					model.insertAsync(function (insertedId) {
 						local nid = insertedId != null ? insertedId.tointeger() : 0
-						print("[crafting] saveRecipe inserted id=" + nid + "\n")
 						onPersisted(nid)
 					})
 					return
@@ -213,7 +207,6 @@ phoenix.crafting.Structure <- {
 				existing.requiredLevel = requiredLevel
 				existing.description = description
 				existing.saveAsync(function (_) {
-					print("[crafting] saveRecipe updated id=" + id + "\n")
 					onPersisted(id)
 				})
 			})
@@ -230,7 +223,6 @@ phoenix.crafting.Structure <- {
 		model.description = description
 		model.insertAsync(function (insertedId) {
 			local nid = insertedId != null ? insertedId.tointeger() : 0
-			print("[crafting] saveRecipe inserted id=" + nid + "\n")
 			onPersisted(nid)
 		})
 	}
@@ -281,7 +273,6 @@ phoenix.crafting.Structure <- {
 			queue.append({ role = role, instance = instance, amount = amount, position = pos })
 			pos += 1
 		}
-		print("[crafting] _insertIngredients count=" + queue.len() + "\n")
 		phoenix.crafting.Structure._saveIngredientQueue(recipeId, queue, 0, callback)
 	}
 
@@ -315,7 +306,6 @@ phoenix.crafting.Structure <- {
 			queue.append({ instance = instance, amount = amount, position = pos })
 			pos += 1
 		}
-		print("[crafting] _insertOutputs count=" + queue.len() + "\n")
 		phoenix.crafting.Structure._saveOutputQueue(recipeId, queue, 0, callback)
 	}
 
@@ -347,7 +337,6 @@ phoenix.crafting.Structure <- {
 			queue.append({ visual = visStr, position = pos })
 			pos += 1
 		}
-		print("[crafting] _insertStations count=" + queue.len() + "\n")
 		phoenix.crafting.Structure._saveStationQueue(recipeId, queue, 0, callback)
 	}
 
@@ -366,7 +355,6 @@ phoenix.crafting.Structure <- {
 	function deleteRecipe(id, callback) {
 		local rid = id.tointeger()
 		if (rid <= 0) { if (callback != null) callback(false); return }
-		print("[crafting] deleteRecipe id=" + rid + "\n")
 		phoenix.crafting.Structure._deleteIngredients(rid, function () {
 			phoenix.crafting.Structure._deleteOutputs(rid, function () {
 				phoenix.crafting.Structure._deleteStations(rid, function () {
