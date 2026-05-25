@@ -33,6 +33,7 @@
 	let state = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
 	let activeTab = "hud";
 	let editMode = false;
+	let collapsed = false;
 	let dragging = null;
 	let resizing = null;
 	let root = null;
@@ -97,6 +98,17 @@
 		});
 		const btn = root && root.querySelector("[data-act='editmode']");
 		if (btn) btn.textContent = editMode ? t("settings.editmode.exit", "WYJDŹ Z TRYBU EDYCJI") : t("settings.editmode.enter", "TRYB EDYCJI");
+	}
+
+	function toggleCollapsed() {
+		collapsed = !collapsed;
+		if (!root) return;
+		root.classList.toggle("is-collapsed", collapsed);
+		const btn = root.querySelector("[data-role='collapse']");
+		if (btn) {
+			btn.textContent = collapsed ? "›" : "‹";
+			btn.title = t(collapsed ? "settings.expand" : "settings.collapse", collapsed ? "Rozwiń" : "Zwiń");
+		}
 	}
 
 	function attachEditOverlay(node, el) {
@@ -229,11 +241,17 @@
 		head.className = "settings-head";
 		head.innerHTML =
 			'<h2 class="settings-head__title">' + t("settings.title", "USTAWIENIA") + '</h2>' +
-			'<button class="settings-head__close" data-role="close">' + t("settings.close", "ZAMKNIJ (ESC)") + '</button>';
+			'<div class="settings-head__tools">' +
+				'<button class="settings-head__collapse" data-role="collapse" title="' + t("settings.collapse", "Zwiń") + '">‹</button>' +
+				'<button class="settings-head__close" data-role="close">' + t("settings.close", "ZAMKNIJ (ESC)") + '</button>' +
+			'</div>';
 		shell.appendChild(head);
 
 		head.querySelector("[data-role='close']").addEventListener("click", function () {
 			PhoenixBridge.send("phoenix:settings:closeRequest", {});
+		});
+		head.querySelector("[data-role='collapse']").addEventListener("click", function () {
+			toggleCollapsed();
 		});
 
 		const body = document.createElement("div");

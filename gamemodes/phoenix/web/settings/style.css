@@ -257,3 +257,51 @@ body.phoenix-settings-editmode .phoenix-chat,
 body.phoenix-settings-editmode .phoenix-worldclock {
 	pointer-events: auto !important;
 }
+
+
+.settings-head__tools {
+	display: flex;
+	align-items: center;
+	gap: 8px;
+}
+
+.settings-head__collapse {
+	background: transparent;
+	color: #f7c66a;
+	border: 1px solid rgba(245, 230, 196, 0.25);
+	width: 28px;
+	height: 28px;
+	cursor: pointer;
+	font-size: 16px;
+	font-weight: 700;
+	line-height: 1;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	font-family: inherit;
+}
+
+.settings-head__collapse:hover {
+	background: rgba(247, 198, 106, 0.12);
+	border-color: #f7c66a;
+}
+
+#page-settings.is-collapsed {
+	width: 56px;
+	max-width: 56px;
+}
+
+#page-settings.is-collapsed .settings-head__title,
+#page-settings.is-collapsed .settings-head__close,
+#page-settings.is-collapsed .settings-body {
+	display: none !important;
+}
+
+#page-settings.is-collapsed .settings-head {
+	padding: 14px 8px;
+	justify-content: center;
+}
+
+#page-settings.is-collapsed .settings-head__tools {
+	flex-direction: column;
+}
