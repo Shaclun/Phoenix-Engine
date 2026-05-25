@@ -143,8 +143,8 @@ body.phoenix-escmenu-open .phoenix-worldclock {
 .phoenix-hud-bar__fill {
 	position: absolute;
 	left: 0; top: 0; bottom: 0;
-	width: 100%;
-	transition: width 180ms linear;
+	width: var(--fill-pct, 100%);
+	transition: width 180ms linear, height 180ms linear;
 }
 
 .phoenix-hud-bar--hp .phoenix-hud-bar__fill { background: linear-gradient(180deg, #d24a4a, #7a1a1a); }
@@ -176,8 +176,9 @@ body.phoenix-escmenu-open .phoenix-worldclock {
 .phoenix-hud-xp__fill {
 	position: absolute;
 	left: 0; top: 0; bottom: 0;
+	width: var(--fill-pct, 0%);
 	background: linear-gradient(180deg, #f7c66a, #c08418);
-	transition: width 240ms linear;
+	transition: width 240ms linear, height 240ms linear;
 }
 
 .phoenix-hud-xp--magic {
@@ -562,4 +563,59 @@ body.phoenix-escmenu-open .phoenix-worldclock {
 @keyframes phx-lightning {
 	0%, 40%, 60%, 100% { opacity: 1; }
 	45%, 55% { opacity: 0.35; }
+}
+
+
+/* Vertical orientation modifiers */
+
+/* Vertical bars (HP/Mana/Stamina) — narrow tall, fill from bottom */
+.phoenix-hud-bar.phoenix-hud-vertical {
+	width: 11px;
+	height: 220px;
+}
+
+.phoenix-hud-xp.phoenix-hud-vertical {
+	width: 12px;
+	height: 412px;
+}
+
+.phoenix-hud-xp--magic.phoenix-hud-vertical {
+	width: 10px;
+}
+
+.phoenix-hud-bar.phoenix-hud-vertical .phoenix-hud-bar__fill,
+.phoenix-hud-xp.phoenix-hud-vertical .phoenix-hud-xp__fill {
+	left: 0;
+	right: 0;
+	top: auto;
+	bottom: 0;
+	width: 100% !important;
+	height: var(--fill-pct, 0%);
+	transition: height 180ms linear;
+}
+
+.phoenix-hud-bar.phoenix-hud-vertical .phoenix-hud-bar__label {
+	writing-mode: vertical-rl;
+	text-orientation: mixed;
+}
+
+.phoenix-hud-xp.phoenix-hud-vertical .phoenix-hud-xp__label {
+	writing-mode: vertical-rl;
+	text-orientation: mixed;
+	left: 50%;
+	right: auto;
+	top: auto;
+	bottom: 4px;
+	transform: translateX(-50%);
+	width: auto;
+}
+
+/* Vertical hotbar — slots stack vertically */
+.phoenix-hud-hotbar.phoenix-hud-vertical {
+	flex-direction: column;
+}
+
+.phoenix-hud-el#phoenix-hud-hotbar.phoenix-hud-vertical.is-visible {
+	display: flex;
+	flex-direction: column;
 }

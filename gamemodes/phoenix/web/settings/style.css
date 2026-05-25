@@ -22,6 +22,7 @@
 	height: 100%;
 	display: flex;
 	flex-direction: column;
+	overflow: hidden;
 }
 
 .settings-head {
@@ -87,8 +88,29 @@
 
 .settings-content {
 	flex: 1;
-	padding: 18px 28px;
+	padding: 18px 20px;
+	overflow-x: hidden;
 	overflow-y: auto;
+	scrollbar-width: thin;
+	scrollbar-color: rgba(247, 198, 106, 0.6) rgba(0, 0, 0, 0.4);
+}
+
+.settings-content::-webkit-scrollbar {
+	width: 8px;
+}
+
+.settings-content::-webkit-scrollbar-track {
+	background: rgba(0, 0, 0, 0.4);
+	border-left: 1px solid rgba(245, 230, 196, 0.1);
+}
+
+.settings-content::-webkit-scrollbar-thumb {
+	background: linear-gradient(180deg, #f7c66a, #9d6214);
+	border: 1px solid rgba(247, 198, 106, 0.5);
+}
+
+.settings-content::-webkit-scrollbar-thumb:hover {
+	background: linear-gradient(180deg, #ffd98a, #b87819);
 }
 
 .settings-section {
@@ -96,6 +118,9 @@
 	padding: 14px;
 	background: rgba(20, 14, 10, 0.6);
 	border: 1px solid rgba(245, 230, 196, 0.15);
+	box-sizing: border-box;
+	max-width: 100%;
+	overflow: hidden;
 }
 
 .settings-section__title {
@@ -106,24 +131,32 @@
 	display: flex;
 	align-items: center;
 	justify-content: space-between;
+	gap: 8px;
+	flex-wrap: wrap;
 }
 
 .settings-row {
 	display: grid;
-	grid-template-columns: 130px 1fr 60px;
+	grid-template-columns: 100px 1fr 50px;
 	align-items: center;
-	gap: 12px;
+	gap: 10px;
 	margin-bottom: 8px;
+	min-width: 0;
 }
 
 .settings-row label {
 	font-size: 11px;
 	letter-spacing: 1px;
 	color: #d9c79f;
+	min-width: 0;
+	overflow: hidden;
+	text-overflow: ellipsis;
+	white-space: nowrap;
 }
 
 .settings-row input[type="range"] {
 	width: 100%;
+	min-width: 0;
 }
 
 .settings-row .settings-value {
@@ -304,4 +337,43 @@ body.phoenix-settings-editmode .phoenix-worldclock {
 
 #page-settings.is-collapsed .settings-head__tools {
 	flex-direction: column;
+}
+
+
+.settings-row--toggle {
+	grid-template-columns: 100px 1fr;
+}
+
+.settings-orient {
+	display: flex;
+	gap: 4px;
+	min-width: 0;
+}
+
+.settings-orient__btn {
+	flex: 1 1 0;
+	min-width: 0;
+	background: rgba(20, 14, 10, 0.86);
+	color: #d9c79f;
+	border: 1px solid rgba(245, 230, 196, 0.25);
+	padding: 6px 8px;
+	cursor: pointer;
+	font-family: inherit;
+	font-size: 10px;
+	letter-spacing: 1px;
+	text-transform: uppercase;
+	white-space: nowrap;
+	overflow: hidden;
+	text-overflow: ellipsis;
+}
+
+.settings-orient__btn:hover {
+	border-color: #f7c66a;
+	color: #f7c66a;
+}
+
+.settings-orient__btn.is-active {
+	background: rgba(247, 198, 106, 0.12);
+	border-color: #f7c66a;
+	color: #f7c66a;
 }

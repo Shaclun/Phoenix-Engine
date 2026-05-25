@@ -7,23 +7,23 @@
 	}
 
 	const ELEMENTS = [
-		{ id: "portrait",   labelKey: "settings.hud.portrait",   fallback: "Portret",         x: 1.0,  y: 1.5 },
-		{ id: "level",      labelKey: "settings.hud.level",      fallback: "Poziom",          x: 6.4,  y: 1.9 },
-		{ id: "name",       labelKey: "settings.hud.name",       fallback: "Nick",            x: 6.4,  y: 3.5 },
-		{ id: "hp",         labelKey: "settings.hud.hp",         fallback: "Pasek HP",        x: 6.2,  y: 6.1 },
-		{ id: "mana",       labelKey: "settings.hud.mana",       fallback: "Pasek many",      x: 6.2,  y: 7.6 },
-		{ id: "stamina",    labelKey: "settings.hud.stamina",    fallback: "Pasek staminy",   x: 6.2,  y: 9.2 },
-		{ id: "exp",        labelKey: "settings.hud.exp",        fallback: "Pasek EXP",       x: 39.0, y: 91.0 },
-		{ id: "magicxp",    labelKey: "settings.hud.magicxp",    fallback: "Pasek M-EXP",     x: 39.0, y: 93.6 },
-		{ id: "hotbar",     labelKey: "settings.hud.hotbar",     fallback: "Hotbar",          x: 39.0, y: 95.5 },
-		{ id: "worldclock", labelKey: "settings.hud.worldclock", fallback: "Zegar + pogoda",  x: 90.0, y: 1.5 },
-		{ id: "chat",       labelKey: "settings.hud.chat",       fallback: "Czat",            x: 1.0,  y: 87.0 }
+		{ id: "portrait",   labelKey: "settings.hud.portrait",   fallback: "Portret",         x: 1.0,  y: 1.5,  orientable: false },
+		{ id: "level",      labelKey: "settings.hud.level",      fallback: "Poziom",          x: 6.4,  y: 1.9,  orientable: false },
+		{ id: "name",       labelKey: "settings.hud.name",       fallback: "Nick",            x: 6.4,  y: 3.5,  orientable: false },
+		{ id: "hp",         labelKey: "settings.hud.hp",         fallback: "Pasek HP",        x: 6.2,  y: 6.1,  orientable: true },
+		{ id: "mana",       labelKey: "settings.hud.mana",       fallback: "Pasek many",      x: 6.2,  y: 7.6,  orientable: true },
+		{ id: "stamina",    labelKey: "settings.hud.stamina",    fallback: "Pasek staminy",   x: 6.2,  y: 9.2,  orientable: true },
+		{ id: "exp",        labelKey: "settings.hud.exp",        fallback: "Pasek EXP",       x: 39.0, y: 91.0, orientable: true },
+		{ id: "magicxp",    labelKey: "settings.hud.magicxp",    fallback: "Pasek M-EXP",     x: 39.0, y: 93.6, orientable: true },
+		{ id: "hotbar",     labelKey: "settings.hud.hotbar",     fallback: "Hotbar",          x: 39.0, y: 95.5, orientable: true },
+		{ id: "worldclock", labelKey: "settings.hud.worldclock", fallback: "Zegar + pogoda",  x: 90.0, y: 1.5,  orientable: false },
+		{ id: "chat",       labelKey: "settings.hud.chat",       fallback: "Czat",            x: 1.0,  y: 87.0, orientable: false }
 	];
 
 	function buildDefaults() {
 		const out = {};
 		ELEMENTS.forEach(function (el) {
-			out[el.id] = { x: el.x, y: el.y, scale: 1.0, visible: true };
+			out[el.id] = { x: el.x, y: el.y, scale: 1.0, visible: true, orientation: "horizontal" };
 		});
 		return out;
 	}
@@ -341,6 +341,10 @@
 			section.appendChild(makeSlider(el.id, "y", "Y (%)", 0, 100, 0.1, cfg.y));
 			section.appendChild(makeSlider(el.id, "scale", t("settings.scale", "Skala"), 0.5, 2.0, 0.05, cfg.scale));
 
+			if (el.orientable) {
+				section.appendChild(makeOrientation(el.id, cfg.orientation || "horizontal"));
+			}
+
 			content.appendChild(section);
 		});
 
@@ -367,6 +371,34 @@
 		hint.className = "settings-hint";
 		hint.textContent = t("settings.other.hint", "Wkrótce więcej opcji.");
 		content.appendChild(hint);
+	}
+
+	function makeOrientation(elId, current) {
+		const row = document.createElement("div");
+		row.className = "settings-row settings-row--toggle";
+		const lab = document.createElement("label");
+		lab.textContent = t("settings.orientation", "Orientacja");
+		const wrap = document.createElement("div");
+		wrap.className = "settings-orient";
+		["horizontal", "vertical"].forEach(function (orient) {
+			const btn = document.createElement("button");
+			btn.type = "button";
+			btn.className = "settings-orient__btn" + (current === orient ? " is-active" : "");
+			btn.dataset.orient = orient;
+			btn.textContent = orient === "horizontal" ? t("settings.orientation.horizontal", "Pozioma") : t("settings.orientation.vertical", "Pionowa");
+			btn.addEventListener("click", function () {
+				state.hud[elId].orientation = orient;
+				wrap.querySelectorAll(".settings-orient__btn").forEach(function (b) {
+					b.classList.toggle("is-active", b.dataset.orient === orient);
+				});
+				applyToHud();
+				persist();
+			});
+			wrap.appendChild(btn);
+		});
+		row.appendChild(lab);
+		row.appendChild(wrap);
+		return row;
 	}
 
 	function makeSlider(elId, key, label, min, max, step, value) {

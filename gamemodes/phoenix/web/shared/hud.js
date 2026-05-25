@@ -48,6 +48,12 @@
 
 	function fmt(cur, max) { return Math.max(0, cur | 0) + " / " + Math.max(0, max | 0); }
 
+	function setFill(node, percent) {
+		if (!node) return;
+		const v = Math.max(0, Math.min(100, percent || 0));
+		node.style.setProperty("--fill-pct", v + "%");
+	}
+
 	function pct(cur, max) {
 		max = max | 0;
 		if (max <= 0) return 0;
@@ -379,22 +385,22 @@
 		const r = els.refs;
 		r.name.textContent = payload.name || "—";
 		r.level.textContent = "Lv " + (payload.level | 0);
-		r.hpFill.style.width = pct(payload.hp, payload.hpMax) + "%";
+		setFill(r.hpFill, pct(payload.hp, payload.hpMax));
 		r.hpLabel.textContent = fmt(payload.hp, payload.hpMax);
-		r.manaFill.style.width = pct(payload.mana, payload.manaMax) + "%";
+		setFill(r.manaFill, pct(payload.mana, payload.manaMax));
 		r.manaLabel.textContent = fmt(payload.mana, payload.manaMax);
-		r.stamFill.style.width = pct(payload.stamina, payload.staminaMax) + "%";
+		setFill(r.stamFill, pct(payload.stamina, payload.staminaMax));
 		r.stamLabel.textContent = fmt(payload.stamina, payload.staminaMax);
 		const expCur = payload.experience | 0;
 		const expCap = (payload.experienceNext | 0) || 1;
-		r.expFill.style.width = pct(expCur, expCap) + "%";
+		setFill(r.expFill, pct(expCur, expCap));
 		r.expLabel.textContent = expCur + " / " + expCap;
 		const magicLv = payload.magicLevel | 0;
 		const magicXp = payload.magicXp | 0;
 		const magicNext = (payload.magicXpNext | 0);
 		const magicCapped = magicNext <= 0;
-		const magicPct = magicCapped ? 100 : pct(magicXp, magicNext);
-		r.magicFill.style.width = magicPct + "%";
+		const magicPctV = magicCapped ? 100 : pct(magicXp, magicNext);
+		setFill(r.magicFill, magicPctV);
 		r.magicLabel.textContent = "M " + magicLv + (magicCapped ? "  ·  MAX" : "  ·  " + magicXp + " / " + magicNext);
 		try { renderPortrait(payload.headModel); } catch (ePt) {}
 		try { applyLayoutNow(); } catch (eLn) {}
@@ -764,6 +770,10 @@
 		node.style.top = y + "%";
 		node.style.transformOrigin = "0 0";
 		node.style.transform = "scale(" + scale + ")";
+
+		const orientation = (cfg.orientation === "vertical") ? "vertical" : "horizontal";
+		node.classList.toggle("phoenix-hud-vertical", orientation === "vertical");
+		node.classList.toggle("phoenix-hud-horizontal", orientation === "horizontal");
 	}
 
 	function applyLayout(layout) {

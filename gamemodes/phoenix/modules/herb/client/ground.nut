@@ -188,12 +188,29 @@ phoenix.herb.Ground <- {
 	}
 
 	function findNearest(heroPos) {
+		local heroAngle = 0.0
+		try { heroAngle = getPlayerAngle(heroId).tofloat() } catch (e) { heroAngle = 0.0 }
+		local rad = heroAngle * 3.14159 / 180.0
+		local dirX = sin(rad)
+		local dirZ = cos(rad)
 		local best = ""
-		local bestDist = phoenix.herb.Ground.range
+		local bestScore = phoenix.herb.Ground.range
+		local maxAngle = 0.55
 		foreach (plantId, entry in phoenix.herb.Ground.entries) {
 			if (!phoenix.herb.Ground.sameWorld(entry)) continue
+			local dx = entry.x - heroPos.x
+			local dz = entry.z - heroPos.z
 			local d = phoenix.herb.Ground.dist(heroPos, { x = entry.x, y = entry.y, z = entry.z })
-			if (d < bestDist) { bestDist = d; best = plantId }
+			if (d < 25.0) {
+				if (d < bestScore) { bestScore = d; best = plantId }
+				continue
+			}
+			if (d > phoenix.herb.Ground.range) continue
+			local norm = (d > 0.0001) ? d : 1.0
+			local cosAngle = (dx * dirX + dz * dirZ) / norm
+			if (cosAngle < cos(maxAngle)) continue
+			local score = d * (1.0 - (cosAngle - cos(maxAngle)) * 0.6)
+			if (score < bestScore) { bestScore = score; best = plantId }
 		}
 		return best
 	}
