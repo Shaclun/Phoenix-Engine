@@ -168,7 +168,7 @@
 		};
 	}
 
-	const portraitState = { headModel: "", current: "" };
+	const portraitState = { headModel: "", bodyModel: "", bodyTexIndex: 0, face: 0, current: "" };
 	const portraitConfig = { rotX: 1.5708, rotY: 3.1416, rotZ: 0, scale: 4.6, light: 2.4 };
 
 	function applyPortraitConfig(raw) {
@@ -184,15 +184,22 @@
 		if (typeof obj.scale === "number") portraitConfig.scale = obj.scale;
 		if (typeof obj.light === "number") portraitConfig.light = obj.light;
 		portraitState.current = "";
-		try { renderPortrait(portraitState.headModel); } catch (e2) {}
+		try { renderPortrait(portraitState.headModel, portraitState.bodyModel, portraitState.bodyTexIndex, portraitState.face); } catch (e2) {}
 	}
 
-	function renderPortrait(headModel) {
+	function renderPortrait(headModel, bodyModel, bodyTexIndex, face) {
 		buildHud();
 		if (!els.refs || !els.refs.portraitInner) return;
 		const head = String(headModel || "").trim();
+		const body = String(bodyModel || "").trim();
+		const bodyTex = (bodyTexIndex | 0) || 0;
+		const faceTex = (face | 0) || 0;
 		portraitState.headModel = head;
+		portraitState.bodyModel = body;
+		portraitState.bodyTexIndex = bodyTex;
+		portraitState.face = faceTex;
 		const target = els.refs.portraitInner;
+		
 		if (!head) {
 			if (portraitState.current !== "") {
 				target.innerHTML = '<span class="phoenix-hud-portrait__fallback">?</span>';
@@ -201,7 +208,7 @@
 			return;
 		}
 		const visual = head.toUpperCase().endsWith(".MMB") ? head : head + ".MMB";
-		const sig = visual + "|" + portraitConfig.rotX + "|" + portraitConfig.rotY + "|" + portraitConfig.rotZ + "|" + portraitConfig.scale + "|" + portraitConfig.light;
+		const sig = visual + "|" + faceTex + "|" + portraitConfig.rotX + "|" + portraitConfig.rotY + "|" + portraitConfig.rotZ + "|" + portraitConfig.scale + "|" + portraitConfig.light;
 		if (portraitState.current === sig) return;
 		portraitState.current = sig;
 		target.innerHTML = "";
@@ -217,6 +224,7 @@
 		el.setAttribute("rot-z", String(portraitConfig.rotZ));
 		el.setAttribute("scale", String(portraitConfig.scale));
 		el.setAttribute("light-intensity", String(portraitConfig.light));
+		el.setAttribute("head-tex-index", String(faceTex));
 		el.setAttribute("visual", visual);
 		target.appendChild(el);
 	}
@@ -402,7 +410,7 @@
 		const magicPctV = magicCapped ? 100 : pct(magicXp, magicNext);
 		setFill(r.magicFill, magicPctV);
 		r.magicLabel.textContent = "M " + magicLv + (magicCapped ? "  ·  MAX" : "  ·  " + magicXp + " / " + magicNext);
-		try { renderPortrait(payload.headModel); } catch (ePt) {}
+		try { renderPortrait(payload.headModel, payload.bodyModel, payload.bodyTexIndex, payload.face); } catch (ePt) {}
 		try { applyLayoutNow(); } catch (eLn) {}
 		show();
 	}

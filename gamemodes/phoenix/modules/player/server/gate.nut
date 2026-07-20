@@ -299,6 +299,20 @@ phoenix.player.Gate <- {
 		if (record == null) return
 		if (phoenix.player.Progression.normalizeRecordStats(record)) phoenix.player.Progression._persistRecord(record)
 
+		if (playerId in phoenix.player.Gate.reviving) phoenix.player.Gate.reviving.rawdelete(playerId)
+		if (playerId in phoenix.player.Gate.applying) phoenix.player.Gate.applying.rawdelete(playerId)
+		if (playerId in phoenix.player.Gate.pending) phoenix.player.Gate.pending.rawdelete(playerId)
+		try { setPlayerWeaponMode(playerId, 0) } catch (e) {}
+		try { stopAni(playerId, "S_DEADB") } catch (e) {}
+		try { stopAni(playerId, "T_DEADB") } catch (e) {}
+		try { stopAni(playerId, "T_VICTIM") } catch (e) {}
+		try {
+			local revive = phoenix.player.Message.Revived()
+			revive.hp = (record.hp != null && record.hp > 0) ? record.hp : ((record.hpMax != null && record.hpMax > 0) ? record.hpMax : 100)
+			revive.hpMax = (record.hpMax != null && record.hpMax > 0) ? record.hpMax : 100
+			revive.serialize().send(playerId, RELIABLE_ORDERED)
+		} catch (e) {}
+
 		local visual = phoenix.player.Gate.normalizeVisual(record)
 		local body = visual.body
 		local head = visual.head

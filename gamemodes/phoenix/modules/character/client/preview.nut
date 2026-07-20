@@ -685,6 +685,11 @@ addEventHandler("onRender", function() {
 
 phoenix.character.Preview.applyForRecord <- function(record) {
 	if (record == null) return
+	try { phoenix.player.HudClient.knockedDown = false } catch (e) {}
+	try { setPlayerWeaponMode(heroId, 0) } catch (e) {}
+	try { stopAni(heroId, "S_DEADB") } catch (e) {}
+	try { stopAni(heroId, "T_DEADB") } catch (e) {}
+	try { stopAni(heroId, "T_VICTIM") } catch (e) {}
 	local visual = phoenix.character.Preview.normalizeRecordVisual(record)
 	local body = visual.body
 	local head = visual.head

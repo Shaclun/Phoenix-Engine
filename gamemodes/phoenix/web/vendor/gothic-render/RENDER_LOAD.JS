@@ -277,10 +277,12 @@ class GothicItemRender extends HTMLElement {
         this._lightIntensity = 1.0;
         this._scale = 1.0;
         this._visual = '';
+        this._bodyTexIndex = -1;
+        this._headTexIndex = -1;
     }
 
     static get observedAttributes() {
-        return ['width', 'height', 'visual', 'rot-x', 'rot-y', 'rot-z', 'light-intensity', 'scale'];
+        return ['width', 'height', 'visual', 'rot-x', 'rot-y', 'rot-z', 'light-intensity', 'scale', 'body-tex-index', 'head-tex-index'];
     }
 
     connectedCallback() {
@@ -311,15 +313,26 @@ class GothicItemRender extends HTMLElement {
             'rot-y': () => { this._rotY = parseFloat(newValue) || 0.0; },
             'rot-z': () => { this._rotZ = parseFloat(newValue) || 0.0; },
             'light-intensity': () => { this._lightIntensity = clamp(parseFloat(newValue) || 1.0, 0.0, 10.0); },
-            'scale': () => { this._scale = clamp(parseFloat(newValue) || 1.0, 0.01, 10.0); }
+            'scale': () => { this._scale = clamp(parseFloat(newValue) || 1.0, 0.01, 10.0); },
+            'body-tex-index': () => {
+                const v = parseInt(newValue);
+                this._bodyTexIndex = Number.isNaN(v) ? -1 : v;
+            },
+            'head-tex-index': () => {
+                const v = parseInt(newValue);
+                this._headTexIndex = Number.isNaN(v) ? -1 : v;
+            }
         };
 
         if (updates[name]) {
             updates[name]();
+            if (!this.isConnected) return;
             if (['width', 'height', 'rot-x', 'rot-y', 'rot-z', 'light-intensity', 'scale'].includes(name) && this.model) {
                 this.renderModel();
             } else if (name === 'visual') {
                 this.loadAndRender();
+            } else if (['body-tex-index', 'head-tex-index'].includes(name) && this.model) {
+                this.renderModel();
             }
         }
     }
@@ -333,6 +346,10 @@ class GothicItemRender extends HTMLElement {
         this._rotZ = parseFloat(this.getAttribute('rot-z')) || 0.0;
         this._lightIntensity = clamp(parseFloat(this.getAttribute('light-intensity')) || 1.0, 0.0, 10.0);
         this._scale = clamp(parseFloat(this.getAttribute('scale')) || 1.0, 0.01, 10.0);
+        const bti = parseInt(this.getAttribute('body-tex-index'));
+        this._bodyTexIndex = Number.isNaN(bti) ? -1 : bti;
+        const hti = parseInt(this.getAttribute('head-tex-index'));
+        this._headTexIndex = Number.isNaN(hti) ? -1 : hti;
     }
 
     // FF
@@ -342,7 +359,12 @@ class GothicItemRender extends HTMLElement {
         clonedModel.traverse((child) => {
             if (child.isMesh && child.material) {
                 child.material = child.material.clone();
+                if (child.material.map) {
+                    child.material.map = child.material.map.clone();
+                    child.material.map.needsUpdate = true;
+                }
                 child.material.userData = { ...child.material.userData };
+                child.material.needsUpdate = true;
             }
         });
 
@@ -372,6 +394,7 @@ class GothicItemRender extends HTMLElement {
             const originalModel = await gothicRenderSystem.loadModel(modelUrl);
             if (originalModel) {
                 this.model = this.deepCloneModel(originalModel);
+                this.materialOverrides.clear();
                 this.renderModel();
             } else {
                 this.showError();
@@ -387,6 +410,7 @@ class GothicItemRender extends HTMLElement {
 
         try {
             await this.applyMaterialOverrides();
+            await this.applyGothicTextureIndices();
 
             this.canvas = gothicRenderSystem.renderToCanvas(
                 this.model, this._width, this._height,
@@ -399,6 +423,36 @@ class GothicItemRender extends HTMLElement {
             console.error('Error rendering model:', error);
             this.showError();
         }
+    }
+
+    async applyGothicTextureIndices() {
+        if (this._headTexIndex < 0 && this._bodyTexIndex < 0) return;
+
+        const updates = [];
+        this.model.traverse((child) => {
+            if (!child.isMesh || !child.material || !child.material.userData) return;
+
+            const source = String(child.material.userData.textureName || '')
+                .toUpperCase()
+                .replace(/\.(?:TGA|TEX)$/i, '');
+            let index = -1;
+            if (source.startsWith('HUM_HEAD')) index = this._headTexIndex;
+            else if (source.startsWith('HUM_BODY')) index = this._bodyTexIndex;
+            if (index < 0) return;
+
+            const match = source.match(/^(.*)_V\d+(_C\d+)$/);
+            if (!match) return;
+
+            const textureName = `${match[1]}_V${index}${match[2]}`;
+            const textureUrl = `vdfs://_WORK/DATA/TEXTURES/_COMPILED/${textureName}-C.TEX`;
+            updates.push(gothicRenderSystem.loadTexture(textureUrl).then((texture) => {
+                if (!texture) return;
+                child.material.map = texture;
+                child.material.needsUpdate = true;
+            }));
+        });
+
+        await Promise.all(updates);
     }
 
     async applyMaterialOverrides() {
