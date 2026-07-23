@@ -1,6 +1,14 @@
 (function () {
 	const root = document.getElementById("page-quests");
 	if (!root) return;
+	let trackerRoot = document.getElementById("phoenix-quest-objective-ribbon");
+	if (!trackerRoot) {
+		trackerRoot = document.createElement("section");
+		trackerRoot.id = "phoenix-quest-objective-ribbon";
+		trackerRoot.className = "quest-objective-ribbon";
+		trackerRoot.setAttribute("aria-live", "polite");
+		document.body.appendChild(trackerRoot);
+	}
 
 	const state = {
 		entries: [],
@@ -8,7 +16,9 @@
 		filter: "active",
 		dialog: null,
 		dialogStage: { source: null, revealed: true, npcName: "" },
-		lastError: ""
+		lastError: "",
+		trackerFingerprint: "",
+		trackerTimer: null
 	};
 
 	function esc(value) {
@@ -20,6 +30,88 @@
 			.replace(/'/g, "&#039;");
 	}
 
+	function tr(key, fallback) {
+		try {
+			const value = globalThis.PhoenixI18n && PhoenixI18n.t ? PhoenixI18n.t(key) : key;
+			return value === key && fallback ? fallback : value;
+		} catch (error) { return fallback || key; }
+	}
+
+	function trackerStats(entry) {
+		const objectives = Array.isArray(entry.objectives) ? entry.objectives : [];
+		let progress = 0;
+		let required = 0;
+		let incomplete = 0;
+		objectives.forEach(function (objective) {
+			const target = Math.max(1, Number(objective.required) || 1);
+			const current = Math.max(0, Math.min(target, Number(objective.progress) || 0));
+			progress += current;
+			required += target;
+			if (!objective.completed && current < target) incomplete += 1;
+		});
+		return { progress: progress, required: required, incomplete: incomplete, ratio: required > 0 ? progress / required : 0 };
+	}
+
+	function trackerPriority(entry) {
+		if (entry.status === "reward_pending") return 4;
+		if (entry.status === "ready_to_turn_in") return 3;
+		if (entry.tracked) return 2;
+		return entry.status === "active" ? 1 : 0;
+	}
+
+	function trackerCandidate() {
+		const candidates = state.entries.filter(function (entry) { return trackerPriority(entry) > 0; });
+		candidates.sort(function (left, right) {
+			const priority = trackerPriority(right) - trackerPriority(left);
+			if (priority) return priority;
+			const leftStats = trackerStats(left);
+			const rightStats = trackerStats(right);
+			if (rightStats.ratio !== leftStats.ratio) return rightStats.ratio - leftStats.ratio;
+			if (leftStats.incomplete !== rightStats.incomplete) return leftStats.incomplete - rightStats.incomplete;
+			if ((Number(right.stateVersion) || 0) !== (Number(left.stateVersion) || 0)) return (Number(right.stateVersion) || 0) - (Number(left.stateVersion) || 0);
+			return (Number(left.id) || 0) - (Number(right.id) || 0);
+		});
+		return candidates.length ? candidates[0] : null;
+	}
+
+	function trackerObjective(entry) {
+		if (entry.status === "reward_pending") return { label: tr("quest.tracker.rewardPending"), progress: 1, required: 1 };
+		if (entry.status === "ready_to_turn_in") return { label: tr("quest.tracker.turnIn"), progress: 1, required: 1 };
+		const objectives = Array.isArray(entry.objectives) ? entry.objectives : [];
+		for (let i = 0; i < objectives.length; i += 1) {
+			const objective = objectives[i];
+			if (!objective.completed && Number(objective.progress) < Number(objective.required)) return objective;
+		}
+		return { label: entry.stageTitle || tr("quest.tracker.noObjective"), progress: 0, required: 1 };
+	}
+
+	function renderTracker() {
+		const entry = trackerCandidate();
+		if (!entry) {
+			trackerRoot.classList.remove("is-visible", "is-updated", "is-turn-in", "is-reward");
+			trackerRoot.innerHTML = "";
+			state.trackerFingerprint = "";
+			return;
+		}
+		const objective = trackerObjective(entry);
+		const required = Math.max(1, Number(objective.required) || 1);
+		const progress = Math.max(0, Math.min(required, Number(objective.progress) || 0));
+		const percent = Math.round(progress / required * 100);
+		const fingerprint = [entry.id, entry.status, objective.key || objective.label || "", progress, required].join(":");
+		trackerRoot.classList.toggle("is-turn-in", entry.status === "ready_to_turn_in");
+		trackerRoot.classList.toggle("is-reward", entry.status === "reward_pending");
+		trackerRoot.innerHTML = '<div class="quest-objective-ribbon__sigil">◆</div><div class="quest-objective-ribbon__content"><div class="quest-objective-ribbon__meta"><span>' + esc(tr("quest.tracker.objective")) + '</span><strong>' + esc(entry.title || entry.code) + '</strong></div><div class="quest-objective-ribbon__target"><span>' + esc(objective.label || objective.key || entry.stageTitle || tr("quest.tracker.noObjective")) + '</span><b>' + progress + ' / ' + required + '</b></div><div class="quest-objective-ribbon__bar"><i style="width:' + percent + '%"></i></div></div>';
+		trackerRoot.classList.add("is-visible");
+		if (state.trackerFingerprint && state.trackerFingerprint !== fingerprint) {
+			trackerRoot.classList.remove("is-updated");
+			void trackerRoot.offsetWidth;
+			trackerRoot.classList.add("is-updated");
+			clearTimeout(state.trackerTimer);
+			state.trackerTimer = setTimeout(function () { trackerRoot.classList.remove("is-updated"); }, 900);
+		}
+		state.trackerFingerprint = fingerprint;
+	}
+
 	function statusGroup(entry) {
 		if (entry.status === "completed") return "completed";
 		if (entry.status === "failed" || entry.status === "cancelled") return "failed";
@@ -27,12 +119,7 @@
 	}
 
 	function statusLabel(status) {
-		if (status === "completed") return "Ukończone";
-		if (status === "ready_to_turn_in") return "Gotowe do oddania";
-		if (status === "reward_pending") return "Oczekuje na nagrodę";
-		if (status === "failed") return "Nieudane";
-		if (status === "cancelled") return "Anulowane";
-		return "Aktywne";
+		return tr("quest.status." + status, tr("quest.status.active", "Aktywne"));
 	}
 
 	function visibleEntries() {
@@ -62,13 +149,13 @@
 		const npcName = state.dialogStage.npcName || "NPC";
 		const showOptions = !isNode || state.dialogStage.revealed;
 		const options = isNode ? (Array.isArray(payload.choices) ? payload.choices : []) : (Array.isArray(payload.options) ? payload.options : []);
-		const speakerName = isNode && payload.speaker === "player" ? "Ty" : npcName;
-		const speechText = isNode ? (payload.text || "") : "Wybierz temat rozmowy.";
+		const speakerName = isNode && payload.speaker === "player" ? tr("quest.dialog.you", "Ty") : npcName;
+		const speechText = isNode ? (payload.text || "") : tr("quest.dialog.choose", "Wybierz temat rozmowy.");
 		root.innerHTML = '<div class="npc-cinematic-dialog"><button type="button" class="quest-close npc-cinematic-dialog__close" data-action="close" title="ESC" aria-label="Zamknij">✕</button>' +
 			'<section class="npc-cinematic-dialog__speech"><span class="npc-cinematic-dialog__name">' + esc(speakerName) + '</span><p>' + esc(speechText) + '</p>' + (isNode && !showOptions ? '<small>Space / LPM</small>' : '') + '</section>' +
 			'<section class="npc-cinematic-dialog__options' + (showOptions ? ' is-visible' : '') + '">' + (showOptions ? options.map(function (option) {
-				return '<button type="button" class="quest-dialog-option" data-action="dialog-option" data-key="' + esc(option.key) + '"><span>' + esc(isNode ? option.text : option.title) + '</span>' + (isNode ? '' : '<small>' + (option.kind === "start" ? "Rozpocznij zadanie" : option.kind === "teacher" ? "Nauka" : option.kind === "merchant" ? "Handel" : "Kontynuuj zadanie") + '</small>') + '</button>';
-			}).join("") : '') + (showOptions && !options.length ? '<div class="quest-dialog-empty">Brak dostępnych odpowiedzi.</div>' : '') + '</section></div>';
+				return '<button type="button" class="quest-dialog-option" data-action="dialog-option" data-key="' + esc(option.key) + '"><span>' + esc(isNode ? option.text : option.title) + '</span>' + (isNode ? '' : '<small>' + (option.kind === "start" ? tr("quest.dialog.start") : option.kind === "teacher" ? tr("quest.dialog.learn") : option.kind === "merchant" ? tr("quest.dialog.trade") : tr("quest.dialog.continue")) + '</small>') + '</button>';
+			}).join("") : '') + (showOptions && !options.length ? '<div class="quest-dialog-empty">' + esc(tr("quest.dialog.empty")) + '</div>' : '') + '</section></div>';
 	}
 
 	function advanceDialog() {
@@ -95,11 +182,11 @@
 		const entries = visibleEntries();
 		const selected = selectedEntry();
 		const tabs = [
-			{ id: "active", label: "Aktywne" },
-			{ id: "completed", label: "Ukończone" },
-			{ id: "failed", label: "Nieudane" }
+			{ id: "active", label: tr("quest.status.active") },
+			{ id: "completed", label: tr("quest.status.completed") },
+			{ id: "failed", label: tr("quest.status.failed") }
 		];
-		let detail = '<div class="quest-empty">Wybierz zadanie z listy.</div>';
+		let detail = '<div class="quest-empty">' + esc(tr("quest.log.choose")) + '</div>';
 		if (selected) {
 			const objectives = Array.isArray(selected.objectives) ? selected.objectives : [];
 			const objectiveRows = objectives.map(function (objective) {

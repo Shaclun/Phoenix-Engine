@@ -5,7 +5,19 @@ phoenix.quest.Repository <- {
 
 	function escape(value) {
 		if (value == null) return ""
-		try { return ORM.engine.escape(value.tostring()) } catch (e) { return value.tostring() }
+		local source = value.tostring()
+		local out = ""
+		for (local i = 0; i < source.len(); i++) {
+			local c = source[i]
+			if (c == '\\') out += "\\\\"
+			else if (c == '\'') out += "\\'"
+			else if (c == 0) out += "\\0"
+			else if (c == 10) out += "\\n"
+			else if (c == 13) out += "\\r"
+			else if (c == 26) out += "\\Z"
+			else out += source.slice(i, i + 1)
+		}
+		return out
 	}
 
 	function rowInt(row, key, fallback = 0) {
@@ -280,6 +292,70 @@ phoenix.quest.Repository <- {
 			if (codeValue == "QUEST_IN_USE") { callback(false, phoenix.quest.Error.QuestInUse, null); return }
 			if (codeValue == "LEGACY_MAPPED") { callback(false, phoenix.quest.Error.LegacyMapped, null); return }
 			print("(phoenix.quest) deleteDefinition failed id=" + id + " correlation=" + (correlationId == null ? "" : correlationId.tostring()) + ": " + codeValue + "\n")
+			callback(false, phoenix.quest.Error.Internal, null)
+		}
+	}
+
+	function forceDeleteDefinition(playerId, payload, correlationId, callback) {
+		if (!phoenix.quest.Schema.isTable(payload)) { callback(false, phoenix.quest.Error.InvalidRequest, null); return }
+		local id = ("id" in payload) ? phoenix.quest.Schema.integer(payload.id, 0, 1) : 0
+		local expectedVersion = ("lockVersion" in payload) ? phoenix.quest.Schema.integer(payload.lockVersion, 0, 0) : 0
+		local confirmedCode = ("code" in payload && payload.code != null) ? payload.code.tostring().toupper() : ""
+		if (id <= 0 || confirmedCode == "") { callback(false, phoenix.quest.Error.InvalidRequest, null); return }
+		local actor = phoenix.quest.Repository.actor(playerId)
+		local affectedCharacters = {}
+		try {
+			ORM.engine.execute("START TRANSACTION")
+			local rows = ORM.engine.execute("SELECT * FROM `phoenix_quest_definitions` WHERE `id`=" + id + " FOR UPDATE")
+			if (rows == null || rows.len() == 0) throw "NOT_FOUND"
+			local definition = phoenix.quest.Repository.definitionFromRow(rows[0])
+			if (definition.lockVersion != expectedVersion) throw "STALE_VERSION"
+			if (definition.status != phoenix.quest.DefinitionStatus.Archived) throw "NOT_ARCHIVED"
+			if (definition.code.toupper() != confirmedCode) throw "INVALID_CONFIRMATION"
+			local revisions = ORM.engine.execute("SELECT `id` FROM `phoenix_quest_revisions` WHERE `definitionId`=" + id + " FOR UPDATE")
+			local states = ORM.engine.execute("SELECT cq.`id`,cq.`characterId`,cq.`status` FROM `phoenix_character_quests` cq INNER JOIN `phoenix_quest_revisions` qr ON qr.`id`=cq.`revisionId` WHERE qr.`definitionId`=" + id + " FOR UPDATE")
+			local ledgers = ORM.engine.execute("SELECT qrl.`id` FROM `phoenix_quest_reward_ledger` qrl INNER JOIN `phoenix_character_quests` cq ON cq.`id`=qrl.`characterQuestId` INNER JOIN `phoenix_quest_revisions` qr ON qr.`id`=cq.`revisionId` WHERE qr.`definitionId`=" + id + " FOR UPDATE")
+			local objectives = ORM.engine.execute("SELECT qo.`id` FROM `phoenix_character_quest_objectives` qo INNER JOIN `phoenix_character_quests` cq ON cq.`id`=qo.`characterQuestId` INNER JOIN `phoenix_quest_revisions` qr ON qr.`id`=cq.`revisionId` WHERE qr.`definitionId`=" + id + " FOR UPDATE")
+			local history = ORM.engine.execute("SELECT qh.`id` FROM `phoenix_character_quest_history` qh INNER JOIN `phoenix_character_quests` cq ON cq.`id`=qh.`characterQuestId` INNER JOIN `phoenix_quest_revisions` qr ON qr.`id`=cq.`revisionId` WHERE qr.`definitionId`=" + id + " FOR UPDATE")
+			local legacy = ORM.engine.execute("SELECT `legacyQuestId` FROM `phoenix_quest_legacy_map` WHERE `definitionId`=" + id + " FOR UPDATE")
+			local rewardPending = 0
+			if (states != null) foreach (state in states) {
+				affectedCharacters[state.characterId.tointeger()] <- true
+				if (state.status.tostring() == phoenix.quest.Status.RewardPending) rewardPending += 1
+			}
+			local impact = {
+				force = true,
+				revisions = revisions == null ? 0 : revisions.len(),
+				states = states == null ? 0 : states.len(),
+				objectives = objectives == null ? 0 : objectives.len(),
+				history = history == null ? 0 : history.len(),
+				ledger = ledgers == null ? 0 : ledgers.len(),
+				legacy = legacy == null ? 0 : legacy.len(),
+				rewardPending = rewardPending
+			}
+			phoenix.quest.Repository.auditSync(actor, "questForceDelete", "quest", id.tostring(), correlationId, definition, impact)
+			ORM.engine.execute("DELETE qrl FROM `phoenix_quest_reward_ledger` qrl INNER JOIN `phoenix_character_quests` cq ON cq.`id`=qrl.`characterQuestId` INNER JOIN `phoenix_quest_revisions` qr ON qr.`id`=cq.`revisionId` WHERE qr.`definitionId`=" + id)
+			ORM.engine.execute("DELETE qh FROM `phoenix_character_quest_history` qh INNER JOIN `phoenix_character_quests` cq ON cq.`id`=qh.`characterQuestId` INNER JOIN `phoenix_quest_revisions` qr ON qr.`id`=cq.`revisionId` WHERE qr.`definitionId`=" + id)
+			ORM.engine.execute("DELETE qo FROM `phoenix_character_quest_objectives` qo INNER JOIN `phoenix_character_quests` cq ON cq.`id`=qo.`characterQuestId` INNER JOIN `phoenix_quest_revisions` qr ON qr.`id`=cq.`revisionId` WHERE qr.`definitionId`=" + id)
+			ORM.engine.execute("DELETE cq FROM `phoenix_character_quests` cq INNER JOIN `phoenix_quest_revisions` qr ON qr.`id`=cq.`revisionId` WHERE qr.`definitionId`=" + id)
+			ORM.engine.execute("DELETE FROM `phoenix_quest_legacy_map` WHERE `definitionId`=" + id)
+			ORM.engine.execute("DELETE qnb FROM `phoenix_quest_npc_bindings` qnb INNER JOIN `phoenix_quest_revisions` qr ON qr.`id`=qnb.`revisionId` WHERE qr.`definitionId`=" + id)
+			ORM.engine.execute("DELETE qsi FROM `phoenix_quest_stage_index` qsi INNER JOIN `phoenix_quest_revisions` qr ON qr.`id`=qsi.`revisionId` WHERE qr.`definitionId`=" + id)
+			ORM.engine.execute("UPDATE `phoenix_quest_definitions` SET `currentDraftRevisionId`=NULL,`publishedRevisionId`=NULL WHERE `id`=" + id + " AND `lockVersion`=" + expectedVersion)
+			ORM.engine.execute("DELETE FROM `phoenix_quest_revisions` WHERE `definitionId`=" + id)
+			ORM.engine.execute("DELETE FROM `phoenix_quest_definitions` WHERE `id`=" + id + " AND `status`='archived' AND `lockVersion`=" + expectedVersion)
+			ORM.engine.execute("COMMIT")
+			phoenix.quest.Repository.loadPublished(function(cache) {})
+			foreach (characterId, value in affectedCharacters) phoenix.quest.State.reloadAndSync(characterId)
+			callback(true, "", { id = id, impact = impact })
+		} catch (error) {
+			try { ORM.engine.execute("ROLLBACK") } catch (rollbackError) {}
+			local codeValue = error.tostring()
+			if (codeValue == "STALE_VERSION") { callback(false, phoenix.quest.Error.StaleVersion, null); return }
+			if (codeValue == "NOT_FOUND") { callback(false, phoenix.quest.Error.NotFound, null); return }
+			if (codeValue == "NOT_ARCHIVED") { callback(false, phoenix.quest.Error.NotArchived, null); return }
+			if (codeValue == "INVALID_CONFIRMATION") { callback(false, phoenix.quest.Error.InvalidRequest, null); return }
+			print("(phoenix.quest) forceDeleteDefinition failed id=" + id + " correlation=" + (correlationId == null ? "" : correlationId.tostring()) + ": " + codeValue + "\n")
 			callback(false, phoenix.quest.Error.Internal, null)
 		}
 	}

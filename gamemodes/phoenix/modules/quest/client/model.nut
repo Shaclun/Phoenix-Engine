@@ -31,7 +31,13 @@ phoenix.quest.Model <- {
 		phoenix.quest.Model.stateVersion = message.stateVersion
 		local payload = message.payload != null ? message.payload : {}
 		phoenix.quest.Model.entries = ("entries" in payload && payload.entries != null) ? payload.entries : []
-		phoenix.quest.Model.tracked = ("tracked" in payload) ? payload.tracked : null
+		phoenix.quest.Model.tracked = null
+		foreach (entry in phoenix.quest.Model.entries) {
+			if ("tracked" in entry && entry.tracked == true) {
+				phoenix.quest.Model.tracked = entry
+				break
+			}
+		}
 		phoenix.quest.Model.emitState()
 	}
 

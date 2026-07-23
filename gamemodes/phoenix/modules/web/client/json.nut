@@ -52,7 +52,7 @@ phoenix.web.Json <- {
 			else {
 				local decoded = phoenix.web.Json._decodeUtf8At(s, i)
 				if (decoded.next > i) {
-					out += phoenix.web.Json._unicodeEscape(decoded.code)
+					out += s.slice(i, decoded.next)
 					i = decoded.next - 1
 				} else out += "?"
 			}

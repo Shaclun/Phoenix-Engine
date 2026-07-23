@@ -26,6 +26,10 @@ phoenix.quest.Definitions <- {
 		phoenix.quest.Repository.deleteDefinition(playerId, payload, correlationId, callback)
 	}
 
+	function forceDeleteDefinition(playerId, payload, correlationId, callback) {
+		phoenix.quest.Repository.forceDeleteDefinition(playerId, payload, correlationId, callback)
+	}
+
 	function cloneDraft(playerId, payload, correlationId, callback) {
 		if (!phoenix.quest.Schema.isTable(payload)) { callback(false, phoenix.quest.Error.InvalidRequest, null); return }
 		local sourceId = "sourceId" in payload ? phoenix.quest.Schema.integer(payload.sourceId, 0, 1) : 0
@@ -84,6 +88,7 @@ phoenix.quest.Admin <- {
 		questPublish = "quest.publish",
 		questArchive = "quest.archive",
 		questDelete = "quest.delete",
+		questForceDelete = "quest.force_delete",
 		questClone = "quest.edit",
 		questLegacyReport = "quest.migrate",
 		questLegacyConvert = "quest.migrate"
@@ -189,6 +194,14 @@ phoenix.quest.Admin <- {
 		if (!phoenix.quest.Schema.isTable(payload) || !("confirm" in payload) || payload.confirm != true) { phoenix.admin.Server.reply(playerId, "questDelete", false, "confirmationRequired", null); return }
 		phoenix.quest.Definitions.deleteDefinition(playerId, payload, phoenix.quest.Admin.correlation(payload), function(success, error, result) {
 			phoenix.admin.Server.reply(playerId, "questDelete", success, error, result)
+		})
+	}
+
+	function forceDeleteDefinition(playerId, payload) {
+		if (!phoenix.quest.Admin.guard(playerId, "questForceDelete", payload)) return
+		if (!phoenix.quest.Schema.isTable(payload) || !("confirm" in payload) || payload.confirm != true || !("force" in payload) || payload.force != true || !("code" in payload)) { phoenix.admin.Server.reply(playerId, "questForceDelete", false, "confirmationRequired", null); return }
+		phoenix.quest.Definitions.forceDeleteDefinition(playerId, payload, phoenix.quest.Admin.correlation(payload), function(success, error, result) {
+			phoenix.admin.Server.reply(playerId, "questForceDelete", success, error, result)
 		})
 	}
 

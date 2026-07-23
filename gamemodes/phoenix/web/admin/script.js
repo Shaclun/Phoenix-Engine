@@ -278,6 +278,10 @@
     };
 
     function defaultQuestEditor() {
+        if (global.PhoenixQuestTemplates) {
+            var template = global.PhoenixQuestTemplates.create("blank");
+            if (template) return template;
+        }
         return {
             id: 0,
             code: "NEW_QUEST",
@@ -4942,7 +4946,7 @@
         }
         var badge = body && body.querySelector("[data-quest-dirty]");
         if (badge) {
-            badge.textContent = state.questUi.dirty ? "Niezapisane zmiany" : "Zapisano";
+            badge.textContent = t(state.questUi.dirty ? "admin.quest.ui.unsaved" : "admin.quest.ui.saved");
             badge.className = "adm-quest-dirty " + (state.questUi.dirty ? "is-dirty" : "is-saved");
         }
     }
@@ -5117,13 +5121,21 @@
         return { valid: false, summary: "Nieznany typ celu", message: "Wybierz obsługiwany typ celu." };
     }
 
+    function questIssueMessage(issue) {
+        var key = "admin.quest.validation." + String(issue && issue.code || "generic");
+        var localized = t(key, "");
+        if (localized && localized !== key) return localized;
+        if (global.PhoenixI18n && global.PhoenixI18n.getLang && global.PhoenixI18n.getLang() === "pl") return issue.message || issue.code || "";
+        return t("admin.quest.validation.generic") + (issue && issue.code ? ": " + issue.code : "");
+    }
+
     function questValidationSummary() {
         if (!state.questValidation) return "";
         var validation = state.questValidation;
         var issues = (validation.errors || []).concat(validation.warnings || []);
-        var html = '<div class="adm-quest-validation adm-quest-validation--summary ' + (validation.valid ? 'is-valid' : 'is-invalid') + '"><strong>' + (validation.valid ? 'Definicja gotowa do publikacji' : 'Draft zapisany, ale wymaga uzupełnienia') + '</strong>';
-        if (!issues.length) html += '<span>Nie znaleziono problemów.</span>';
-        issues.forEach(function (issue) { html += '<div><code>' + escapeHtml(issue.path || "") + '</code><span>' + escapeHtml(issue.message || issue.code || "") + '</span></div>'; });
+        var html = '<div class="adm-quest-validation adm-quest-validation--summary ' + (validation.valid ? 'is-valid' : 'is-invalid') + '"><strong>' + escapeHtml(t(validation.valid ? "admin.quest.validation.valid" : "admin.quest.validation.invalid")) + '</strong>';
+        if (!issues.length) html += '<span>' + escapeHtml(t("admin.quest.validation.none")) + '</span>';
+        issues.forEach(function (issue) { html += '<div><code>' + escapeHtml(issue.path || "") + '</code><span>' + escapeHtml(questIssueMessage(issue)) + '</span></div>'; });
         return html + '</div>';
     }
 
@@ -5253,31 +5265,31 @@
     }
 
     function questObjectiveLabel(type) {
-        return ({ talk: "Porozmawiaj z NPC", kill: "Zabij NPC", collect: "Zbierz przedmioty", deliver: "Dostarcz przedmioty", reach: "Dotrzyj do miejsca", interact: "Wejdź w interakcję", custom_event: "Zdarzenie niestandardowe" })[type] || type;
+        return t("admin.quest.objective." + type, type);
     }
 
     function questRewardLabel(type) {
-        return ({ experience: "Doświadczenie", currency: "Waluta", item: "Przedmiot", statistic: "Statystyka", flag: "Flaga postaci" })[type] || type;
+        return t("admin.quest.reward." + type, type);
     }
 
     function questNpcRoleLabel(role) {
-        return ({ giver: "Zleceniodawca", turn_in: "NPC oddania", talk_target: "Cel rozmowy", interact_target: "Cel interakcji" })[role] || role;
+        return t("admin.quest.role." + role, role);
     }
 
     function questNpcRefLabel(type) {
-        return ({ spawn: "Konkretny NPC z bazy", preset: "Preset NPC", instance: "Instancja", tag: "Tag" })[type] || type;
+        return t("admin.quest.ref." + type, type);
     }
 
     function questStatisticLabel(stat) {
-        return ({ strength: "Siła", dexterity: "Zręczność", learnPoints: "Punkty nauki", hpMax: "Maksymalne zdrowie", manaMax: "Maksymalna mana" })[stat] || stat;
+        return t("admin.quest.stat." + stat, stat);
     }
 
     function questObjectiveModeLabel(mode) {
-        return ({ all: "Wszystkie cele", any: "Dowolny cel" })[mode] || mode;
+        return t("admin.quest.objectiveMode." + mode, mode);
     }
 
     function questMarkerLabel(type) {
-        return ({ continue: "Kontynuacja", turn_in: "Oddanie questa" })[type] || type;
+        return t("admin.quest.marker." + type, type);
     }
 
     function questObjectiveEditor(objective, stageIndex, objectiveIndex) {
@@ -5292,7 +5304,7 @@
         html += '<div class="adm-quest-config">' + questObjectiveConfig(objective, stageIndex, objectiveIndex) + '</div>' + questObjectivePicker(objective, stageIndex, objectiveIndex);
         if (issues.length) {
             html += '<div class="adm-quest-inline-issues">';
-            issues.forEach(function (issue) { html += '<span>' + escapeHtml(issue.message || issue.code || "") + '</span>'; });
+            issues.forEach(function (issue) { html += '<span>' + escapeHtml(questIssueMessage(issue)) + '</span>'; });
             html += '</div>';
         }
         return html + '</article>';
@@ -5335,7 +5347,7 @@
     }
 
     function questDialogModeLabel(mode) {
-        return ({ start: "Przed rozpoczęciem", continue: "W trakcie questa", turn_in: "Przy oddaniu" })[mode] || mode;
+        return t("admin.quest.dialogMode." + mode, mode);
     }
 
     function questDialogActionEditor(action, graphIndex, nodeIndex, choiceIndex, actionIndex) {
@@ -5386,6 +5398,16 @@
         return html + '</div>';
     }
 
+    function questTemplateCatalog() {
+        if (!global.PhoenixQuestTemplates) return "";
+        var templates = global.PhoenixQuestTemplates.list();
+        var html = '<section class="adm-quest-templates"><header><strong>' + escapeHtml(t("admin.quest.templates.title")) + '</strong><small>' + escapeHtml(t("admin.quest.templates.subtitle")) + '</small></header><div class="adm-quest-template-grid">';
+        templates.forEach(function (template) {
+            html += '<article class="adm-quest-template"><span class="adm-quest-template__icon">' + escapeHtml(template.icon) + '</span><div class="adm-quest-template__body"><strong>' + escapeHtml(t(template.nameKey)) + '</strong><span>' + escapeHtml(t(template.descriptionKey)) + '</span><small>' + escapeHtml(t(template.requirementsKey)) + '</small></div><button class="adm-btn" data-action="quest-apply-template" data-template="' + escapeHtml(template.id) + '">' + escapeHtml(t("admin.quest.templates.apply")) + '</button></article>';
+        });
+        return html + '</div></section>';
+    }
+
     function questStructuredEditor(editor) {
         var content = questNormalizeContent(editor.content);
         var basicsReady = !!String(editor.code || "").trim() && !!String(content.metadata.title || "").trim();
@@ -5414,14 +5436,14 @@
         var paging = state.questList;
         var from = paging.total ? paging.offset + 1 : 0;
         var to = Math.min(paging.total, paging.offset + paging.limit);
-        var html = '<div class="adm-section adm-quest-maker"><div class="adm-toolbar"><button class="adm-btn adm-btn--primary" data-action="quest-new">Nowy quest</button><button class="adm-btn" data-action="quest-refresh">Odśwież</button><button class="adm-btn" data-action="quest-legacy-report">Raport legacy</button><span class="adm-muted">Draft → walidacja → publikacja niezmiennej rewizji</span></div><div class="adm-quest-layout"><aside class="adm-quest-list" data-quest-scroll="definition-list"><div class="adm-quest-list__filters"><input class="adm-search" data-quest-list-filter value="' + escapeHtml(paging.filter) + '" placeholder="Szukaj kodu lub tytułu"><select data-quest-list-status><option value="">Wszystkie statusy</option>' + questSelectOptions(["draft", "published", "archived"], paging.status) + '</select></div>';
-        if (!list.length) html += '<div class="adm-empty">Brak definicji questów.</div>';
+        var html = '<div class="adm-section adm-quest-maker"><div class="adm-toolbar"><button class="adm-btn adm-btn--primary" data-action="quest-new">' + escapeHtml(t("admin.quest.ui.new")) + '</button><button class="adm-btn" data-action="quest-refresh">' + escapeHtml(t("admin.quest.ui.refresh")) + '</button><button class="adm-btn" data-action="quest-legacy-report">' + escapeHtml(t("admin.quest.ui.legacyReport")) + '</button><span class="adm-muted">' + escapeHtml(t("admin.quest.ui.workflow")) + '</span></div>' + questTemplateCatalog() + '<div class="adm-quest-layout"><aside class="adm-quest-list" data-quest-scroll="definition-list"><div class="adm-quest-list__filters"><input class="adm-search" data-quest-list-filter value="' + escapeHtml(paging.filter) + '" placeholder="' + escapeHtml(t("admin.quest.ui.search")) + '"><select data-quest-list-status><option value="">' + escapeHtml(t("admin.quest.ui.allStatuses")) + '</option>' + questSelectOptions(["draft", "published", "archived"], paging.status) + '</select></div>';
+        if (!list.length) html += '<div class="adm-empty">' + escapeHtml(t("admin.quest.ui.emptyList")) + '</div>';
         list.forEach(function (entry) { var active = editor && +editor.id === +entry.id; html += '<button class="adm-quest-entry' + (active ? ' is-active' : '') + '" data-action="quest-select" data-id="' + (+entry.id || 0) + '"><strong>' + escapeHtml(entry.title || entry.code) + '</strong><small>' + escapeHtml(entry.code) + ' · ' + escapeHtml(entry.status) + ' · v' + (+entry.lockVersion || 0) + '</small></button>'; });
         html += '<div class="adm-quest-pager"><button class="adm-btn" data-action="quest-page-prev"' + (paging.offset <= 0 ? " disabled" : "") + '>←</button><span>' + from + '–' + to + ' / ' + paging.total + '</span><button class="adm-btn" data-action="quest-page-next"' + (paging.offset + paging.limit >= paging.total ? " disabled" : "") + '>→</button></div></aside><section class="adm-quest-editor" data-quest-scroll="editor">';
-        if (!editor) html += '<div class="adm-empty">Wybierz quest albo utwórz nowy draft.</div>';
+        if (!editor) html += '<div class="adm-empty">' + escapeHtml(t("admin.quest.ui.choose")) + '</div>';
         else {
             var isArchived = editor.status === "archived";
-            html += '<div class="adm-quest-editor__head"><div class="adm-grid adm-grid--2"><label class="adm-field"><span>Kod</span><input data-q-code value="' + escapeHtml(editor.code || "") + '" maxlength="64"></label><label class="adm-field"><span>Status</span><input value="' + escapeHtml(editor.status || "draft") + ' · lock v' + (+editor.lockVersion || 0) + '" disabled></label></div><div class="adm-quest-mode"><button class="adm-btn' + (state.questUi.mode === "form" ? " is-active" : "") + '" data-action="quest-mode-form">Formularz</button><button class="adm-btn' + (state.questUi.mode === "json" ? " is-active" : "") + '" data-action="quest-mode-json">JSON</button><span data-quest-dirty class="adm-quest-dirty ' + (state.questUi.dirty ? "is-dirty" : "is-saved") + '">' + (state.questUi.dirty ? "Niezapisane zmiany" : "Zapisano") + '</span></div></div>';
+            html += '<div class="adm-quest-editor__head"><div class="adm-grid adm-grid--2"><label class="adm-field"><span>' + escapeHtml(t("admin.quest.ui.code")) + '</span><input data-q-code value="' + escapeHtml(editor.code || "") + '" maxlength="64"></label><label class="adm-field"><span>' + escapeHtml(t("admin.quest.ui.status")) + '</span><input value="' + escapeHtml(editor.status || "draft") + ' · lock v' + (+editor.lockVersion || 0) + '" disabled></label></div><div class="adm-quest-mode"><button class="adm-btn' + (state.questUi.mode === "form" ? " is-active" : "") + '" data-action="quest-mode-form">' + escapeHtml(t("admin.quest.ui.form")) + '</button><button class="adm-btn' + (state.questUi.mode === "json" ? " is-active" : "") + '" data-action="quest-mode-json">' + escapeHtml(t("admin.quest.ui.json")) + '</button><span data-quest-dirty class="adm-quest-dirty ' + (state.questUi.dirty ? "is-dirty" : "is-saved") + '">' + escapeHtml(t(state.questUi.dirty ? "admin.quest.ui.unsaved" : "admin.quest.ui.saved")) + '</span></div></div>';
             html += questValidationSummary();
             if (isArchived) html += '<div class="adm-quest-archived"><strong>To jest archiwalna definicja</strong><span>Nie można zmieniać ani ponownie publikować jej pod tym samym ID. Bieżące zmiany możesz zapisać jako nowy, niezależny draft.</span></div>';
             if (state.questUi.mode === "json") html += '<label class="adm-field"><span>Kanoniczna definicja JSON</span><textarea data-q-json data-quest-scroll="json" class="adm-quest-json" spellcheck="false">' + escapeHtml(state.questUi.rawText || JSON.stringify(editor.content || {}, null, 2)) + '</textarea></label>';
@@ -5430,7 +5452,7 @@
             var canPublish = canValidate && state.questValidation && state.questValidation.valid && state.questUi.validationFingerprint === questFingerprint();
             html += '<div class="adm-toolbar adm-quest-actions">' + (state.questUi.mode === "json" ? '<button class="adm-btn" data-action="quest-format">Formatuj JSON</button>' : '') + '<button class="adm-btn" data-action="quest-validate"' + (canValidate ? "" : " disabled") + '>Waliduj przed publikacją</button><button class="adm-btn adm-btn--primary" data-action="' + (isArchived ? "quest-save-archived-copy" : "quest-save") + '">' + (isArchived ? "Zapisz zmiany jako nowy draft" : "Zapisz draft") + '</button>';
             if (+editor.id > 0 && !isArchived) html += '<button class="adm-btn" data-action="quest-clone">Klonuj</button><button class="adm-btn adm-btn--success" data-action="quest-publish"' + (canPublish ? "" : " disabled") + '>Publikuj</button><button class="adm-btn adm-btn--danger" data-action="quest-archive">Archiwizuj</button>';
-            if (+editor.id > 0 && isArchived) html += '<button class="adm-btn adm-btn--danger" data-action="quest-delete">Usuń definicję</button>';
+            if (+editor.id > 0 && isArchived) html += '<button class="adm-btn adm-btn--danger" data-action="quest-delete">' + escapeHtml(t("admin.quest.force.safeButton", "Usuń bezpiecznie")) + '</button><button class="adm-btn adm-btn--danger adm-btn--force" data-action="quest-force-delete">' + escapeHtml(t("admin.quest.force.button", "FORCE: usuń wraz z postępem")) + '</button>';
             html += '</div>';
         }
         html += '</section></div>';
@@ -5498,6 +5520,26 @@
             return;
         }
         if (action === "quest-new") { questGuardDiscard(function () { var fresh = defaultQuestEditor(); questPrepareEditor(fresh, true); state.questSelected = 0; render(true); }); return; }
+        if (action === "quest-apply-template") {
+            var templateId = el.dataset.template || "";
+            var applyTemplate = function () {
+                var templateEditor = global.PhoenixQuestTemplates ? global.PhoenixQuestTemplates.create(templateId) : null;
+                if (!templateEditor) return;
+                questPrepareEditor(templateEditor, true);
+                state.questSelected = 0;
+                render(true);
+                setStatus(global.PhoenixQuestTemplates.format("admin.quest.template.applied", t("admin.quest.templates." + templateId + ".name")), "ok");
+            };
+            if (!state.questUi.dirty) { applyTemplate(); return; }
+            openConfirmModal({
+                title: t("admin.quest.ui.applyTemplateConfirmTitle"),
+                message: t("admin.quest.ui.applyTemplateConfirmMessage"),
+                okLabel: t("admin.quest.ui.applyTemplateConfirm"),
+                danger: true,
+                onConfirm: applyTemplate
+            });
+            return;
+        }
         if (action === "quest-select") {
             var selectedId = +el.dataset.id || 0;
             if (state.questEditor && +state.questEditor.id === selectedId) return;
@@ -5525,8 +5567,12 @@
             }
             if (role === "giver" && content.stages.length) {
                 var firstStage = content.stages[0];
-                if (firstStage.objectives.length === 0) firstStage.objectives.push({ key: questStableKey("objective"), type: "talk", required: 1, visible: true, label: "Porozmawiaj ze zleceniodawcą", config: { refType: "spawn", refValue: String(spawnId) } });
-                else firstStage.objectives.forEach(function (objective) { if (objective.type === "talk" && objective.label === "Porozmawiaj ze zleceniodawcą") objective.config = { refType: "spawn", refValue: String(spawnId) }; });
+                if (firstStage.objectives.length === 0) firstStage.objectives.push({ key: questStableKey("objective"), type: "talk", required: 1, visible: true, label: questObjectiveLabel("talk"), config: { refType: "spawn", refValue: String(spawnId) } });
+                else firstStage.objectives.forEach(function (objective) {
+                    if (objective.type !== "talk") return;
+                    var reference = questObjectiveReference(objective.config || {});
+                    if (!reference.refValue || objective.label === "Porozmawiaj ze zleceniodawcą") objective.config = { refType: "spawn", refValue: String(spawnId) };
+                });
             }
             if (role === "turn_in" && content.stages.length) {
                 var turnInStage = null;
@@ -5670,6 +5716,32 @@
                 onConfirm: function () {
                     send("questDelete", { id: +state.questEditor.id, lockVersion: +state.questEditor.lockVersion, confirm: true, requestId: String(Date.now()) });
                     setStatus("Usuwanie definicji questa", "");
+                }
+            });
+            return;
+        }
+        if (action === "quest-force-delete") {
+            if (state.questEditor.status !== "archived" || +state.questEditor.id <= 0) return setStatus(t("admin.quest.force.archivedOnly", "Force delete wymaga zapisanej, zarchiwizowanej definicji."), "error");
+            if (questBlockUnsaved(t("admin.quest.force.operation", "wymusić usunięcie definicji"))) return;
+            var forceId = +state.questEditor.id;
+            var forceVersion = +state.questEditor.lockVersion;
+            var forceCode = String(state.questEditor.code || "").toUpperCase();
+            openConfirmModal({
+                title: t("admin.quest.force.title", "Force delete questa"),
+                message: t("admin.quest.force.warning", "Ta operacja usunie definicję, rewizje, postęp postaci, cele, historię, ledger nagród i mapowanie legacy. Przyznane wcześniej nagrody nie zostaną cofnięte."),
+                okLabel: t("admin.quest.force.continue", "Rozumiem, kontynuuj"),
+                danger: true,
+                onConfirm: function () {
+                    openConfirmModal({
+                        title: t("admin.quest.force.finalTitle", "Ostatnie potwierdzenie"),
+                        message: tFmt("admin.quest.force.finalMessage", forceCode),
+                        okLabel: t("admin.quest.force.finalButton", "FORCE DELETE"),
+                        danger: true,
+                        onConfirm: function () {
+                            send("questForceDelete", { id: forceId, lockVersion: forceVersion, code: forceCode, confirm: true, force: true, requestId: String(Date.now()) });
+                            setStatus(t("admin.quest.force.deleting", "Wymuszone usuwanie questa i powiązanych stanów"), "");
+                        }
+                    });
                 }
             });
             return;
@@ -5915,7 +5987,7 @@
         }
         if (p.action === "questClone" && p.success) { state.questSelected = +pl.id || 0; questRequestList(); if (state.questSelected) { state.questUi.expectedGetId = state.questSelected; send("questGet", { id: state.questSelected }); } return setStatus("Quest sklonowany", "ok"); }
         if ((p.action === "questPublish" || p.action === "questArchive") && p.success) { if (state.questEditor) { state.questEditor.lockVersion = +pl.lockVersion || state.questEditor.lockVersion; state.questEditor.status = p.action === "questPublish" ? "published" : "archived"; state.questUi.baseline = questFingerprint(); state.questUi.dirty = false; } questRequestList(); if (state.questEditor && state.questEditor.id) { state.questUi.expectedGetId = state.questEditor.id; send("questGet", { id: state.questEditor.id }); } return setStatus(p.action === "questPublish" ? "Quest opublikowany" : "Quest zarchiwizowany", "ok"); }
-        if (p.action === "questDelete" && p.success) {
+        if ((p.action === "questDelete" || p.action === "questForceDelete") && p.success) {
             state.questEditor = null;
             state.questSelected = 0;
             state.questValidation = null;
@@ -5924,7 +5996,7 @@
             state.questUi.submitted = "";
             state.questUi.validationFingerprint = "";
             questRequestList();
-            setStatus("Definicja questa została usunięta", "ok");
+            setStatus(p.action === "questForceDelete" ? t("admin.quest.force.deleted", "Quest i powiązane stany zostały nieodwracalnie usunięte") : "Definicja questa została usunięta", "ok");
             return render(true);
         }
         if (!p.success) {

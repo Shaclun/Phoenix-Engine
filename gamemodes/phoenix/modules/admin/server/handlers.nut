@@ -1411,6 +1411,7 @@ phoenix.admin.Server.dispatchers = {
 	questPublish = phoenix.quest.Admin.publish,
 	questArchive = phoenix.quest.Admin.archive,
 	questDelete = phoenix.quest.Admin.deleteDefinition,
+	questForceDelete = phoenix.quest.Admin.forceDeleteDefinition,
 	questCatalog = phoenix.quest.Admin.catalog,
 	questLegacyReport = phoenix.quest.Admin.legacyReport,
 	questLegacyConvert = phoenix.quest.Admin.legacyConvert

@@ -176,12 +176,17 @@ phoenix.quest.State <- {
 		if (record == null) { callback(false, phoenix.quest.Error.NotAvailable, null); return }
 		try {
 			ORM.engine.execute("START TRANSACTION")
+			local rows = ORM.engine.execute("SELECT `id`,`status` FROM `phoenix_character_quests` WHERE `id`=" + stateId + " AND `characterId`=" + record.id + " FOR UPDATE")
+			if (rows == null || rows.len() == 0) throw "NOT_AVAILABLE"
+			local status = rows[0].status.tostring()
+			if (status != phoenix.quest.Status.Active && status != phoenix.quest.Status.ReadyToTurnIn && status != phoenix.quest.Status.RewardPending) throw "NOT_AVAILABLE"
 			ORM.engine.execute("UPDATE `phoenix_character_quests` SET `tracked`=0 WHERE `characterId`=" + record.id)
 			ORM.engine.execute("UPDATE `phoenix_character_quests` SET `tracked`=1,`stateVersion`=`stateVersion`+1 WHERE `id`=" + stateId + " AND `characterId`=" + record.id)
 			ORM.engine.execute("COMMIT")
 			phoenix.quest.State.reloadAndSync(record.id, function() { callback(true, "", null) })
 		} catch (error) {
 			try { ORM.engine.execute("ROLLBACK") } catch (rollbackError) {}
+			if (error.tostring() == "NOT_AVAILABLE") { callback(false, phoenix.quest.Error.NotAvailable, null); return }
 			callback(false, phoenix.quest.Error.Internal, null)
 		}
 	}
