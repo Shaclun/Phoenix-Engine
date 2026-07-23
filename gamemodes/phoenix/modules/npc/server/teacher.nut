@@ -17,6 +17,24 @@ phoenix.npc.Teacher <- {
 		return null
 	}
 
+	function _sessionValid(playerId, npcId, requireOwner = true) {
+		local entry = phoenix.npc.Teacher._findByNpcId(npcId)
+		if (entry == null || !entry.alive) return false
+		try {
+			if (!isPlayerConnected(playerId) || getPlayerHealth(playerId) <= 0 || getPlayerHealth(npcId) <= 0) return false
+			if (getPlayerWorld(playerId) != getPlayerWorld(npcId)) return false
+			if (getPlayerVirtualWorld(playerId) != getPlayerVirtualWorld(npcId)) return false
+			if (requireOwner && (!("dialogPartner" in entry.ai) || entry.ai.dialogPartner != playerId)) return false
+			local playerPosition = getPlayerPosition(playerId)
+			local npcPosition = getPlayerPosition(npcId)
+			if (playerPosition == null || npcPosition == null) return false
+			local dx = playerPosition.x - npcPosition.x
+			local dy = playerPosition.y - npcPosition.y
+			local dz = playerPosition.z - npcPosition.z
+			return sqrt(dx * dx + dy * dy + dz * dz) <= 600.0
+		} catch (error) { return false }
+	}
+
 	function _csvHas(csv, key) {
 		if (csv == null || csv == "") return false
 		local parts = split(csv, ",")
@@ -137,6 +155,7 @@ phoenix.npc.Teacher <- {
 
 	function onTrain(playerId, message) {
 		local npcId = message.npcId
+		if (!phoenix.npc.Teacher._sessionValid(playerId, npcId, true)) { phoenix.npc.Teacher._reply(playerId, false, "tooFar"); return }
 		local skill = message.skill
 		local entry = phoenix.npc.Teacher._findByNpcId(npcId)
 		if (entry == null) { phoenix.npc.Teacher._reply(playerId, false, "noTeacher"); return }
@@ -184,6 +203,8 @@ phoenix.npc.Teacher <- {
 	}
 
 	function onInteract(playerId, message) {
+		if (!phoenix.npc.Teacher._sessionValid(playerId, message.npcId, false)) return
+		try { if (phoenix.quest.Dialog.openForNpc(playerId, message.npcId)) return } catch (eQuest) {}
 		phoenix.npc.Teacher.openRootDialog(playerId, message.npcId)
 		try {
 			local entry = phoenix.npc.Teacher._findByNpcId(message.npcId)
@@ -196,9 +217,11 @@ phoenix.npc.Teacher <- {
 	}
 
 	function onAction(playerId, message) {
+		if (message.action != "close" && !phoenix.npc.Teacher._sessionValid(playerId, message.npcId, true)) return
 		if (message.action == "teacher") { phoenix.npc.Teacher.openDialog(playerId, message.npcId); return }
 		if (message.action == "merchant") { phoenix.npc.Teacher.openMerchant(playerId, message.npcId); return }
 		if (message.action == "close") {
+			try { phoenix.quest.Dialog.close(playerId, false) } catch (eQuest) {}
 			try {
 				local entry = phoenix.npc.Teacher._findByNpcId(message.npcId)
 				if (entry != null && ("dialogPartner" in entry.ai) && entry.ai.dialogPartner == playerId) {
@@ -354,6 +377,7 @@ phoenix.npc.Teacher <- {
 	}
 
 	function onTrade(playerId, message) {
+		if (!phoenix.npc.Teacher._sessionValid(playerId, message.npcId, true)) { phoenix.npc.Teacher._merchantReply(playerId, false, "tooFar"); return }
 		local entry = phoenix.npc.Teacher._findByNpcId(message.npcId)
 		if (entry == null) { phoenix.npc.Teacher._merchantReply(playerId, false, "noMerchant"); return }
 		local row = entry.row

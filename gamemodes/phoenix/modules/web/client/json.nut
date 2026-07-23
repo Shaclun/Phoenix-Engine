@@ -152,6 +152,31 @@ phoenix.web.Json <- {
 		return out
 	}
 
+	function _hexValue(c) {
+		if (c >= '0' && c <= '9') return c - '0'
+		if (c >= 'a' && c <= 'f') return 10 + c - 'a'
+		if (c >= 'A' && c <= 'F') return 10 + c - 'A'
+		return -1
+	}
+
+	function _hex4(src, index) {
+		if (index + 4 > src.len()) return -1
+		local value = 0
+		for (local i = 0; i < 4; i++) {
+			local part = phoenix.web.Json._hexValue(src[index + i])
+			if (part < 0) return -1
+			value = value * 16 + part
+		}
+		return value
+	}
+
+	function _utf8(code) {
+		if (code <= 0x7F) return format("%c", code)
+		if (code <= 0x7FF) return format("%c%c", 0xC0 | (code >> 6), 0x80 | (code & 0x3F))
+		if (code <= 0xFFFF) return format("%c%c%c", 0xE0 | (code >> 12), 0x80 | ((code >> 6) & 0x3F), 0x80 | (code & 0x3F))
+		return format("%c%c%c%c", 0xF0 | (code >> 18), 0x80 | ((code >> 12) & 0x3F), 0x80 | ((code >> 6) & 0x3F), 0x80 | (code & 0x3F))
+	}
+
 	function _parseStr(s) {
 		s.pos++
 		local out = ""
@@ -160,6 +185,22 @@ phoenix.web.Json <- {
 			if (c == '"') { s.pos++; return out }
 			if (c == '\\' && s.pos + 1 < s.src.len()) {
 				local n = s.src[s.pos + 1]
+				if (n == 'u') {
+					local code = phoenix.web.Json._hex4(s.src, s.pos + 2)
+					if (code >= 0) {
+						local consumed = 6
+						if (code >= 0xD800 && code <= 0xDBFF && s.pos + 11 < s.src.len() && s.src[s.pos + 6] == '\\' && s.src[s.pos + 7] == 'u') {
+							local low = phoenix.web.Json._hex4(s.src, s.pos + 8)
+							if (low >= 0xDC00 && low <= 0xDFFF) {
+								code = 0x10000 + ((code - 0xD800) << 10) + (low - 0xDC00)
+								consumed = 12
+							}
+						}
+						out += phoenix.web.Json._utf8(code)
+						s.pos += consumed
+						continue
+					}
+				}
 				if (n == 'n') out += "\n"
 				else if (n == 'r') out += "\r"
 				else if (n == 't') out += "\t"

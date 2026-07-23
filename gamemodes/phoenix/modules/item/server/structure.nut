@@ -263,6 +263,7 @@ phoenix.item.Structure.giveItem <- function(ownerType, ownerId, instanceId, opti
 				existing.saveAsync(function(_) {
 					phoenix.item.Structure._notifyUpdate(ownerType, ownerId, existing)
 					phoenix.item.Structure._applyToWorld(ownerType, ownerId, instanceId, amount)
+					try { phoenix.quest.Events.itemGranted(ownerType, ownerId, instanceId, amount, source, existing.id) } catch (eQuest) {}
 					if (callback != null) callback(existing)
 				})
 				return
@@ -286,6 +287,7 @@ phoenix.item.Structure.giveItem <- function(ownerType, ownerId, instanceId, opti
 		if (inv != null) inv.items.push(rec)
 		phoenix.item.Structure._notifyAdd(ownerType, ownerId, rec)
 		phoenix.item.Structure._applyToWorld(ownerType, ownerId, instanceId, amount)
+		try { phoenix.quest.Events.itemGranted(ownerType, ownerId, instanceId, amount, source, rec.id) } catch (eQuest) {}
 		if (callback != null) callback(rec)
 	})
 }

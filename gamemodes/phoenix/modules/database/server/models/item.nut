@@ -36,6 +36,9 @@ class ItemModel extends ORM.Model
 	</ type = "VARCHAR(32)", not_null = true />
 	source = "system"
 
+	</ type = "VARCHAR(160)", unique = true />
+	effectKey = null
+
 	</ type = "TIMESTAMP", readonly = true />
 	createdAt = null
 

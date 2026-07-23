@@ -10,6 +10,114 @@
     var activeTab = "players";
     var panelCollapsed = false;
     var renderPending = false;
+    var ADMIN_LAYOUT_KEY = "phoenix:admin-layout:v1";
+    var adminLayout = { leftWidth: null, rightWidth: null, modals: {} };
+    var adminResize = null;
+
+    function adminClamp(value, min, max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    function loadAdminLayout() {
+        try {
+            var stored = JSON.parse(localStorage.getItem(ADMIN_LAYOUT_KEY) || "{}");
+            if (isFinite(+stored.leftWidth)) adminLayout.leftWidth = +stored.leftWidth;
+            if (isFinite(+stored.rightWidth)) adminLayout.rightWidth = +stored.rightWidth;
+            if (stored.modals && typeof stored.modals === "object") adminLayout.modals = stored.modals;
+        } catch (e) {}
+    }
+
+    function saveAdminLayout() {
+        try { localStorage.setItem(ADMIN_LAYOUT_KEY, JSON.stringify(adminLayout)); } catch (e) {}
+    }
+
+    function applyAdminColumns() {
+        var root = document.getElementById("phoenix-adminpanel");
+        if (!root) return;
+        var maxLeft = Math.max(220, Math.min(520, window.innerWidth - 720));
+        var left = adminLayout.leftWidth == null ? 286 : adminClamp(adminLayout.leftWidth, 180, maxLeft);
+        var maxRight = Math.max(420, window.innerWidth - left - 260);
+        var right = adminLayout.rightWidth == null ? adminClamp(window.innerWidth * 0.39, 560, 760) : adminClamp(adminLayout.rightWidth, 380, maxRight);
+        adminLayout.leftWidth = left;
+        adminLayout.rightWidth = right;
+        root.style.setProperty("--adm-left-panel-width", Math.round(left) + "px");
+        root.style.setProperty("--adm-right-panel-width", Math.round(right) + "px");
+    }
+
+    function adminModalKey(element) {
+        return element.classList.contains("adm-modal__panel--db") ? "database" : "dialog";
+    }
+
+    function applyAdminModal(element) {
+        var saved = adminLayout.modals[adminModalKey(element)];
+        if (!saved) return;
+        var width = adminClamp(+saved.width || 560, 320, Math.max(320, window.innerWidth - 40));
+        var height = adminClamp(+saved.height || 240, 160, Math.max(160, window.innerHeight - 40));
+        element.style.width = Math.round(width) + "px";
+        element.style.height = Math.round(height) + "px";
+    }
+
+    function applyAdminModals() {
+        document.querySelectorAll(".adm-modal__panel").forEach(applyAdminModal);
+    }
+
+    function startAdminResize(event) {
+        var handle = event.target.closest("[data-admin-resize]");
+        if (handle) {
+            var mode = handle.dataset.adminResize;
+            adminResize = { mode: mode, startX: event.clientX, startY: event.clientY, width: mode === "left" ? adminLayout.leftWidth : adminLayout.rightWidth };
+        } else {
+            var modal = event.target.closest(".adm-modal__panel");
+            if (!modal) return;
+            var rect = modal.getBoundingClientRect();
+            if (event.clientX < rect.right - 18 || event.clientY < rect.bottom - 18) return;
+            adminResize = { mode: "modal", element: modal, key: adminModalKey(modal), startX: event.clientX, startY: event.clientY, width: rect.width, height: rect.height };
+        }
+        event.preventDefault();
+        event.stopPropagation();
+        document.body.classList.add("adm-is-resizing");
+    }
+
+    function moveAdminResize(event) {
+        if (!adminResize) return;
+        var dx = event.clientX - adminResize.startX;
+        var dy = event.clientY - adminResize.startY;
+        if (adminResize.mode === "left") {
+            adminLayout.leftWidth = adminResize.width + dx;
+            applyAdminColumns();
+        } else if (adminResize.mode === "right") {
+            adminLayout.rightWidth = adminResize.width - dx;
+            applyAdminColumns();
+        } else {
+            var width = adminClamp(adminResize.width + dx, 320, Math.max(320, window.innerWidth - 40));
+            var height = adminClamp(adminResize.height + dy, 160, Math.max(160, window.innerHeight - 40));
+            adminLayout.modals[adminResize.key] = { width: width, height: height };
+            applyAdminModal(adminResize.element);
+        }
+        event.preventDefault();
+    }
+
+    function stopAdminResize() {
+        if (!adminResize) return;
+        adminResize = null;
+        document.body.classList.remove("adm-is-resizing");
+        saveAdminLayout();
+    }
+
+    function initAdminResize() {
+        loadAdminLayout();
+        applyAdminColumns();
+        applyAdminModals();
+        document.addEventListener("mousedown", startAdminResize, true);
+        window.addEventListener("mousemove", moveAdminResize);
+        window.addEventListener("mouseup", stopAdminResize);
+        window.addEventListener("blur", stopAdminResize);
+        window.addEventListener("resize", function () { applyAdminColumns(); applyAdminModals(); });
+        if (document.body && global.MutationObserver) new MutationObserver(applyAdminModals).observe(document.body, { childList: true, subtree: true });
+    }
+
+    if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initAdminResize);
+    else initAdminResize();
 
     var TABS = [
         { id: "players", labelKey: "admin.tab.players", fallback: "Gracze" },
@@ -24,6 +132,7 @@
         { id: "craft",   labelKey: "admin.tab.craft",   fallback: "Crafty" },
         { id: "spawns",  labelKey: "admin.tab.spawns",  fallback: "Lobby/Spawny" },
         { id: "bestiary", labelKey: "admin.tab.bestiary", fallback: "Bestiariusz" },
+        { id: "quests", labelKey: "admin.tab.quests", fallback: "Quest Maker" },
         { id: "db",      labelKey: "admin.tab.db",      fallback: "Baza danych" },
         { id: "debug",   labelKey: "admin.tab.debug",   fallback: "Debug" },
         { id: "log",     labelKey: "admin.tab.log",     fallback: "Historia" }
@@ -159,8 +268,32 @@
         spawnGhost: { active: false, mode: "spawn", x: 0, y: 0, z: 0, angle: 0, camPitch: 0, camRoll: 0, world: "", target: null },
         bestiaryRender: {},
         bestiaryFilter: "",
-        bestiarySelected: ""
+        bestiarySelected: "",
+        questDefinitions: [],
+        questSelected: 0,
+        questEditor: null,
+        questCatalog: { npcs: [], presets: [], items: [], objectiveTypes: [], rewardTypes: [], npcRefTypes: [], npcRoles: [], conditionTypes: [], conditionOperators: [], eventTypes: [] },
+        questValidation: null,
+        questLegacyReport: []
     };
+
+    function defaultQuestEditor() {
+        return {
+            id: 0,
+            code: "NEW_QUEST",
+            status: "draft",
+            lockVersion: 0,
+            content: {
+                metadata: { title: "Nowe zadanie", description: "" },
+                availability: null,
+                startStageKey: "start",
+                npcBindings: [],
+                stages: [{ key: "start", title: "Pierwszy etap", type: "objectives", objectiveMode: "all", objectives: [], transitions: [], terminal: "success" }],
+                dialogGraphs: [],
+                rewards: []
+            }
+        };
+    }
 
     function defaultHumanCreator() {
         return {
@@ -740,6 +873,7 @@
         if (activeTab === "npc" || activeTab === "herbs") { send("herbCatalog"); send("herbList"); }
         if (activeTab === "vobs") { requestVobCatalog(); send("vobList"); }
         if (activeTab === "houses") send("houseList");
+        if (activeTab === "quests") { send("questList"); send("questCatalog"); send("npcCatalog"); send("bestiaryRenderList"); send("schemes"); send("itemRenderList"); }
         render();
     }
 
@@ -791,11 +925,54 @@
                 if (tab.id === "craft") { send("craftingList"); send("schemes"); requestVobCatalog(); send("vobList"); }
                 if (tab.id === "spawns") send("spawnConfigGet");
                 if (tab.id === "bestiary") { send("npcCatalog"); send("bestiaryRenderList"); }
+                if (tab.id === "quests") { send("questList"); send("questCatalog"); send("npcCatalog"); send("bestiaryRenderList"); send("schemes"); send("itemRenderList"); }
                 if (tab.id === "db") send("dbTables");
                 render();
             });
             tabsEl.appendChild(b);
         });
+    }
+
+    function captureQuestRenderState() {
+        if (activeTab !== "quests" || !body) return null;
+        var snapshot = { body: body.scrollTop, scrolls: {}, details: {} };
+        body.querySelectorAll("[data-quest-scroll]").forEach(function (element) { snapshot.scrolls[element.dataset.questScroll] = element.scrollTop; });
+        body.querySelectorAll("details[data-quest-details]").forEach(function (element) { snapshot.details[element.dataset.questDetails] = element.open; });
+        var raw = body.querySelector("[data-q-json]");
+        if (raw) snapshot.json = { scrollTop: raw.scrollTop, start: raw.selectionStart, end: raw.selectionEnd };
+        var focused = document.activeElement;
+        if (focused && body.contains(focused) && focused.matches("[data-quest-objective-picker-filter]")) snapshot.focus = { kind: focused.dataset.kind, start: focused.selectionStart, end: focused.selectionEnd };
+        return snapshot;
+    }
+
+    function restoreQuestRenderState(snapshot) {
+        if (!snapshot || activeTab !== "quests" || !body) return;
+        var apply = function () {
+            body.scrollTop = snapshot.body || 0;
+            body.querySelectorAll("[data-quest-scroll]").forEach(function (element) {
+                var key = element.dataset.questScroll;
+                if (key in snapshot.scrolls) element.scrollTop = snapshot.scrolls[key];
+            });
+            body.querySelectorAll("details[data-quest-details]").forEach(function (element) {
+                var key = element.dataset.questDetails;
+                if (key in snapshot.details) element.open = snapshot.details[key];
+            });
+            var raw = body.querySelector("[data-q-json]");
+            if (raw && snapshot.json) {
+                raw.scrollTop = snapshot.json.scrollTop || 0;
+                try { raw.setSelectionRange(snapshot.json.start, snapshot.json.end); } catch (e) {}
+            }
+            if (snapshot.focus) {
+                var focused = body.querySelector('[data-quest-objective-picker-filter][data-kind="' + snapshot.focus.kind + '"]');
+                if (focused) {
+                    focused.focus();
+                    try { focused.setSelectionRange(snapshot.focus.start, snapshot.focus.end); } catch (e) {}
+                }
+            }
+        };
+        apply();
+        if (global.requestAnimationFrame) global.requestAnimationFrame(apply);
+        else setTimeout(apply, 0);
     }
 
     function render(force) {
@@ -804,6 +981,7 @@
             renderPending = true;
             return;
         }
+        var questRenderState = captureQuestRenderState();
         renderPending = false;
         var html = "";
         if (activeTab === "players") html = renderPlayers();
@@ -818,6 +996,7 @@
         else if (activeTab === "craft") html = renderCraft();
         else if (activeTab === "spawns") html = renderSpawnConfig();
         else if (activeTab === "bestiary") html = renderBestiaryRender();
+        else if (activeTab === "quests") html = renderQuestMaker();
         else if (activeTab === "db") html = renderDatabase();
         else if (activeTab === "debug") html = renderDebug();
         else if (activeTab === "log") html = renderLog();
@@ -828,7 +1007,107 @@
         }
         body.innerHTML = html;
         bindHandlers();
-        if (activeTab === "items" || activeTab === "npc" || activeTab === "vobs" || activeTab === "craft" || activeTab === "bestiary") populateItemMeshes();
+        if (activeTab === "items" || activeTab === "npc" || activeTab === "vobs" || activeTab === "craft" || activeTab === "bestiary" || activeTab === "quests") populateItemMeshes();
+        restoreQuestRenderState(questRenderState);
+    }
+
+    function renderQuestMaker() {
+        var editor = state.questEditor;
+        var list = state.questDefinitions || [];
+        var html = '<div class="adm-section adm-quest-maker">';
+        html += '<div class="adm-toolbar"><button class="adm-btn adm-btn--primary" data-action="quest-new">Nowy quest</button><button class="adm-btn" data-action="quest-refresh">Odśwież</button><button class="adm-btn" data-action="quest-legacy-report">Raport legacy</button><span class="adm-muted">Draft → walidacja → publikacja niezmiennej rewizji</span></div>';
+        html += '<div class="adm-quest-layout"><aside class="adm-quest-list">';
+        if (!list.length) html += '<div class="adm-empty">Brak definicji questów.</div>';
+        list.forEach(function (entry) {
+            var active = editor && +editor.id === +entry.id;
+            html += '<button class="adm-quest-entry' + (active ? ' is-active' : '') + '" data-action="quest-select" data-id="' + (+entry.id || 0) + '"><strong>' + escapeHtml(entry.title || entry.code) + '</strong><small>' + escapeHtml(entry.code) + ' · ' + escapeHtml(entry.status) + ' · v' + (+entry.lockVersion || 0) + '</small></button>';
+        });
+        html += '</aside><section class="adm-quest-editor">';
+        if (!editor) {
+            html += '<div class="adm-empty">Wybierz quest albo utwórz nowy draft.</div>';
+        } else {
+            var contentText = "";
+            try { contentText = JSON.stringify(editor.content || {}, null, 2); } catch (e) { contentText = "{}"; }
+            html += '<div class="adm-grid adm-grid--2"><label class="adm-field"><span>Kod</span><input id="quest-code" value="' + escapeHtml(editor.code || "") + '" maxlength="64"></label><label class="adm-field"><span>Status</span><input value="' + escapeHtml(editor.status || "draft") + '" disabled></label></div>';
+            html += '<label class="adm-field"><span>Definicja questa</span><textarea id="quest-json" class="adm-quest-json" spellcheck="false">' + escapeHtml(contentText) + '</textarea></label>';
+            html += '<div class="adm-toolbar"><button class="adm-btn" data-action="quest-format">Formatuj JSON</button><button class="adm-btn" data-action="quest-validate">Waliduj</button><button class="adm-btn adm-btn--primary" data-action="quest-save">Zapisz draft</button>';
+            if (+editor.id > 0) html += '<button class="adm-btn" data-action="quest-clone">Klonuj</button><button class="adm-btn adm-btn--success" data-action="quest-publish">Publikuj</button><button class="adm-btn adm-btn--danger" data-action="quest-archive">Archiwizuj</button>';
+            html += '</div>';
+            if (state.questValidation) {
+                var issues = (state.questValidation.errors || []).concat(state.questValidation.warnings || []);
+                html += '<div class="adm-quest-validation ' + (state.questValidation.valid ? 'is-valid' : 'is-invalid') + '"><strong>' + (state.questValidation.valid ? 'Definicja poprawna' : 'Definicja zawiera błędy') + '</strong>';
+                issues.forEach(function (issue) { html += '<div><code>' + escapeHtml(issue.path || "") + '</code><span>' + escapeHtml(issue.message || issue.code || "") + '</span></div>'; });
+                html += '</div>';
+            }
+            html += '<div class="adm-quest-help"><strong>Kanoniczne sekcje</strong><span>metadata, availability, startStageKey, npcBindings, stages, dialogGraphs, rewards</span><strong>Typy celów</strong><span>' + escapeHtml((state.questCatalog.objectiveTypes || []).join(", ")) + '</span><strong>Typy nagród</strong><span>' + escapeHtml((state.questCatalog.rewardTypes || []).join(", ")) + '</span></div>';
+        }
+        html += '</section></div>';
+        var legacy = state.questLegacyReport || [];
+        if (legacy.length) {
+            html += '<section class="adm-quest-validation"><strong>Raport legacy</strong>';
+            legacy.forEach(function (entry) {
+                html += '<div><code>' + escapeHtml(entry.code || "") + '</code><span>' + escapeHtml(entry.convertible ? ("gotowy · stany: " + (+entry.stateCount || 0)) : (entry.reasons || []).join(", ")) + '</span>';
+                if (entry.convertible && !entry.mappedDefinitionId) html += '<button class="adm-btn" data-action="quest-legacy-convert" data-id="' + (+entry.id || 0) + '">Utwórz draft</button>';
+                else if (entry.mappedDefinitionId) html += '<small>draft #' + (+entry.mappedDefinitionId || 0) + '</small>';
+                html += '</div>';
+            });
+            html += '</section>';
+        }
+        html += '</div>';
+        return html;
+    }
+
+    function questEditorPayload() {
+        if (!state.questEditor) return null;
+        var codeEl = body.querySelector("#quest-code");
+        var jsonEl = body.querySelector("#quest-json");
+        var content;
+        try { content = JSON.parse(jsonEl ? jsonEl.value : "{}"); }
+        catch (e) { setStatus("Nieprawidłowy JSON: " + e.message, "error"); return null; }
+        state.questEditor.code = codeEl ? codeEl.value.trim().toUpperCase() : state.questEditor.code;
+        state.questEditor.content = content;
+        return { id: +state.questEditor.id || 0, code: state.questEditor.code, lockVersion: +state.questEditor.lockVersion || 0, content: content, requestId: String(Date.now()) };
+    }
+
+    function handleQuestAction(action, el) {
+        if (action === "quest-refresh") { send("questList"); send("questCatalog"); return; }
+        if (action === "quest-legacy-report") { send("questLegacyReport"); return setStatus("Analizowanie danych legacy", ""); }
+        if (action === "quest-legacy-convert") {
+            var legacyId = +el.dataset.id || 0;
+            openConfirmModal({
+                title: "Konwersja legacy",
+                message: "Zostanie utworzony nieopublikowany draft. Dane legacy pozostaną bez zmian.",
+                okLabel: "Utwórz draft",
+                danger: false,
+                onConfirm: function () { send("questLegacyConvert", { legacyId: legacyId, confirm: true, requestId: String(Date.now()) }); }
+            });
+            return;
+        }
+        if (action === "quest-new") { state.questEditor = defaultQuestEditor(); state.questSelected = 0; state.questValidation = null; render(true); return; }
+        if (action === "quest-select") { state.questSelected = +el.dataset.id || 0; send("questGet", { id: state.questSelected }); return; }
+        if (action === "quest-format") { var formatted = questEditorPayload(); if (formatted) render(true); return; }
+        var payload = questEditorPayload();
+        if (!payload) return;
+        if (action === "quest-validate") { payload.publishing = false; send("questValidate", payload); return; }
+        if (action === "quest-save") { send("questSave", payload); return setStatus("Zapisywanie draftu", ""); }
+        if (action === "quest-clone") {
+            var cloneCode = (payload.code || "QUEST").slice(0, 52) + "_COPY_" + String(Date.now()).slice(-6);
+            send("questClone", { sourceId: payload.id, code: cloneCode, requestId: payload.requestId });
+            return setStatus("Klonowanie questa", "");
+        }
+        if (action === "quest-publish") { send("questPublish", { id: payload.id, lockVersion: payload.lockVersion, requestId: payload.requestId }); return setStatus("Publikowanie rewizji", ""); }
+        if (action === "quest-archive") {
+            openConfirmModal({
+                title: "Archiwizacja questa",
+                message: "Quest przestanie być dostępny do rozpoczęcia. Aktywne stany postaci zachowają opublikowaną rewizję.",
+                okLabel: "Archiwizuj",
+                danger: true,
+                onConfirm: function () {
+                    send("questArchive", { id: payload.id, lockVersion: payload.lockVersion, requestId: payload.requestId, confirm: true });
+                    setStatus("Archiwizowanie questa", "");
+                }
+            });
+        }
     }
 
     function renderPlayers() {
@@ -1591,7 +1870,7 @@
             var el = document.createElement("gothic-render");
             el.setAttribute("width", "96"); el.setAttribute("height", "96");
             var inst = cell.dataset.instance ? String(cell.dataset.instance).toUpperCase() : "";
-            var isBestiaryCell = cell.dataset.action === "bestiary-pick";
+            var isBestiaryCell = cell.dataset.action === "bestiary-pick" || cell.dataset.previewKind === "monster";
             var rotX, rotY, rotZ, sc, lt;
             if (isBestiaryCell && inst && state.bestiaryRender[inst]) {
                 var b = state.bestiaryRender[inst];
@@ -3248,6 +3527,10 @@
     function onAction(e) {
         var el = e.currentTarget;
         var a = el.dataset.action;
+        if (a && a.indexOf("quest-") === 0) {
+            handleQuestAction(a, el);
+            return;
+        }
         if (a && a.indexOf("craft") === 0) {
             handleCraftAction(a, el);
             return;
@@ -4167,6 +4450,58 @@
     function onResponse(p) {
         if (!p || !p.action) return;
         var pl = p.payload || {};
+        if (p.action === "questList" && p.success) { state.questDefinitions = pl.entries || []; return render(true); }
+        if (p.action === "questCatalog" && p.success) { state.questCatalog = pl; return render(true); }
+        if (p.action === "questLegacyReport" && p.success) { state.questLegacyReport = pl.entries || []; setStatus("Raport legacy gotowy", "ok"); return render(true); }
+        if (p.action === "questLegacyConvert" && p.success) {
+            send("questLegacyReport");
+            send("questList");
+            if (+pl.id > 0) send("questGet", { id: +pl.id });
+            return setStatus(pl.alreadyConverted ? "Quest był już przekonwertowany" : "Utworzono draft z danych legacy", "ok");
+        }
+        if (p.action === "questGet" && p.success) {
+            state.questEditor = {
+                id: +pl.id || 0,
+                code: pl.code || "",
+                status: pl.status || "draft",
+                lockVersion: +pl.lockVersion || 0,
+                content: pl.draftContent || pl.publishedContent || {}
+            };
+            state.questSelected = state.questEditor.id;
+            state.questValidation = null;
+            return render(true);
+        }
+        if (p.action === "questValidate") {
+            state.questValidation = pl;
+            setStatus(p.success ? "Definicja jest poprawna" : "Definicja wymaga poprawy", p.success ? "ok" : "error");
+            return render(true);
+        }
+        if (p.action === "questSave" && p.success) {
+            if (!state.questEditor) state.questEditor = defaultQuestEditor();
+            state.questEditor.id = +pl.id || state.questEditor.id;
+            state.questEditor.lockVersion = +pl.lockVersion || state.questEditor.lockVersion;
+            state.questSelected = state.questEditor.id;
+            state.questValidation = pl.validation || null;
+            send("questList");
+            send("questGet", { id: state.questEditor.id });
+            return setStatus("Draft zapisany", "ok");
+        }
+        if (p.action === "questClone" && p.success) {
+            state.questSelected = +pl.id || 0;
+            send("questList");
+            if (state.questSelected) send("questGet", { id: state.questSelected });
+            return setStatus("Quest sklonowany", "ok");
+        }
+        if ((p.action === "questPublish" || p.action === "questArchive") && p.success) {
+            send("questList");
+            if (state.questEditor && state.questEditor.id) send("questGet", { id: state.questEditor.id });
+            return setStatus(p.action === "questPublish" ? "Quest opublikowany" : "Quest zarchiwizowany", "ok");
+        }
+        if (p.action.indexOf("quest") === 0 && !p.success) {
+            if (pl && (pl.errors || pl.warnings)) state.questValidation = pl;
+            setStatus("Operacja questa nie powiodła się: " + (p.error || "unknown"), "error");
+            return render(true);
+        }
         if (p.action === "players" && p.success) { state.players = pl.players || []; return render(); }
         if (p.action === "schemes" && p.success) {
             var chunkCount = pl.chunkCount || 1;
@@ -4495,6 +4830,1123 @@
             setStatus(tFmt("admin.status.error", p.action, p.error || "?"), "error");
         }
     }
+
+    var questBaseResponse = onResponse;
+    var questBaseBindHandlers = bindHandlers;
+    var questBaseClose = close;
+    var questDiscardBypass = false;
+    var questKeyCounter = 0;
+    state.questList = { filter: "", status: "", offset: 0, limit: 20, total: 0 };
+    state.questUi = { mode: "form", rawText: "", baseline: "", dirty: false, submitted: "", validationFingerprint: "", expectedGetId: 0, filterTimer: null, pickerTimer: null, catalogTimer: null, catalogStatus: "loading", catalogError: "", catalogRetries: 0, npcFilter: "", picker: null, itemFilter: "", monsterFilter: "" };
+
+    function questCopy(value) {
+        try { return JSON.parse(JSON.stringify(value)); } catch (e) { return {}; }
+    }
+
+    function questNormalizeContent(content) {
+        var value = content && typeof content === "object" && !Array.isArray(content) ? content : {};
+        if (!value.metadata || typeof value.metadata !== "object" || Array.isArray(value.metadata)) value.metadata = { title: "", description: "" };
+        if (!Array.isArray(value.npcBindings)) value.npcBindings = [];
+        if (!Array.isArray(value.stages)) value.stages = [];
+        if (!Array.isArray(value.dialogGraphs)) value.dialogGraphs = [];
+        if (!Array.isArray(value.rewards)) value.rewards = [];
+        value.stages.forEach(function (stage) {
+            if (!Array.isArray(stage.objectives)) stage.objectives = [];
+            if (!Array.isArray(stage.transitions)) stage.transitions = [];
+            if (!Array.isArray(stage.markerBindings)) stage.markerBindings = [];
+        });
+        value.dialogGraphs.forEach(function (graph) {
+            if (!Array.isArray(graph.nodes)) graph.nodes = [];
+            graph.nodes.forEach(function (node) {
+                if (!Array.isArray(node.choices)) node.choices = [];
+                node.choices.forEach(function (choice) { if (!Array.isArray(choice.actions)) choice.actions = []; });
+            });
+        });
+        return value;
+    }
+
+    function questSimpleAvailability(value) {
+        var result = { advanced: false, levelEnabled: false, level: 1, questEnabled: false, questCode: "" };
+        if (value == null) return result;
+        if (!value || typeof value !== "object" || Array.isArray(value)) { result.advanced = true; return result; }
+        var conditions = value.type === "all" && Array.isArray(value.conditions) ? value.conditions : [value];
+        if (value.type === "all" && !conditions.length) { result.advanced = true; return result; }
+        conditions.forEach(function (condition) {
+            if (!condition || typeof condition !== "object" || Array.isArray(condition)) { result.advanced = true; return; }
+            if (condition.type === "level" && (condition.operator || "gte") === "gte" && !result.levelEnabled && Number.isFinite(Number(condition.value))) {
+                result.levelEnabled = true;
+                result.level = Math.max(1, Math.floor(Number(condition.value)));
+                return;
+            }
+            if (condition.type === "quest" && (condition.status || "completed") === "completed" && !result.questEnabled && typeof condition.code === "string") {
+                result.questEnabled = true;
+                result.questCode = condition.code.toUpperCase();
+                return;
+            }
+            result.advanced = true;
+        });
+        return result;
+    }
+
+    function questBuildAvailability(model) {
+        var conditions = [];
+        if (model.levelEnabled) conditions.push({ type: "level", operator: "gte", value: Math.max(1, Math.floor(Number(model.level) || 1)) });
+        if (model.questEnabled) conditions.push({ type: "quest", code: String(model.questCode || "").trim().toUpperCase(), status: "completed" });
+        if (!conditions.length) return null;
+        return conditions.length === 1 ? conditions[0] : { type: "all", conditions: conditions };
+    }
+
+    function questAvailabilityEditor(content, editor) {
+        var availability = questSimpleAvailability(content.availability);
+        var disabled = availability.advanced ? " disabled" : "";
+        var levelDisabled = availability.advanced || !availability.levelEnabled ? " disabled" : "";
+        var questDisabled = availability.advanced || !availability.questEnabled ? " disabled" : "";
+        var codes = (state.questDefinitions || []).filter(function (entry) { return +entry.id !== +editor.id && entry.code; }).sort(function (left, right) {
+            if (left.status === right.status) return String(left.code).localeCompare(String(right.code));
+            return left.status === "published" ? -1 : right.status === "published" ? 1 : 0;
+        });
+        var options = codes.map(function (entry) { return '<option value="' + escapeHtml(String(entry.code).toUpperCase()) + '">' + escapeHtml(entry.title || entry.code) + '</option>'; }).join("");
+        var html = '<section class="adm-quest-card adm-quest-requirements"><header><div><strong>Wymagania rozpoczęcia</strong><small>Bez wymagań, minimalny poziom, ukończenie innego questa albo oba warunki.</small></div></header>';
+        if (availability.advanced) html += '<div class="adm-quest-requirements__advanced"><strong>Zaawansowane warunki są zachowane</strong><span>Ten układ zawiera warunki, których prosty formularz nie może bezpiecznie zmienić. Użyj trybu JSON.</span><button class="adm-btn" data-action="quest-mode-json">Otwórz JSON</button></div>';
+        html += '<div class="adm-grid adm-grid--2"><label class="adm-check"><input type="checkbox" data-q-availability="levelEnabled"' + (availability.levelEnabled ? " checked" : "") + disabled + '> Wymagaj minimalnego poziomu</label><label class="adm-field"><span>Minimalny poziom</span><input type="number" min="1" step="1" data-q-availability="level" value="' + availability.level + '"' + levelDisabled + '></label><label class="adm-check"><input type="checkbox" data-q-availability="questEnabled"' + (availability.questEnabled ? " checked" : "") + disabled + '> Wymagaj ukończenia innego questa</label><label class="adm-field"><span>Kod ukończonego questa</span><input list="quest-prerequisite-codes" data-q-availability="questCode" value="' + escapeHtml(availability.questCode) + '" placeholder="QUEST_CODE"' + questDisabled + '><datalist id="quest-prerequisite-codes">' + options + '</datalist></label></div>';
+        if (!availability.levelEnabled && !availability.questEnabled && !availability.advanced) html += '<span class="adm-muted">Brak wymagań — każdy gracz może rozpocząć quest.</span>';
+        return html + '</section>';
+    }
+
+    function questFingerprint() {
+        if (!state.questEditor) return "";
+        var content = state.questEditor.content || {};
+        if (state.questUi.mode === "json") {
+            try { content = JSON.parse(state.questUi.rawText || "{}"); } catch (e) { return "invalid:" + state.questUi.rawText; }
+        }
+        try { return JSON.stringify({ code: String(state.questEditor.code || "").trim().toUpperCase(), content: content }); } catch (e) { return "invalid"; }
+    }
+
+    function questPrepareEditor(editor, isNew) {
+        editor.content = questNormalizeContent(questCopy(editor.content || {}));
+        state.questEditor = editor;
+        state.questUi.mode = "form";
+        state.questUi.rawText = JSON.stringify(editor.content, null, 2);
+        state.questUi.baseline = isNew ? "" : questFingerprint();
+        state.questUi.dirty = !!isNew;
+        state.questUi.submitted = "";
+        state.questUi.validationFingerprint = "";
+        state.questValidation = null;
+    }
+
+    function questDirty(value) {
+        state.questUi.dirty = value == null ? questFingerprint() !== state.questUi.baseline : !!value;
+        if (state.questUi.dirty) {
+            state.questValidation = null;
+            state.questUi.validationFingerprint = "";
+        }
+        var badge = body && body.querySelector("[data-quest-dirty]");
+        if (badge) {
+            badge.textContent = state.questUi.dirty ? "Niezapisane zmiany" : "Zapisano";
+            badge.className = "adm-quest-dirty " + (state.questUi.dirty ? "is-dirty" : "is-saved");
+        }
+    }
+
+    function questRequestList() {
+        var list = state.questList;
+        send("questList", { offset: list.offset, limit: list.limit, filter: list.filter, status: list.status });
+    }
+
+    function questStableKey(prefix) {
+        questKeyCounter += 1;
+        return prefix + "_" + Date.now().toString(36) + "_" + questKeyCounter.toString(36);
+    }
+
+    function questSelectOptions(values, selected, labeler) {
+        var current = String(selected == null ? "" : selected);
+        var found = false;
+        var html = "";
+        (values || []).forEach(function (value) {
+            var raw = typeof value === "object" ? value.value : value;
+            var text = labeler ? labeler(value) : raw;
+            raw = String(raw == null ? "" : raw);
+            if (raw === current) found = true;
+            html += '<option value="' + escapeHtml(raw) + '"' + (raw === current ? " selected" : "") + '>' + escapeHtml(text == null ? raw : text) + '</option>';
+        });
+        if (current && !found) html += '<option value="' + escapeHtml(current) + '" selected>' + escapeHtml(current + " · brak w katalogu") + '</option>';
+        return html;
+    }
+
+    function questNpcReferences(refType, current) {
+        var catalog = state.questCatalog || {};
+        var values = [];
+        var seen = {};
+        function append(value, label) {
+            var key = String(value == null ? "" : value);
+            if (!key || seen[key]) return;
+            seen[key] = true;
+            values.push({ value: key, label: label || key });
+        }
+        if (refType === "spawn") (catalog.npcs || []).forEach(function (npc) { append(npc.spawnId, (npc.label || npc.name || npc.instance || "NPC") + " · spawn #" + npc.spawnId + (npc.world ? " · " + npc.world : "")); });
+        else if (refType === "preset") (catalog.presets || []).forEach(function (preset) { append(preset.id, (preset.label || preset.code || preset.instance || "Preset") + " · #" + preset.id); });
+        else if (refType === "instance") (catalog.npcs || []).forEach(function (npc) { append(npc.instance, npc.instance + (npc.name ? " · " + npc.name : "")); });
+        else if (refType === "tag") (catalog.npcs || []).forEach(function (npc) { append(npc.tag, npc.tag + (npc.name ? " · " + npc.name : "")); });
+        if (current && !seen[String(current)]) values.push({ value: String(current), label: String(current) + " · brak w katalogu" });
+        return values;
+    }
+
+    function questItemCatalog() {
+        var catalog = state.questCatalog || {};
+        if (catalog.items && catalog.items.length) return catalog.items;
+        return (state.schemes || []).filter(function (scheme) { return scheme && scheme.instance; }).map(function (scheme) { return { instance: String(scheme.instance || "").toUpperCase(), name: scheme.name || scheme.instance, category: scheme.category, visual: scheme.visual || "" }; });
+    }
+
+    function questItemEntry(instance) {
+        var value = String(instance || "").toUpperCase();
+        var items = questItemCatalog();
+        for (var i = 0; i < items.length; i += 1) if (String(items[i].instance || "").toUpperCase() === value) return items[i];
+        return null;
+    }
+
+    function questItemLabel(instance) {
+        var entry = questItemEntry(instance);
+        return entry ? (entry.name || entry.label || entry.instance) : String(instance || "");
+    }
+
+    function questObjectiveReference(config) {
+        var value = config && typeof config === "object" ? config : {};
+        if (value.refType || value.refValue) return { refType: String(value.refType || ""), refValue: String(value.refValue || "") };
+        if (value.spawnId != null) return { refType: "spawn", refValue: String(value.spawnId) };
+        if (value.presetId != null) return { refType: "preset", refValue: String(value.presetId) };
+        if (value.instance != null) return { refType: "instance", refValue: String(value.instance) };
+        if (value.tag != null) return { refType: "tag", refValue: String(value.tag) };
+        return { refType: "", refValue: "" };
+    }
+
+    function questNpcTargetLabel(config) {
+        var reference = questObjectiveReference(config);
+        var entries = questNpcReferences(reference.refType, reference.refValue);
+        for (var i = 0; i < entries.length; i += 1) if (String(entries[i].value) === reference.refValue) return entries[i].label;
+        return reference.refValue;
+    }
+
+    function questBindingLabel(binding) {
+        if (!binding) return "";
+        return questNpcTargetLabel({ refType: binding.refType, refValue: binding.refValue }) || binding.key || "";
+    }
+
+    function questStageDeliveryBinding(stage) {
+        if (!stage || !Array.isArray(stage.markerBindings) || !state.questEditor || !state.questEditor.content) return null;
+        var key = "";
+        for (var i = 0; i < stage.markerBindings.length; i += 1) {
+            if ((stage.markerBindings[i].markerType || "continue") === "continue" && stage.markerBindings[i].bindingKey) { key = stage.markerBindings[i].bindingKey; break; }
+        }
+        if (!key) return null;
+        var bindings = state.questEditor.content.npcBindings || [];
+        for (var j = 0; j < bindings.length; j += 1) if (bindings[j].key === key) return bindings[j];
+        return null;
+    }
+
+    function questDefaultObjectiveConfig(type) {
+        if (type === "collect" || type === "deliver") return { instance: "" };
+        if (type === "reach") return { zoneKey: questStableKey("zone"), world: "", x: 0, y: 0, z: 0, radius: 250 };
+        if (type === "custom_event") return { eventName: state.questCatalog.eventTypes && state.questCatalog.eventTypes[0] ? state.questCatalog.eventTypes[0] : "" };
+        if (type === "interact") return { targetKey: "" };
+        var giver = state.questEditor && state.questEditor.content ? questFindBinding(state.questEditor.content, "giver") : null;
+        if (giver && type === "talk") return { refType: giver.refType, refValue: giver.refValue };
+        if (type === "kill") return { refType: "instance", refValue: "" };
+        var refType = state.questCatalog.npcRefTypes && state.questCatalog.npcRefTypes[0] ? state.questCatalog.npcRefTypes[0] : "spawn";
+        return { refType: refType, refValue: "" };
+    }
+
+    function questDefaultReward(type) {
+        var reward = { key: questStableKey("reward"), type: type };
+        if (type === "flag") reward.value = "1";
+        else reward.amount = 1;
+        var items = questItemCatalog();
+        if (type === "item") reward.instance = items[0] ? items[0].instance : "";
+        if (type === "statistic") reward.stat = "strength";
+        return reward;
+    }
+
+    function questItemOptions(selected) {
+        var items = questItemCatalog();
+        var label = items.length ? "Wybierz przedmiot…" : "Brak przedmiotów w katalogu";
+        return '<option value="">' + label + '</option>' + questSelectOptions(items.map(function (item) { return { value: item.instance, label: (item.name || item.label || item.instance) + " · " + item.instance }; }), selected, function (item) { return item.label; });
+    }
+
+    function questIssuesFor(prefix, entityKey) {
+        var validation = state.questValidation || {};
+        var issues = (validation.errors || []).concat(validation.warnings || []);
+        return issues.filter(function (issue) {
+            var path = String(issue.path || "");
+            var key = String(issue.entityKey || "");
+            return path.indexOf(prefix) === 0 || (entityKey && key === String(entityKey));
+        });
+    }
+
+    function questIssueClass(prefix, entityKey) {
+        var issues = questIssuesFor(prefix, entityKey);
+        for (var i = 0; i < issues.length; i += 1) if (issues[i].severity !== "warning") return " has-error";
+        return "";
+    }
+
+    function questObjectiveTargetState(objective, stage) {
+        var type = String(objective && objective.type || "");
+        var config = objective && objective.config && typeof objective.config === "object" ? objective.config : {};
+        var required = Math.max(1, +(objective && objective.required) || 1);
+        var suffix = required > 1 ? " × " + required : "";
+        var reference = questObjectiveReference(config);
+        var refValue = reference.refValue;
+        var refLabel = questNpcTargetLabel(config);
+        if (type === "talk") return refValue ? { valid: true, summary: "Porozmawiaj z: " + refLabel + suffix, message: "" } : { valid: false, summary: "Nie wybrano rozmówcy", message: "Wybierz NPC w polu „Z kim porozmawiać?”." };
+        if (type === "kill") return refValue ? { valid: true, summary: "Zabij: " + refLabel + suffix, message: "" } : { valid: false, summary: "Nie wybrano przeciwnika", message: "Wybierz moba w polu „Kogo zabić?”." };
+        if (type === "collect" || type === "deliver") {
+            var instance = String(config.instance || "").toUpperCase();
+            var item = questItemEntry(instance);
+            if (!instance) return { valid: false, summary: "Nie wybrano przedmiotu", message: "Wybierz przedmiot w polu „Co " + (type === "collect" ? "zebrać" : "dostarczyć") + "?”." };
+            if (questItemCatalog().length && !item) return { valid: false, summary: instance + suffix, message: "Wybranego przedmiotu nie ma w aktualnym katalogu." };
+            if (type === "collect") return { valid: true, summary: "Zbierz: " + questItemLabel(instance) + suffix, message: "" };
+            var binding = questStageDeliveryBinding(stage);
+            if (!binding) return { valid: false, summary: "Dostarcz: " + questItemLabel(instance) + suffix, message: "Wybierz NPC w polu „Komu dostarczyć?”." };
+            return { valid: true, summary: "Dostarcz: " + questItemLabel(instance) + suffix + " do " + questBindingLabel(binding), message: "" };
+        }
+        if (type === "reach") {
+            var numeric = ["x", "y", "z", "radius"].every(function (field) { return typeof config[field] === "number" && isFinite(config[field]); });
+            var valid = !!String(config.zoneKey || "") && numeric && +config.radius > 0;
+            var summary = "Dotrzyj: " + (String(config.world || "") || "bieżący świat") + ", X " + (config.x == null ? "—" : config.x) + ", Y " + (config.y == null ? "—" : config.y) + ", Z " + (config.z == null ? "—" : config.z) + ", promień " + (config.radius == null ? "—" : config.radius);
+            return valid ? { valid: true, summary: summary, message: "" } : { valid: false, summary: summary, message: "Uzupełnij klucz strefy, współrzędne i dodatni promień w sekcji „Dokąd dotrzeć?”." };
+        }
+        if (type === "interact") return config.targetKey || refValue ? { valid: true, summary: "Interakcja: " + (config.targetKey || refLabel), message: "" } : { valid: false, summary: "Nie wybrano celu interakcji", message: "Uzupełnij klucz albo referencję celu interakcji." };
+        if (type === "custom_event") return config.eventName ? { valid: true, summary: "Zdarzenie: " + config.eventName + suffix, message: "" } : { valid: false, summary: "Nie wybrano zdarzenia", message: "Wybierz zarejestrowane zdarzenie." };
+        return { valid: false, summary: "Nieznany typ celu", message: "Wybierz obsługiwany typ celu." };
+    }
+
+    function questValidationSummary() {
+        if (!state.questValidation) return "";
+        var validation = state.questValidation;
+        var issues = (validation.errors || []).concat(validation.warnings || []);
+        var html = '<div class="adm-quest-validation adm-quest-validation--summary ' + (validation.valid ? 'is-valid' : 'is-invalid') + '"><strong>' + (validation.valid ? 'Definicja gotowa do publikacji' : 'Draft zapisany, ale wymaga uzupełnienia') + '</strong>';
+        if (!issues.length) html += '<span>Nie znaleziono problemów.</span>';
+        issues.forEach(function (issue) { html += '<div><code>' + escapeHtml(issue.path || "") + '</code><span>' + escapeHtml(issue.message || issue.code || "") + '</span></div>'; });
+        return html + '</div>';
+    }
+
+    function questBindingEditor(binding, index) {
+        var refType = binding.refType || (state.questCatalog.npcRefTypes || ["spawn"])[0] || "spawn";
+        var html = '<article class="adm-quest-card' + questIssueClass("npcBindings[" + index + "]") + '"><header><strong>' + escapeHtml(binding.key || "Binding NPC") + '</strong><button class="adm-btn adm-btn--danger" data-action="quest-remove-binding" data-index="' + index + '">Usuń</button></header>';
+        html += '<div class="adm-grid adm-grid--2"><label class="adm-field"><span>Klucz</span><input value="' + escapeHtml(binding.key || "") + '" disabled></label>';
+        html += '<label class="adm-field"><span>Rola</span><select data-q-binding="' + index + '" data-field="role">' + questSelectOptions(state.questCatalog.npcRoles || [], binding.role || "giver", questNpcRoleLabel) + '</select></label>';
+        html += '<label class="adm-field"><span>Typ referencji</span><select data-q-binding="' + index + '" data-field="refType">' + questSelectOptions(state.questCatalog.npcRefTypes || [], refType, questNpcRefLabel) + '</select></label>';
+        html += '<label class="adm-field"><span>NPC</span><select data-q-binding="' + index + '" data-field="refValue">' + questSelectOptions(questNpcReferences(refType, binding.refValue), binding.refValue, function (entry) { return entry.label; }) + '</select></label>';
+        html += '<label class="adm-field"><span>Offset markera</span><input type="number" step="1" data-q-binding="' + index + '" data-field="markerOffset" value="' + (+binding.markerOffset || 165) + '"></label></div></article>';
+        return html;
+    }
+
+    function questFindBinding(content, role) {
+        for (var i = 0; i < content.npcBindings.length; i += 1) if (content.npcBindings[i].role === role) return content.npcBindings[i];
+        return null;
+    }
+
+    function questNpcCatalogEditor(content) {
+        var catalog = state.questCatalog || {};
+        var npcs = catalog.npcs || [];
+        var giver = questFindBinding(content, "giver");
+        var turnIn = questFindBinding(content, "turn_in");
+        var filter = String(state.questUi.npcFilter || "").toLowerCase();
+        var filtered = npcs.filter(function (npc) {
+            if (!filter) return true;
+            return [npc.spawnId, npc.label, npc.name, npc.instance, npc.world, npc.tag, npc.kind].join(" ").toLowerCase().indexOf(filter) >= 0;
+        });
+        var html = '<section class="adm-quest-section adm-quest-step"><header><div><span class="adm-quest-step__number">2</span><strong>Wybierz NPC</strong><small>Kliknij rolę przy postaci. NPC pochodzą bezpośrednio z bazy serwera.</small></div><button class="adm-btn" data-action="quest-retry-catalog">Odśwież NPC</button></header>';
+        html += '<div class="adm-quest-role-summary"><div><span>Zleceniodawca</span><strong>' + escapeHtml(giver ? questNpcReferences(giver.refType, giver.refValue).filter(function (entry) { return String(entry.value) === String(giver.refValue); }).map(function (entry) { return entry.label; })[0] || giver.refValue : "Nie wybrano") + '</strong></div><div><span>NPC oddania</span><strong>' + escapeHtml(turnIn ? questNpcReferences(turnIn.refType, turnIn.refValue).filter(function (entry) { return String(entry.value) === String(turnIn.refValue); }).map(function (entry) { return entry.label; })[0] || turnIn.refValue : "Nie wybrano") + '</strong></div></div>';
+        if (state.questUi.catalogStatus === "loading" && !npcs.length) html += '<div class="adm-quest-catalog-state"><strong>Ładowanie NPC z bazy…</strong><span>Lista pojawi się automatycznie, gdy serwer zakończy przygotowanie katalogu.</span></div>';
+        else if (state.questUi.catalogStatus === "error" && !npcs.length) html += '<div class="adm-quest-catalog-state is-error"><strong>Nie udało się pobrać NPC</strong><span>' + escapeHtml(state.questUi.catalogError || "Brak odpowiedzi serwera") + '</span><button class="adm-btn" data-action="quest-retry-catalog">Spróbuj ponownie</button></div>';
+        else if (!npcs.length) html += '<div class="adm-quest-catalog-state"><strong>Brak NPC w bazie</strong><span>Najpierw dodaj NPC w zakładce NPC panelu administratora, a następnie odśwież katalog.</span></div>';
+        else {
+            html += '<div class="adm-quest-catalog-tools"><input class="adm-search" data-quest-npc-filter value="' + escapeHtml(state.questUi.npcFilter || "") + '" placeholder="Szukaj po nazwie, instancji, ID, świecie lub tagu"><span data-quest-npc-count>' + filtered.length + ' / ' + npcs.length + ' NPC</span></div><div class="adm-quest-npc-grid" data-quest-scroll="npc-catalog">';
+            npcs.forEach(function (npc) {
+                var search = [npc.spawnId, npc.label, npc.name, npc.instance, npc.world, npc.tag, npc.kind].join(" ").toLowerCase();
+                var isGiver = giver && giver.refType === "spawn" && String(giver.refValue) === String(npc.spawnId);
+                var isTurnIn = turnIn && turnIn.refType === "spawn" && String(turnIn.refValue) === String(npc.spawnId);
+                html += '<article class="adm-quest-npc" data-quest-npc-card data-search="' + escapeHtml(search) + '"' + (filter && search.indexOf(filter) < 0 ? " hidden" : "") + '><div><strong>' + escapeHtml(npc.label || npc.name || npc.instance || "NPC") + '</strong><small>#' + (+npc.spawnId || 0) + ' · ' + escapeHtml(npc.instance || "") + '</small><span>' + escapeHtml((npc.world || "brak świata") + (npc.tag ? " · tag: " + npc.tag : "")) + '</span></div><div class="adm-actions"><button class="adm-btn' + (isGiver ? " is-active" : "") + '" data-action="quest-use-npc" data-role="giver" data-spawn-id="' + (+npc.spawnId || 0) + '">' + (isGiver ? "Wybrany zleceniodawca" : "Ustaw jako zleceniodawcę") + '</button><button class="adm-btn' + (isTurnIn ? " is-active" : "") + '" data-action="quest-use-npc" data-role="turn_in" data-spawn-id="' + (+npc.spawnId || 0) + '">' + (isTurnIn ? "Wybrany do oddania" : "Ustaw do oddania") + '</button></div></article>';
+            });
+            html += '</div>';
+        }
+        html += '<details class="adm-quest-advanced" data-quest-details="advanced-bindings"><summary>Zaawansowane powiązania NPC</summary><div class="adm-toolbar"><button class="adm-btn" data-action="quest-add-binding">Dodaj powiązanie preset / instancja / tag</button></div>';
+        if (!content.npcBindings.length) html += '<div class="adm-empty">Brak przypisanych NPC.</div>';
+        content.npcBindings.forEach(function (binding, index) { html += questBindingEditor(binding, index); });
+        return html + '</details></section>';
+    }
+
+    function questMonsterCatalog() {
+        var out = [];
+        var seen = {};
+        var supplemental = {};
+        (state.npcCatalog || []).forEach(function (entry) {
+            var instance = String(entry.instance || "").toUpperCase();
+            if (instance && !(instance in supplemental)) supplemental[instance] = entry;
+        });
+        function append(entry) {
+            var instance = String(entry && entry.instance || "").toUpperCase();
+            if (!instance || seen[instance]) return;
+            var extra = supplemental[instance] || {};
+            var visual = entry.visual || extra.visual || "";
+            if (!visual && global.PhoenixNpcVisuals) visual = PhoenixNpcVisuals.get(instance) || "";
+            seen[instance] = true;
+            out.push({ instance: instance, label: entry.label || entry.name || extra.label || extra.name || instance, visual: visual });
+        }
+        ((state.questCatalog || {}).npcs || []).forEach(append);
+        (state.npcCatalog || []).forEach(append);
+        return out;
+    }
+
+    function questPickerOpen(kind, stageIndex, objectiveIndex) {
+        var picker = state.questUi.picker;
+        return picker && picker.kind === kind && +picker.stage === stageIndex && +picker.objective === objectiveIndex;
+    }
+
+    function questObjectivePicker(objective, stageIndex, objectiveIndex) {
+        var kind = objective.type === "kill" ? "monster" : (objective.type === "collect" || objective.type === "deliver" ? "item" : "");
+        if (!kind || !questPickerOpen(kind, stageIndex, objectiveIndex)) return "";
+        var config = objective.config || {};
+        var filter = String(kind === "monster" ? state.questUi.monsterFilter : state.questUi.itemFilter).trim().toLowerCase();
+        var source = kind === "monster" ? questMonsterCatalog() : questItemCatalog();
+        var rows = source.filter(function (entry) { return !filter || [entry.instance, entry.label, entry.name].join(" ").toLowerCase().indexOf(filter) >= 0; }).slice(0, 160);
+        var selected = kind === "monster" ? String(questObjectiveReference(config).refValue || "").toUpperCase() : String(config.instance || "").toUpperCase();
+        var html = '<section class="adm-quest-picker"><header><strong>' + (kind === "monster" ? "Kogo zabić? Wybierz moba" : (objective.type === "deliver" ? "Co dostarczyć? Wybierz przedmiot" : "Co zebrać? Wybierz przedmiot")) + '</strong><button class="adm-btn" data-action="quest-close-picker">Zamknij</button></header><div class="adm-quest-catalog-tools"><input class="adm-search" data-quest-objective-picker-filter data-kind="' + kind + '" value="' + escapeHtml(kind === "monster" ? state.questUi.monsterFilter : state.questUi.itemFilter) + '" placeholder="Szukaj po nazwie lub instancji"><span data-quest-picker-count>' + rows.length + ' wyników</span></div><div class="adm-itemgrid adm-quest-picker-grid" data-role="itemgrid" data-quest-scroll="picker-' + stageIndex + '-' + objectiveIndex + '">';
+        rows.forEach(function (entry) {
+            var instance = String(entry.instance || "").toUpperCase();
+            var label = entry.label || entry.name || instance;
+            var visual = entry.visual || "";
+            html += '<button type="button" class="adm-itemcell' + (selected === instance ? " is-selected" : "") + '" data-action="' + (kind === "monster" ? "quest-pick-objective-monster" : "quest-pick-objective-item") + '" data-stage="' + stageIndex + '" data-index="' + objectiveIndex + '" data-instance="' + escapeHtml(instance) + '" data-visual="' + escapeHtml(visual) + '" data-preview-kind="' + kind + '" data-search="' + escapeHtml((label + " " + instance).toLowerCase()) + '" title="' + escapeHtml(label) + '"><div class="adm-itemcell__fallback"><span class="adm-itemcell__label">' + escapeHtml(String(label).slice(0, 18)) + '</span></div><span class="adm-itemcell__cat">' + escapeHtml(instance) + '</span></button>';
+        });
+        if (!source.length) html += '<div class="adm-empty">' + (kind === "monster" ? "Brak mobów w katalogu NPC. Dodaj NPC lub odśwież katalog." : "Brak przedmiotów w katalogu. Poczekaj na wczytanie schematów lub odśwież panel.") + '</div>';
+        else if (!rows.length) html += '<div class="adm-empty">Brak wyników dla podanego filtra.</div>';
+        return html + '</div></section>';
+    }
+
+    function questObjectiveConfig(objective, stageIndex, objectiveIndex) {
+        var type = objective.type || "talk";
+        var config = objective.config && typeof objective.config === "object" ? objective.config : (objective.config = {});
+        var attr = ' data-q-objective-config="' + stageIndex + ':' + objectiveIndex + '"';
+        var stage = state.questEditor.content.stages[stageIndex];
+        if (type === "collect" || type === "deliver") {
+            var itemTitle = type === "deliver" ? "Co dostarczyć?" : "Co zebrać?";
+            var html = '<strong class="adm-quest-config-title">' + itemTitle + '</strong><div class="adm-grid adm-grid--2"><label class="adm-field"><span>Przedmiot</span><select' + attr + ' data-field="instance">' + questItemOptions(config.instance || "") + '</select></label><button class="adm-btn adm-quest-picker-button" data-action="quest-open-picker" data-kind="item" data-stage="' + stageIndex + '" data-index="' + objectiveIndex + '">Wybierz przedmiot z podglądu</button></div>';
+            if (!questItemCatalog().length) html += '<div class="adm-quest-catalog-state"><strong>Katalog przedmiotów jest pusty</strong><span>Schematy przedmiotów nie zostały jeszcze wczytane albo serwer nie zwrócił żadnych pozycji.</span></div>';
+            if (type === "deliver") {
+                var delivery = questStageDeliveryBinding(stage);
+                var bindingEntries = (state.questEditor.content.npcBindings || []).map(function (binding) { return { value: binding.key, label: questNpcRoleLabel(binding.role) + " · " + questBindingLabel(binding) }; });
+                html += '<label class="adm-field"><span>Komu dostarczyć?</span><select data-q-deliver-binding="' + stageIndex + '"><option value="">Wybierz NPC odbierającego przedmioty…</option>' + questSelectOptions(bindingEntries, delivery ? delivery.key : "", function (entry) { return entry.label; }) + '</select></label>';
+            }
+            return html;
+        }
+        if (type === "reach") {
+            function numberValue(field, fallback) { return config[field] == null || config[field] === "" ? fallback : config[field]; }
+            return '<strong class="adm-quest-config-title">Dokąd dotrzeć?</strong><div class="adm-grid adm-grid--3"><label class="adm-field"><span>Świat</span><input' + attr + ' data-field="world" value="' + escapeHtml(config.world || "") + '" placeholder="Puste = bieżący świat"></label><label class="adm-field"><span>X</span><input type="number" step="0.1"' + attr + ' data-field="x" value="' + escapeHtml(numberValue("x", 0)) + '"></label><label class="adm-field"><span>Y</span><input type="number" step="0.1"' + attr + ' data-field="y" value="' + escapeHtml(numberValue("y", 0)) + '"></label><label class="adm-field"><span>Z</span><input type="number" step="0.1"' + attr + ' data-field="z" value="' + escapeHtml(numberValue("z", 0)) + '"></label><label class="adm-field"><span>Promień</span><input type="number" min="1" step="1"' + attr + ' data-field="radius" value="' + escapeHtml(numberValue("radius", 250)) + '"></label><label class="adm-field"><span>Klucz strefy</span><input' + attr + ' data-field="zoneKey" value="' + escapeHtml(config.zoneKey || "") + '" placeholder="Unikalny klucz strefy"></label></div>';
+        }
+        if (type === "custom_event") return '<strong class="adm-quest-config-title">Jakie zdarzenie wykonać?</strong><label class="adm-field"><span>Zarejestrowany event</span><select' + attr + ' data-field="eventName">' + questSelectOptions(state.questCatalog.eventTypes || [], config.eventName || "") + '</select></label>';
+        if (type === "interact") return '<strong class="adm-quest-config-title">Z czym wejść w interakcję?</strong><label class="adm-field"><span>Klucz celu interakcji</span><input' + attr + ' data-field="targetKey" value="' + escapeHtml(config.targetKey || "") + '"></label>';
+        var reference = questObjectiveReference(config);
+        var refType = reference.refType || (type === "kill" ? "instance" : (state.questCatalog.npcRefTypes || ["spawn"])[0] || "spawn");
+        var references = questNpcReferences(refType, reference.refValue);
+        var title = type === "kill" ? "Kogo zabić?" : "Z kim porozmawiać?";
+        var placeholder = type === "kill" ? "Wybierz moba…" : "Wybierz NPC…";
+        var pickerButton = type === "kill" ? '<button class="adm-btn adm-quest-picker-button" data-action="quest-open-picker" data-kind="monster" data-stage="' + stageIndex + '" data-index="' + objectiveIndex + '">Wybierz moba z podglądu</button>' : "";
+        return '<strong class="adm-quest-config-title">' + title + '</strong><div class="adm-grid adm-grid--2"><label class="adm-field"><span>' + title + '</span><select' + attr + ' data-field="refValue"><option value="">' + placeholder + '</option>' + questSelectOptions(references, reference.refValue, function (entry) { return entry.label; }) + '</select></label>' + pickerButton + '</div><details class="adm-quest-advanced"><summary>Zaawansowany typ referencji NPC</summary><label class="adm-field"><span>Typ referencji</span><select' + attr + ' data-field="refType">' + questSelectOptions(state.questCatalog.npcRefTypes || [], refType, questNpcRefLabel) + '</select></label></details>';
+    }
+
+    function questObjectiveLabel(type) {
+        return ({ talk: "Porozmawiaj z NPC", kill: "Zabij NPC", collect: "Zbierz przedmioty", deliver: "Dostarcz przedmioty", reach: "Dotrzyj do miejsca", interact: "Wejdź w interakcję", custom_event: "Zdarzenie niestandardowe" })[type] || type;
+    }
+
+    function questRewardLabel(type) {
+        return ({ experience: "Doświadczenie", currency: "Waluta", item: "Przedmiot", statistic: "Statystyka", flag: "Flaga postaci" })[type] || type;
+    }
+
+    function questNpcRoleLabel(role) {
+        return ({ giver: "Zleceniodawca", turn_in: "NPC oddania", talk_target: "Cel rozmowy", interact_target: "Cel interakcji" })[role] || role;
+    }
+
+    function questNpcRefLabel(type) {
+        return ({ spawn: "Konkretny NPC z bazy", preset: "Preset NPC", instance: "Instancja", tag: "Tag" })[type] || type;
+    }
+
+    function questStatisticLabel(stat) {
+        return ({ strength: "Siła", dexterity: "Zręczność", learnPoints: "Punkty nauki", hpMax: "Maksymalne zdrowie", manaMax: "Maksymalna mana" })[stat] || stat;
+    }
+
+    function questObjectiveModeLabel(mode) {
+        return ({ all: "Wszystkie cele", any: "Dowolny cel" })[mode] || mode;
+    }
+
+    function questMarkerLabel(type) {
+        return ({ continue: "Kontynuacja", turn_in: "Oddanie questa" })[type] || type;
+    }
+
+    function questObjectiveEditor(objective, stageIndex, objectiveIndex) {
+        var path = "stages[" + stageIndex + "].objectives[" + objectiveIndex + "]";
+        var stage = state.questEditor.content.stages[stageIndex];
+        var target = questObjectiveTargetState(objective, stage);
+        var issues = questIssuesFor(path, objective.key);
+        var amountLabel = ({ talk: "Liczba rozmów", kill: "Ilu przeciwników zabić?", collect: "Ile zebrać?", deliver: "Ile dostarczyć?", reach: "Liczba wejść do strefy" })[objective.type] || "Wymagana ilość";
+        var html = '<article class="adm-quest-subcard' + questIssueClass(path, objective.key) + '"><header><strong>' + escapeHtml(objective.label || objective.key || "Cel") + '</strong><button class="adm-btn adm-btn--danger" data-action="quest-remove-objective" data-stage="' + stageIndex + '" data-index="' + objectiveIndex + '">Usuń</button></header>';
+        html += '<div class="adm-quest-target-state' + (target.valid ? "" : " is-invalid") + '"><strong>' + escapeHtml(target.summary) + '</strong>' + (target.message ? '<span>' + escapeHtml(target.message) + '</span>' : '') + '</div>';
+        html += '<div class="adm-grid adm-grid--3"><label class="adm-field"><span>Klucz</span><input value="' + escapeHtml(objective.key || "") + '" disabled></label><label class="adm-field"><span>Typ</span><select data-q-objective="' + stageIndex + ':' + objectiveIndex + '" data-field="type">' + questSelectOptions(state.questCatalog.objectiveTypes || [], objective.type || "talk", questObjectiveLabel) + '</select></label><label class="adm-field"><span>' + amountLabel + '</span><input type="number" min="1" data-q-objective="' + stageIndex + ':' + objectiveIndex + '" data-field="required" value="' + Math.max(1, +objective.required || 1) + '"></label><label class="adm-field adm-field--wide"><span>Opis dla gracza</span><input data-q-objective="' + stageIndex + ':' + objectiveIndex + '" data-field="label" value="' + escapeHtml(objective.label || "") + '"></label><label class="adm-check"><input type="checkbox" data-q-objective="' + stageIndex + ':' + objectiveIndex + '" data-field="visible"' + (objective.visible === false ? "" : " checked") + '> Widoczny w dzienniku</label></div>';
+        html += '<div class="adm-quest-config">' + questObjectiveConfig(objective, stageIndex, objectiveIndex) + '</div>' + questObjectivePicker(objective, stageIndex, objectiveIndex);
+        if (issues.length) {
+            html += '<div class="adm-quest-inline-issues">';
+            issues.forEach(function (issue) { html += '<span>' + escapeHtml(issue.message || issue.code || "") + '</span>'; });
+            html += '</div>';
+        }
+        return html + '</article>';
+    }
+
+    function questStageEditor(stage, index, content) {
+        var html = '<article class="adm-quest-card adm-quest-stage' + questIssueClass("stages[" + index + "]", stage.key) + '"><header><div><span>Etap ' + (index + 1) + '</span><strong>' + escapeHtml(stage.title || stage.key || "Etap") + '</strong></div><div class="adm-actions"><button class="adm-btn" data-action="quest-move-stage" data-index="' + index + '" data-dir="-1">↑</button><button class="adm-btn" data-action="quest-move-stage" data-index="' + index + '" data-dir="1">↓</button><button class="adm-btn adm-btn--danger" data-action="quest-remove-stage" data-index="' + index + '">Usuń</button></div></header>';
+        html += '<div class="adm-grid adm-grid--3"><label class="adm-field"><span>Klucz</span><input value="' + escapeHtml(stage.key || "") + '" disabled></label><label class="adm-field"><span>Nazwa etapu</span><input data-q-stage="' + index + '" data-field="title" value="' + escapeHtml(stage.title || "") + '"></label><label class="adm-field"><span>Tryb celów</span><select data-q-stage="' + index + '" data-field="objectiveMode">' + questSelectOptions(["all", "any"], stage.objectiveMode || "all", questObjectiveModeLabel) + '</select></label><label class="adm-field"><span>Zakończenie</span><select data-q-stage="' + index + '" data-field="terminal">' + questSelectOptions([{ value: "", label: "Przejście do etapu" }, { value: "success", label: "Sukces" }, { value: "failure", label: "Porażka" }], stage.terminal || "", function (entry) { return entry.label; }) + '</select></label><label class="adm-field"><span>NPC oddania</span><select data-q-stage="' + index + '" data-field="turnInBindingKey"><option value="">Bez oddania u NPC</option>' + questSelectOptions(content.npcBindings.filter(function (binding) { return binding.role === "giver" || binding.role === "turn_in"; }).map(function (binding) { return { value: binding.key, label: questNpcRoleLabel(binding.role) + " · " + questBindingLabel(binding) }; }), stage.turnInBindingKey || "", function (entry) { return entry.label; }) + '</select></label><label class="adm-check"><input type="checkbox" data-q-stage="' + index + '" data-field="allowCycle"' + (stage.allowCycle ? " checked" : "") + '> Zezwól na cykl</label></div>';
+        html += '<section class="adm-quest-group"><header><strong>Cele</strong><div class="adm-actions"><button class="adm-btn" data-action="quest-add-objective-type" data-stage="' + index + '" data-type="talk">Rozmowa</button><button class="adm-btn" data-action="quest-add-objective-type" data-stage="' + index + '" data-type="kill">Polowanie</button><button class="adm-btn" data-action="quest-add-objective-type" data-stage="' + index + '" data-type="collect">Zbieranie</button><button class="adm-btn" data-action="quest-add-objective-type" data-stage="' + index + '" data-type="deliver">Dostarczenie</button><button class="adm-btn" data-action="quest-add-objective-type" data-stage="' + index + '" data-type="reach">Dotarcie</button></div></header>';
+        if (!stage.objectives.length) html += '<div class="adm-empty">Brak celów w etapie.</div>';
+        stage.objectives.forEach(function (objective, objectiveIndex) { html += questObjectiveEditor(objective, index, objectiveIndex); });
+        html += '</section><section class="adm-quest-group"><header><strong>Przejścia</strong><button class="adm-btn" data-action="quest-add-transition" data-stage="' + index + '">Dodaj przejście</button></header>';
+        stage.transitions.forEach(function (transition, transitionIndex) { html += '<div class="adm-quest-row"><code>' + escapeHtml(transition.key || "transition") + '</code><select data-q-transition="' + index + ':' + transitionIndex + '" data-field="target">' + questSelectOptions(content.stages.map(function (candidate) { return candidate.key; }), transition.target || "") + '</select><button class="adm-btn adm-btn--danger" data-action="quest-remove-transition" data-stage="' + index + '" data-index="' + transitionIndex + '">Usuń</button></div>'; });
+        if (!stage.transitions.length) html += '<div class="adm-muted">Etap terminalny nie wymaga przejść.</div>';
+        html += '</section><section class="adm-quest-group"><header><strong>Znaczniki nad NPC aktywnego etapu</strong><small>„!” nad zleceniodawcą jest automatyczny. Tutaj ustawiasz „?” dla rozmowy w trakcie.</small><button class="adm-btn" data-action="quest-add-marker" data-stage="' + index + '"' + (content.npcBindings.length ? "" : " disabled") + '>Dodaj marker</button></header>';
+        stage.markerBindings.forEach(function (marker, markerIndex) { html += '<div class="adm-quest-row"><select data-q-marker="' + index + ':' + markerIndex + '" data-field="bindingKey">' + questSelectOptions(content.npcBindings.map(function (binding) { return binding.key; }), marker.bindingKey || "") + '</select><select data-q-marker="' + index + ':' + markerIndex + '" data-field="markerType">' + questSelectOptions(["continue", "turn_in"], marker.markerType || "continue", questMarkerLabel) + '</select><button class="adm-btn adm-btn--danger" data-action="quest-remove-marker" data-stage="' + index + '" data-index="' + markerIndex + '">Usuń</button></div>'; });
+        html += '</section></article>';
+        return html;
+    }
+
+    function questRewardChoiceGroup() {
+        var rewards = state.questEditor && state.questEditor.content ? state.questEditor.content.rewards || [] : [];
+        for (var i = 0; i < rewards.length; i += 1) if (rewards[i].choiceGroup) return rewards[i].choiceGroup;
+        return "reward_choice";
+    }
+
+    function questRewardEditor(reward, index) {
+        var type = reward.type || "experience";
+        var choice = !!reward.choiceGroup;
+        var html = '<article class="adm-quest-subcard' + questIssueClass("rewards[" + index + "]") + '"><header><strong>' + escapeHtml(reward.label || reward.key || "Nagroda") + '</strong><button class="adm-btn adm-btn--danger" data-action="quest-remove-reward" data-index="' + index + '">Usuń</button></header><div class="adm-grid adm-grid--3">';
+        html += '<label class="adm-field"><span>Klucz</span><input value="' + escapeHtml(reward.key || "") + '" disabled></label><label class="adm-field"><span>Typ</span><select data-q-reward="' + index + '" data-field="type">' + questSelectOptions(state.questCatalog.rewardTypes || [], type, questRewardLabel) + '</select></label>';
+        if (type !== "flag") html += '<label class="adm-field"><span>Ilość</span><input type="number" min="1" data-q-reward="' + index + '" data-field="amount" value="' + Math.max(1, +reward.amount || 1) + '"></label>';
+        if (type === "item") html += '<label class="adm-field"><span>Przedmiot</span><select data-q-reward="' + index + '" data-field="instance">' + questItemOptions(reward.instance || "") + '</select></label>';
+        if (type === "statistic") html += '<label class="adm-field"><span>Statystyka</span><select data-q-reward="' + index + '" data-field="stat">' + questSelectOptions(["strength", "dexterity", "learnPoints", "hpMax", "manaMax"], reward.stat || "strength", questStatisticLabel) + '</select></label>';
+        if (type === "flag") html += '<label class="adm-field"><span>Wartość flagi</span><input data-q-reward="' + index + '" data-field="value" value="' + escapeHtml(reward.value == null ? "1" : reward.value) + '"></label>';
+        html += '<label class="adm-check"><input type="checkbox" data-q-reward-choice="' + index + '"' + (choice ? " checked" : "") + '> Gracz wybiera ten wariant</label>';
+        if (choice) html += '<label class="adm-field"><span>Nazwa wariantu dla gracza</span><input data-q-reward="' + index + '" data-field="label" value="' + escapeHtml(reward.label || "") + '" placeholder="Np. Miecz albo złoto"></label>';
+        html += '</div></article>';
+        return html;
+    }
+
+    function questDialogModeLabel(mode) {
+        return ({ start: "Przed rozpoczęciem", continue: "W trakcie questa", turn_in: "Przy oddaniu" })[mode] || mode;
+    }
+
+    function questDialogActionEditor(action, graphIndex, nodeIndex, choiceIndex, actionIndex) {
+        var path = graphIndex + ":" + nodeIndex + ":" + choiceIndex + ":" + actionIndex;
+        var type = action.type || "deliver";
+        var html = '<div class="adm-quest-dialog-action"><select data-q-dialog-action="' + path + '" data-field="type">' + questSelectOptions([{ value: "deliver", label: "Odbierz przedmioty" }, { value: "setFlag", label: "Ustaw flagę" }, { value: "event", label: "Wywołaj zdarzenie" }], type, function (entry) { return entry.label; }) + '</select>';
+        if (type === "deliver") html += '<select data-q-dialog-action="' + path + '" data-field="instance">' + questItemOptions(action.instance || "") + '</select><input type="number" min="1" data-q-dialog-action="' + path + '" data-field="amount" value="' + Math.max(1, +action.amount || 1) + '" title="Ilość">';
+        if (type === "setFlag") html += '<input data-q-dialog-action="' + path + '" data-field="key" value="' + escapeHtml(action.key || "") + '" placeholder="Klucz flagi"><input data-q-dialog-action="' + path + '" data-field="value" value="' + escapeHtml(action.value == null ? "1" : action.value) + '" placeholder="Wartość">';
+        if (type === "event") html += '<select data-q-dialog-action="' + path + '" data-field="eventName">' + questSelectOptions(state.questCatalog.eventTypes || [], action.eventName || "") + '</select>';
+        return html + '<button class="adm-btn adm-btn--danger" data-action="quest-remove-dialog-action" data-graph="' + graphIndex + '" data-node="' + nodeIndex + '" data-choice="' + choiceIndex + '" data-index="' + actionIndex + '">Usuń</button></div>';
+    }
+
+    function questDialogChoiceEditor(choice, graph, graphIndex, nodeIndex, choiceIndex) {
+        var path = graphIndex + ":" + nodeIndex + ":" + choiceIndex;
+        var html = '<article class="adm-quest-dialog-choice"><div class="adm-grid adm-grid--2"><label class="adm-field"><span>Odpowiedź gracza</span><input data-q-dialog-choice="' + path + '" data-field="text" value="' + escapeHtml(choice.text || "") + '" placeholder="Np. Zajmę się tym."></label><label class="adm-field"><span>Po odpowiedzi</span><select data-q-dialog-choice="' + path + '" data-field="target"><option value="">Zakończ dialog i wykonaj etap</option>' + questSelectOptions(graph.nodes.map(function (node) { return node.key; }), choice.target || "") + '</select></label></div><div class="adm-quest-dialog-choice__head"><code>' + escapeHtml(choice.key || "choice") + '</code><div><button class="adm-btn" data-action="quest-add-dialog-action" data-graph="' + graphIndex + '" data-node="' + nodeIndex + '" data-choice="' + choiceIndex + '">Dodaj akcję</button><button class="adm-btn adm-btn--danger" data-action="quest-remove-dialog-choice" data-graph="' + graphIndex + '" data-node="' + nodeIndex + '" data-index="' + choiceIndex + '">Usuń odpowiedź</button></div></div>';
+        (choice.actions || []).forEach(function (action, actionIndex) { html += questDialogActionEditor(action, graphIndex, nodeIndex, choiceIndex, actionIndex); });
+        return html + '</article>';
+    }
+
+    function questDialogNodeEditor(node, graph, graphIndex, nodeIndex) {
+        var path = graphIndex + ":" + nodeIndex;
+        var html = '<article class="adm-quest-subcard adm-quest-dialog-node"><header><strong>Wypowiedź ' + (nodeIndex + 1) + '</strong><div class="adm-actions"><code>' + escapeHtml(node.key || "node") + '</code><button class="adm-btn adm-btn--danger" data-action="quest-remove-dialog-node" data-graph="' + graphIndex + '" data-index="' + nodeIndex + '">Usuń</button></div></header><div class="adm-grid adm-grid--2"><label class="adm-field"><span>Mówi</span><select data-q-dialog-node="' + path + '" data-field="speaker">' + questSelectOptions([{ value: "npc", label: "NPC" }, { value: "player", label: "Gracz" }], node.speaker || "npc", function (entry) { return entry.label; }) + '</select></label><label class="adm-field adm-field--wide"><span>Tekst wypowiedzi</span><textarea data-q-dialog-node="' + path + '" data-field="text" placeholder="Treść dialogu">' + escapeHtml(node.text || "") + '</textarea></label></div><section class="adm-quest-group"><header><strong>Opcje odpowiedzi</strong><button class="adm-btn" data-action="quest-add-dialog-choice" data-graph="' + graphIndex + '" data-node="' + nodeIndex + '">Dodaj odpowiedź</button></header>';
+        if (!(node.choices || []).length) html += '<div class="adm-empty">Dodaj odpowiedź kończącą dialog albo prowadzącą do kolejnej wypowiedzi.</div>';
+        (node.choices || []).forEach(function (choice, choiceIndex) { html += questDialogChoiceEditor(choice, graph, graphIndex, nodeIndex, choiceIndex); });
+        return html + '</section></article>';
+    }
+
+    function questDialogGraphEditor(graph, graphIndex, content) {
+        var bindingEntries = content.npcBindings.map(function (binding) { return { value: binding.key, label: questNpcRoleLabel(binding.role) + " · " + binding.key }; });
+        var html = '<article class="adm-quest-card adm-quest-dialog-graph' + questIssueClass("dialogGraphs[" + graphIndex + "]") + '"><header><div><span>Dialog ' + (graphIndex + 1) + '</span><strong>' + escapeHtml(questDialogModeLabel(graph.mode || "start")) + '</strong></div><button class="adm-btn adm-btn--danger" data-action="quest-remove-dialog" data-index="' + graphIndex + '">Usuń dialog</button></header><div class="adm-grid adm-grid--3"><label class="adm-field"><span>Klucz</span><input value="' + escapeHtml(graph.key || "") + '" disabled></label><label class="adm-field"><span>NPC dialogu</span><select data-q-dialog-graph="' + graphIndex + '" data-field="bindingKey">' + questSelectOptions(bindingEntries, graph.bindingKey || "", function (entry) { return entry.label; }) + '</select></label><label class="adm-field"><span>Moment dialogu</span><select data-q-dialog-graph="' + graphIndex + '" data-field="mode">' + questSelectOptions(["start", "continue", "turn_in"], graph.mode || "start", questDialogModeLabel) + '</select></label><label class="adm-field"><span>Pierwsza wypowiedź</span><select data-q-dialog-graph="' + graphIndex + '" data-field="startNodeKey">' + questSelectOptions((graph.nodes || []).map(function (node) { return node.key; }), graph.startNodeKey || "") + '</select></label></div><section class="adm-quest-group"><header><strong>Przebieg rozmowy</strong><button class="adm-btn" data-action="quest-add-dialog-node" data-graph="' + graphIndex + '">Dodaj wypowiedź</button></header>';
+        (graph.nodes || []).forEach(function (node, nodeIndex) { html += questDialogNodeEditor(node, graph, graphIndex, nodeIndex); });
+        return html + '</section></article>';
+    }
+
+    function questDialogEditor(content) {
+        var html = '<section class="adm-quest-section adm-quest-step"><header><div><span class="adm-quest-step__number">D</span><strong>Dialogi i odpowiedzi</strong><small>Opcja z pustym przejściem kończy rozmowę i rozpoczyna, kontynuuje albo oddaje quest.</small></div><div class="adm-actions"><button class="adm-btn" data-action="quest-add-dialog" data-mode="start">Dialog startowy</button><button class="adm-btn" data-action="quest-add-dialog" data-mode="continue">Dialog w trakcie</button><button class="adm-btn" data-action="quest-add-dialog" data-mode="turn_in">Dialog oddania</button></div></header>';
+        if (!content.dialogGraphs.length) html += '<div class="adm-empty">Dialogi są opcjonalne. Bez nich wybór questa u NPC wykona akcję od razu.</div>';
+        content.dialogGraphs.forEach(function (graph, graphIndex) { html += questDialogGraphEditor(graph, graphIndex, content); });
+        return html + '</section>';
+    }
+
+    function questGraphOverview(content) {
+        var html = '<div class="adm-quest-flow">';
+        content.stages.forEach(function (stage, index) {
+            var targets = (stage.transitions || []).map(function (transition) { return transition.target; }).filter(Boolean);
+            html += '<div class="adm-quest-flow__node' + (stage.key === content.startStageKey ? " is-start" : "") + (stage.terminal ? " is-terminal" : "") + '"><span>' + (index + 1) + '</span><strong>' + escapeHtml(stage.title || stage.key) + '</strong><small>' + escapeHtml(stage.key) + (stage.terminal ? " · " + stage.terminal : targets.length ? " → " + targets.join(", ") : "") + '</small></div>';
+        });
+        return html + '</div>';
+    }
+
+    function questStructuredEditor(editor) {
+        var content = questNormalizeContent(editor.content);
+        var basicsReady = !!String(editor.code || "").trim() && !!String(content.metadata.title || "").trim();
+        var npcReady = !!questFindBinding(content, "giver");
+        var stagesReady = content.stages.length > 0 && content.stages.every(function (stage) { return Array.isArray(stage.objectives) && stage.objectives.length > 0 && stage.objectives.every(function (objective) { return questObjectiveTargetState(objective, stage).valid; }); });
+        var saved = +editor.id > 0 && !state.questUi.dirty;
+        var validated = saved && state.questValidation && state.questValidation.valid && state.questUi.validationFingerprint === questFingerprint();
+        var html = '<div class="adm-quest-structured"><div class="adm-quest-wizard"><span class="' + (basicsReady ? "is-ready" : "") + '"><b>1</b> Podstawy</span><span class="' + (npcReady ? "is-ready" : "") + '"><b>2</b> NPC</span><span class="' + (stagesReady ? "is-ready" : "") + '"><b>3</b> Cele</span><span class="is-ready"><b>4</b> Nagrody opcjonalne</span><span class="' + (validated ? "is-ready" : saved ? "is-pending" : "") + '"><b>5</b> ' + (validated ? "Gotowy do publikacji" : saved ? "Wymaga walidacji" : "Zapis i publikacja") + '</span></div>';
+        html += '<section class="adm-quest-card adm-quest-step"><header><div><span class="adm-quest-step__number">1</span><strong>Podstawowe informacje</strong><small>Nazwa i opis widoczne dla gracza.</small></div></header><div class="adm-grid adm-grid--2"><label class="adm-field"><span>Tytuł questa</span><input data-q-meta="title" value="' + escapeHtml(content.metadata.title || "") + '" placeholder="Np. Zaginiona dostawa"></label><label class="adm-field"><span>Etap początkowy</span><select data-q-root="startStageKey">' + questSelectOptions(content.stages.map(function (stage) { return stage.key; }), content.startStageKey || "") + '</select></label><label class="adm-field adm-field--wide"><span>Opis dla gracza</span><textarea data-q-meta="description" placeholder="Krótko wyjaśnij, czego dotyczy zadanie">' + escapeHtml(content.metadata.description || "") + '</textarea></label></div></section>';
+        html += questAvailabilityEditor(content, editor);
+        html += questNpcCatalogEditor(content);
+        html += questDialogEditor(content);
+        html += '<section class="adm-quest-section adm-quest-step"><header><div><span class="adm-quest-step__number">3</span><strong>Etapy i cele</strong><small>Dodaj czynności, które gracz musi wykonać. Dla prostego questa wystarczy jeden etap.</small></div><button class="adm-btn" data-action="quest-add-stage">Dodaj kolejny etap</button></header>' + questGraphOverview(content);
+        content.stages.forEach(function (stage, index) { html += questStageEditor(stage, index, content); });
+        html += '</section><section class="adm-quest-section adm-quest-step"><header><div><span class="adm-quest-step__number">4</span><strong>Nagrody</strong><small>Dodaj doświadczenie, walutę, przedmiot, statystykę albo flagę.</small></div><button class="adm-btn" data-action="quest-add-reward">Dodaj nagrodę</button></header>';
+        if (!content.rewards.length) html += '<div class="adm-empty">Brak nagród. Możesz zapisać quest bez nagrody albo dodać ją przyciskiem powyżej.</div>';
+        content.rewards.forEach(function (reward, index) { html += questRewardEditor(reward, index); });
+        var warningCount = state.questValidation && state.questValidation.warnings ? state.questValidation.warnings.length : 0;
+        html += '</section><section class="adm-quest-card adm-quest-step adm-quest-finish"><div class="adm-quest-step__number">5</div><div><strong>Zapisz, sprawdź i opublikuj</strong><span>' + (validated ? "Definicja przeszła pełną walidację publikacyjną i jest gotowa." : saved ? "Draft zapisany. Użyj „Waliduj przed publikacją”, aby sprawdzić NPC i zasoby." : "Najpierw zapisz draft, następnie wykonaj pełną walidację publikacyjną.") + '</span>' + (warningCount ? '<label class="adm-check"><input type="checkbox" data-q-acknowledge-warnings' + (content.acknowledgeWarnings ? " checked" : "") + '> Rozumiem i akceptuję ' + warningCount + ' ostrzeżeń publikacji</label>' : '') + '</div></section><section class="adm-quest-card adm-quest-advanced-note"><strong>Tryb zaawansowany</strong><span>Warunki, grafy dialogów, akcje i niestandardowe pola możesz edytować w JSON. Przełączenie nie usuwa danych formularza.</span><button class="adm-btn" data-action="quest-mode-json">Otwórz JSON</button></section></div>';
+        return html;
+    }
+
+    renderQuestMaker = function () {
+        var editor = state.questEditor;
+        var list = state.questDefinitions || [];
+        var paging = state.questList;
+        var from = paging.total ? paging.offset + 1 : 0;
+        var to = Math.min(paging.total, paging.offset + paging.limit);
+        var html = '<div class="adm-section adm-quest-maker"><div class="adm-toolbar"><button class="adm-btn adm-btn--primary" data-action="quest-new">Nowy quest</button><button class="adm-btn" data-action="quest-refresh">Odśwież</button><button class="adm-btn" data-action="quest-legacy-report">Raport legacy</button><span class="adm-muted">Draft → walidacja → publikacja niezmiennej rewizji</span></div><div class="adm-quest-layout"><aside class="adm-quest-list" data-quest-scroll="definition-list"><div class="adm-quest-list__filters"><input class="adm-search" data-quest-list-filter value="' + escapeHtml(paging.filter) + '" placeholder="Szukaj kodu lub tytułu"><select data-quest-list-status><option value="">Wszystkie statusy</option>' + questSelectOptions(["draft", "published", "archived"], paging.status) + '</select></div>';
+        if (!list.length) html += '<div class="adm-empty">Brak definicji questów.</div>';
+        list.forEach(function (entry) { var active = editor && +editor.id === +entry.id; html += '<button class="adm-quest-entry' + (active ? ' is-active' : '') + '" data-action="quest-select" data-id="' + (+entry.id || 0) + '"><strong>' + escapeHtml(entry.title || entry.code) + '</strong><small>' + escapeHtml(entry.code) + ' · ' + escapeHtml(entry.status) + ' · v' + (+entry.lockVersion || 0) + '</small></button>'; });
+        html += '<div class="adm-quest-pager"><button class="adm-btn" data-action="quest-page-prev"' + (paging.offset <= 0 ? " disabled" : "") + '>←</button><span>' + from + '–' + to + ' / ' + paging.total + '</span><button class="adm-btn" data-action="quest-page-next"' + (paging.offset + paging.limit >= paging.total ? " disabled" : "") + '>→</button></div></aside><section class="adm-quest-editor" data-quest-scroll="editor">';
+        if (!editor) html += '<div class="adm-empty">Wybierz quest albo utwórz nowy draft.</div>';
+        else {
+            var isArchived = editor.status === "archived";
+            html += '<div class="adm-quest-editor__head"><div class="adm-grid adm-grid--2"><label class="adm-field"><span>Kod</span><input data-q-code value="' + escapeHtml(editor.code || "") + '" maxlength="64"></label><label class="adm-field"><span>Status</span><input value="' + escapeHtml(editor.status || "draft") + ' · lock v' + (+editor.lockVersion || 0) + '" disabled></label></div><div class="adm-quest-mode"><button class="adm-btn' + (state.questUi.mode === "form" ? " is-active" : "") + '" data-action="quest-mode-form">Formularz</button><button class="adm-btn' + (state.questUi.mode === "json" ? " is-active" : "") + '" data-action="quest-mode-json">JSON</button><span data-quest-dirty class="adm-quest-dirty ' + (state.questUi.dirty ? "is-dirty" : "is-saved") + '">' + (state.questUi.dirty ? "Niezapisane zmiany" : "Zapisano") + '</span></div></div>';
+            html += questValidationSummary();
+            if (isArchived) html += '<div class="adm-quest-archived"><strong>To jest archiwalna definicja</strong><span>Nie można zmieniać ani ponownie publikować jej pod tym samym ID. Bieżące zmiany możesz zapisać jako nowy, niezależny draft.</span></div>';
+            if (state.questUi.mode === "json") html += '<label class="adm-field"><span>Kanoniczna definicja JSON</span><textarea data-q-json data-quest-scroll="json" class="adm-quest-json" spellcheck="false">' + escapeHtml(state.questUi.rawText || JSON.stringify(editor.content || {}, null, 2)) + '</textarea></label>';
+            else html += questStructuredEditor(editor);
+            var canValidate = !isArchived && +editor.id > 0 && !state.questUi.dirty;
+            var canPublish = canValidate && state.questValidation && state.questValidation.valid && state.questUi.validationFingerprint === questFingerprint();
+            html += '<div class="adm-toolbar adm-quest-actions">' + (state.questUi.mode === "json" ? '<button class="adm-btn" data-action="quest-format">Formatuj JSON</button>' : '') + '<button class="adm-btn" data-action="quest-validate"' + (canValidate ? "" : " disabled") + '>Waliduj przed publikacją</button><button class="adm-btn adm-btn--primary" data-action="' + (isArchived ? "quest-save-archived-copy" : "quest-save") + '">' + (isArchived ? "Zapisz zmiany jako nowy draft" : "Zapisz draft") + '</button>';
+            if (+editor.id > 0 && !isArchived) html += '<button class="adm-btn" data-action="quest-clone">Klonuj</button><button class="adm-btn adm-btn--success" data-action="quest-publish"' + (canPublish ? "" : " disabled") + '>Publikuj</button><button class="adm-btn adm-btn--danger" data-action="quest-archive">Archiwizuj</button>';
+            if (+editor.id > 0 && isArchived) html += '<button class="adm-btn adm-btn--danger" data-action="quest-delete">Usuń definicję</button>';
+            html += '</div>';
+        }
+        html += '</section></div>';
+        var legacy = state.questLegacyReport || [];
+        if (legacy.length) {
+            html += '<section class="adm-quest-validation"><strong>Raport legacy</strong>';
+            legacy.forEach(function (entry) { html += '<div><code>' + escapeHtml(entry.code || "") + '</code><span>' + escapeHtml(entry.convertible ? ("gotowy do utworzenia draftu · istniejący postęp nie będzie migrowany: " + (+entry.stateCount || 0) + " stanów") : (entry.reasons || []).join(", ")) + '</span>' + (entry.convertible && !entry.mappedDefinitionId ? '<button class="adm-btn" data-action="quest-legacy-convert" data-id="' + (+entry.id || 0) + '">Utwórz draft</button>' : entry.mappedDefinitionId ? '<small>draft #' + (+entry.mappedDefinitionId || 0) + '</small>' : '') + '</div>'; });
+            html += '</section>';
+        }
+        return html + '</div>';
+    };
+
+    function questSyncEditor() {
+        if (!state.questEditor) return false;
+        var code = body.querySelector("[data-q-code]");
+        if (code) state.questEditor.code = code.value.trim().toUpperCase();
+        if (state.questUi.mode === "json") {
+            var raw = body.querySelector("[data-q-json]");
+            if (raw) state.questUi.rawText = raw.value;
+            try { state.questEditor.content = questNormalizeContent(JSON.parse(state.questUi.rawText || "{}")); }
+            catch (e) { setStatus("Nieprawidłowy JSON: " + e.message, "error"); return false; }
+        }
+        return true;
+    }
+
+    questEditorPayload = function () {
+        if (!questSyncEditor()) return null;
+        return { id: +state.questEditor.id || 0, code: state.questEditor.code, lockVersion: +state.questEditor.lockVersion || 0, content: questCopy(state.questEditor.content), requestId: String(Date.now()) };
+    };
+
+    function questGuardDiscard(callback) {
+        if (!state.questUi.dirty) { callback(); return; }
+        openConfirmModal({ title: "Niezapisane zmiany", message: "Opuszczenie edytora odrzuci niezapisane zmiany questa.", okLabel: "Odrzuć zmiany", danger: true, onConfirm: function () { state.questUi.dirty = false; callback(); } });
+    }
+
+    function questEnsureDeliverMarkers(content) {
+        var binding = questFindBinding(content, "turn_in") || questFindBinding(content, "giver");
+        content.stages.forEach(function (stage) {
+            var hasDeliver = stage.objectives.some(function (objective) { return objective.type === "deliver"; });
+            if (!hasDeliver || stage.markerBindings.some(function (entry) { return (entry.markerType || "continue") === "continue" && entry.bindingKey; })) return;
+            if (binding) stage.markerBindings.push({ bindingKey: binding.key, markerType: "continue" });
+        });
+    }
+
+    function questDialogDefaultAction(type) {
+        if (type === "setFlag") return { type: "setFlag", key: questStableKey("flag"), value: "1" };
+        if (type === "event") return { type: "event", eventName: state.questCatalog.eventTypes && state.questCatalog.eventTypes[0] ? state.questCatalog.eventTypes[0] : "" };
+        return { type: "deliver", instance: "", amount: 1 };
+    }
+
+    function questBlockUnsaved(operation) {
+        if (!state.questUi.dirty) return false;
+        setStatus("Najpierw zapisz draft, aby " + operation + ".", "error");
+        return true;
+    }
+
+    handleQuestAction = function (action, el) {
+        if (action === "quest-refresh") { questRequestList(); state.questUi.catalogStatus = "loading"; state.questUi.catalogError = ""; state.questUi.catalogRetries = 0; send("questCatalog"); render(true); return; }
+        if (action === "quest-page-prev") { state.questList.offset = Math.max(0, state.questList.offset - state.questList.limit); questRequestList(); return; }
+        if (action === "quest-page-next") { if (state.questList.offset + state.questList.limit < state.questList.total) state.questList.offset += state.questList.limit; questRequestList(); return; }
+        if (action === "quest-legacy-report") { send("questLegacyReport"); return setStatus("Analizowanie danych legacy", ""); }
+        if (action === "quest-legacy-convert") {
+            var legacyId = +el.dataset.id || 0;
+            openConfirmModal({ title: "Konwersja legacy", message: "Zostanie utworzony nieopublikowany draft. Dane legacy pozostaną bez zmian.", okLabel: "Utwórz draft", danger: false, onConfirm: function () { send("questLegacyConvert", { legacyId: legacyId, confirm: true, requestId: String(Date.now()) }); } });
+            return;
+        }
+        if (action === "quest-new") { questGuardDiscard(function () { var fresh = defaultQuestEditor(); questPrepareEditor(fresh, true); state.questSelected = 0; render(true); }); return; }
+        if (action === "quest-select") {
+            var selectedId = +el.dataset.id || 0;
+            if (state.questEditor && +state.questEditor.id === selectedId) return;
+            questGuardDiscard(function () { state.questSelected = selectedId; state.questUi.expectedGetId = selectedId; send("questGet", { id: selectedId }); });
+            return;
+        }
+        if (!state.questEditor) return;
+        var content = state.questEditor.content;
+        if (action === "quest-mode-json") { if (state.questUi.mode !== "json") { state.questUi.rawText = JSON.stringify(content || {}, null, 2); state.questUi.mode = "json"; render(true); } return; }
+        if (action === "quest-mode-form") { if (state.questUi.mode === "json" && !questSyncEditor()) return; state.questUi.mode = "form"; render(true); return; }
+        if (action === "quest-use-npc") {
+            var spawnId = +el.dataset.spawnId || 0;
+            var role = el.dataset.role === "turn_in" ? "turn_in" : "giver";
+            if (!spawnId) return;
+            var binding = questFindBinding(content, role);
+            if (!binding) {
+                var key = role === "giver" ? "giver" : "turn_in";
+                var occupied = content.npcBindings.some(function (entry) { return entry.key === key; });
+                if (occupied) key = questStableKey(key);
+                binding = { key: key, role: role, refType: "spawn", refValue: String(spawnId), markerOffset: 165 };
+                content.npcBindings.push(binding);
+            } else {
+                binding.refType = "spawn";
+                binding.refValue = String(spawnId);
+            }
+            if (role === "giver" && content.stages.length) {
+                var firstStage = content.stages[0];
+                if (firstStage.objectives.length === 0) firstStage.objectives.push({ key: questStableKey("objective"), type: "talk", required: 1, visible: true, label: "Porozmawiaj ze zleceniodawcą", config: { refType: "spawn", refValue: String(spawnId) } });
+                else firstStage.objectives.forEach(function (objective) { if (objective.type === "talk" && objective.label === "Porozmawiaj ze zleceniodawcą") objective.config = { refType: "spawn", refValue: String(spawnId) }; });
+            }
+            if (role === "turn_in" && content.stages.length) {
+                var turnInStage = null;
+                for (var turnInIndex = content.stages.length - 1; turnInIndex >= 0; turnInIndex -= 1) {
+                    if (content.stages[turnInIndex].terminal === "success") { turnInStage = content.stages[turnInIndex]; break; }
+                }
+                (turnInStage || content.stages[content.stages.length - 1]).turnInBindingKey = binding.key;
+            }
+            questEnsureDeliverMarkers(content);
+            questDirty(true);
+            render(true);
+            return;
+        }
+        if (action === "quest-retry-catalog") {
+            clearTimeout(state.questUi.catalogTimer);
+            state.questUi.catalogRetries = 0;
+            state.questUi.catalogStatus = "loading";
+            state.questUi.catalogError = "";
+            send("questCatalog");
+            render(true);
+            return;
+        }
+        if (action === "quest-open-picker") {
+            var picker = { kind: el.dataset.kind, stage: +el.dataset.stage, objective: +el.dataset.index };
+            state.questUi.picker = questPickerOpen(picker.kind, picker.stage, picker.objective) ? null : picker;
+            render(true);
+            return;
+        }
+        if (action === "quest-close-picker") { state.questUi.picker = null; render(true); return; }
+        if (action === "quest-pick-objective-item" || action === "quest-pick-objective-monster") {
+            var pickedObjective = content.stages[+el.dataset.stage].objectives[+el.dataset.index];
+            if (!pickedObjective.config) pickedObjective.config = {};
+            if (action === "quest-pick-objective-item") pickedObjective.config.instance = el.dataset.instance;
+            else { pickedObjective.config.refType = "instance"; pickedObjective.config.refValue = el.dataset.instance; }
+            state.questUi.picker = null;
+            questEnsureDeliverMarkers(content);
+            questDirty(true);
+            render(true);
+            return;
+        }
+        if (action === "quest-add-dialog") {
+            var dialogMode = el.dataset.mode || "start";
+            var dialogBinding = dialogMode === "start" ? questFindBinding(content, "giver") : questFindBinding(content, "turn_in") || questFindBinding(content, "giver");
+            if (!dialogBinding) return setStatus("Najpierw wybierz NPC zleceniodawcę albo NPC oddania.", "error");
+            var duplicateDialog = content.dialogGraphs.some(function (graph) { return graph.bindingKey === dialogBinding.key && graph.mode === dialogMode; });
+            if (duplicateDialog) return setStatus("Ten NPC posiada już dialog dla wybranego momentu questa.", "error");
+            var dialogNodeKey = questStableKey("dialog_node");
+            var dialogText = dialogMode === "start" ? "Mam dla ciebie zadanie." : dialogMode === "turn_in" ? "Czy wykonałeś zadanie?" : "Jak idzie zadanie?";
+            var dialogChoiceText = dialogMode === "start" ? "Podejmuję się." : dialogMode === "turn_in" ? "Tak, zadanie wykonane." : "Kontynuuj.";
+            content.dialogGraphs.push({ key: questStableKey("dialog"), bindingKey: dialogBinding.key, mode: dialogMode, startNodeKey: dialogNodeKey, nodes: [{ key: dialogNodeKey, speaker: "npc", text: dialogText, choices: [{ key: questStableKey("choice"), text: dialogChoiceText, target: "", actions: [] }] }] });
+            if (dialogMode === "continue") content.stages.forEach(function (stage) {
+                if (!stage.markerBindings.some(function (marker) { return marker.bindingKey === dialogBinding.key; })) stage.markerBindings.push({ bindingKey: dialogBinding.key, markerType: "continue" });
+            });
+            questDirty(true);
+            render(true);
+            return;
+        }
+        if (action === "quest-remove-dialog") { content.dialogGraphs.splice(+el.dataset.index, 1); questDirty(true); render(true); return; }
+        if (action === "quest-add-dialog-node") {
+            var dialogGraph = content.dialogGraphs[+el.dataset.graph];
+            var newNodeKey = questStableKey("dialog_node");
+            if (dialogGraph.nodes.length) {
+                var previousNode = dialogGraph.nodes[dialogGraph.nodes.length - 1];
+                var finalChoice = previousNode.choices.filter(function (choice) { return !choice.target; })[0];
+                if (finalChoice) finalChoice.target = newNodeKey;
+            }
+            dialogGraph.nodes.push({ key: newNodeKey, speaker: "npc", text: "Nowa wypowiedź", choices: [{ key: questStableKey("choice"), text: "Kontynuuj", target: "", actions: [] }] });
+            if (!dialogGraph.startNodeKey) dialogGraph.startNodeKey = newNodeKey;
+            questDirty(true);
+            render(true);
+            return;
+        }
+        if (action === "quest-remove-dialog-node") {
+            var removeGraph = content.dialogGraphs[+el.dataset.graph];
+            var removedNode = removeGraph.nodes.splice(+el.dataset.index, 1)[0];
+            removeGraph.nodes.forEach(function (node) { node.choices.forEach(function (choice) { if (choice.target === removedNode.key) choice.target = ""; }); });
+            if (removeGraph.startNodeKey === removedNode.key) removeGraph.startNodeKey = removeGraph.nodes[0] ? removeGraph.nodes[0].key : "";
+            questDirty(true);
+            render(true);
+            return;
+        }
+        if (action === "quest-add-dialog-choice") {
+            content.dialogGraphs[+el.dataset.graph].nodes[+el.dataset.node].choices.push({ key: questStableKey("choice"), text: "Nowa odpowiedź", target: "", actions: [] });
+            questDirty(true);
+            render(true);
+            return;
+        }
+        if (action === "quest-remove-dialog-choice") { content.dialogGraphs[+el.dataset.graph].nodes[+el.dataset.node].choices.splice(+el.dataset.index, 1); questDirty(true); render(true); return; }
+        if (action === "quest-add-dialog-action") { content.dialogGraphs[+el.dataset.graph].nodes[+el.dataset.node].choices[+el.dataset.choice].actions.push(questDialogDefaultAction("deliver")); questDirty(true); render(true); return; }
+        if (action === "quest-remove-dialog-action") { content.dialogGraphs[+el.dataset.graph].nodes[+el.dataset.node].choices[+el.dataset.choice].actions.splice(+el.dataset.index, 1); questDirty(true); render(true); return; }
+        if (action === "quest-add-binding") { var bindingRefType = (state.questCatalog.npcRefTypes || ["spawn"])[0] || "spawn"; var bindingReferences = questNpcReferences(bindingRefType, ""); content.npcBindings.push({ key: questStableKey("npc"), role: "giver", refType: bindingRefType, refValue: bindingReferences.length ? bindingReferences[0].value : "", markerOffset: 165 }); questDirty(true); render(true); return; }
+        if (action === "quest-remove-binding") {
+            var removedBinding = content.npcBindings.splice(+el.dataset.index, 1)[0];
+            if (removedBinding) {
+                content.dialogGraphs = content.dialogGraphs.filter(function (graph) { return graph.bindingKey !== removedBinding.key; });
+                content.stages.forEach(function (stage) {
+                    if (stage.turnInBindingKey === removedBinding.key) stage.turnInBindingKey = "";
+                    stage.markerBindings = stage.markerBindings.filter(function (marker) { return marker.bindingKey !== removedBinding.key; });
+                });
+            }
+            questDirty(true);
+            render(true);
+            return;
+        }
+        if (action === "quest-add-stage") { var stageKey = questStableKey("stage"); content.stages.push({ key: stageKey, title: "Nowy etap", type: "objectives", objectiveMode: "all", objectives: [], transitions: [], markerBindings: [], terminal: "success" }); if (!content.startStageKey) content.startStageKey = stageKey; questDirty(true); render(true); return; }
+        if (action === "quest-remove-stage") { if (content.stages.length <= 1) return setStatus("Quest musi posiadać co najmniej jeden etap.", "error"); var stageIndex = +el.dataset.index; var removed = content.stages[stageIndex].key; content.stages.splice(stageIndex, 1); if (content.startStageKey === removed) content.startStageKey = content.stages[0].key; questDirty(true); render(true); return; }
+        if (action === "quest-move-stage") { var from = +el.dataset.index; var to = from + (+el.dataset.dir || 0); if (to >= 0 && to < content.stages.length) { var moved = content.stages.splice(from, 1)[0]; content.stages.splice(to, 0, moved); questDirty(true); render(true); } return; }
+        if (action === "quest-add-objective" || action === "quest-add-objective-type") {
+            var objectiveStageIndex = +el.dataset.stage;
+            var objectiveStage = content.stages[objectiveStageIndex];
+            var objectiveType = el.dataset.type || (state.questCatalog.objectiveTypes || ["talk"])[0] || "talk";
+            objectiveStage.objectives.push({ key: questStableKey("objective"), type: objectiveType, required: 1, visible: true, label: questObjectiveLabel(objectiveType), config: questDefaultObjectiveConfig(objectiveType) });
+            questEnsureDeliverMarkers(content);
+            state.questUi.picker = objectiveType === "kill" ? { kind: "monster", stage: objectiveStageIndex, objective: objectiveStage.objectives.length - 1 } : (objectiveType === "collect" || objectiveType === "deliver" ? { kind: "item", stage: objectiveStageIndex, objective: objectiveStage.objectives.length - 1 } : null);
+            questDirty(true);
+            render(true);
+            return;
+        }
+        if (action === "quest-remove-objective") { content.stages[+el.dataset.stage].objectives.splice(+el.dataset.index, 1); questDirty(true); render(true); return; }
+        if (action === "quest-add-transition") { var transitionStage = content.stages[+el.dataset.stage]; transitionStage.transitions.push({ key: questStableKey("transition"), target: content.stages[0] ? content.stages[0].key : "" }); transitionStage.terminal = ""; questDirty(true); render(true); return; }
+        if (action === "quest-remove-transition") { content.stages[+el.dataset.stage].transitions.splice(+el.dataset.index, 1); questDirty(true); render(true); return; }
+        if (action === "quest-add-marker") {
+            if (!content.npcBindings.length) return setStatus("Najpierw przypisz NPC, a dopiero potem dodaj marker.", "error");
+            content.stages[+el.dataset.stage].markerBindings.push({ bindingKey: content.npcBindings[0].key, markerType: "continue" });
+            questDirty(true);
+            render(true);
+            return;
+        }
+        if (action === "quest-remove-marker") { content.stages[+el.dataset.stage].markerBindings.splice(+el.dataset.index, 1); questDirty(true); render(true); return; }
+        if (action === "quest-add-reward") { var rewardType = (state.questCatalog.rewardTypes || ["experience"])[0] || "experience"; content.rewards.push(questDefaultReward(rewardType)); questDirty(true); render(true); return; }
+        if (action === "quest-remove-reward") { content.rewards.splice(+el.dataset.index, 1); questDirty(true); render(true); return; }
+        if (action === "quest-format") { if (questSyncEditor()) { state.questUi.rawText = JSON.stringify(state.questEditor.content, null, 2); render(true); } return; }
+        if (action === "quest-delete") {
+            if (state.questEditor.status !== "archived" || +state.questEditor.id <= 0) return setStatus("Usunąć można wyłącznie zapisaną, zarchiwizowaną definicję.", "error");
+            if (questBlockUnsaved("usunąć definicję")) return;
+            openConfirmModal({
+                title: "Nieodwracalne usunięcie questa",
+                message: "Usunąć definicję „" + (content.metadata.title || state.questEditor.code) + "”? Operacja zostanie zablokowana, jeśli jakakolwiek postać posiada historię tego questa albo istnieje mapowanie legacy.",
+                okLabel: "Usuń definicję",
+                danger: true,
+                onConfirm: function () {
+                    send("questDelete", { id: +state.questEditor.id, lockVersion: +state.questEditor.lockVersion, confirm: true, requestId: String(Date.now()) });
+                    setStatus("Usuwanie definicji questa", "");
+                }
+            });
+            return;
+        }
+        if (action === "quest-save-archived-copy") {
+            if (state.questEditor.status !== "archived" || !questSyncEditor()) return;
+            var archivedBaseCode = String(state.questEditor.code || "QUEST").replace(/_COPY_[0-9]+$/, "").slice(0, 52);
+            state.questEditor.id = 0;
+            state.questEditor.lockVersion = 0;
+            state.questEditor.status = "draft";
+            state.questEditor.code = archivedBaseCode + "_COPY_" + String(Date.now()).slice(-6);
+            state.questSelected = 0;
+            state.questValidation = null;
+            state.questUi.validationFingerprint = "";
+            state.questUi.dirty = true;
+            var archivedCopyPayload = { id: 0, code: state.questEditor.code, lockVersion: 0, content: questCopy(state.questEditor.content), requestId: String(Date.now()) };
+            state.questUi.submitted = questFingerprint();
+            send("questSave", archivedCopyPayload);
+            render(true);
+            return setStatus("Zapisywanie bieżących zmian jako nowego draftu", "");
+        }
+        if (action === "quest-clone") { if (questBlockUnsaved("sklonować questa")) return; var cloneCode = (state.questEditor.code || "QUEST").slice(0, 52) + "_COPY_" + String(Date.now()).slice(-6); send("questClone", { sourceId: +state.questEditor.id, code: cloneCode, requestId: String(Date.now()) }); return setStatus("Klonowanie questa", ""); }
+        if (action === "quest-publish") {
+            if (questBlockUnsaved("opublikować rewizję")) return;
+            if (!state.questValidation || !state.questValidation.valid || state.questUi.validationFingerprint !== questFingerprint()) return setStatus("Najpierw wykonaj pełną walidację publikacyjną.", "error");
+            openConfirmModal({
+                title: "Publikacja questa",
+                message: "Opublikować „" + (content.metadata.title || state.questEditor.code) + "”? Gracze będą mogli rozpocząć tę niezmienną rewizję.",
+                okLabel: "Publikuj",
+                danger: false,
+                onConfirm: function () {
+                    send("questPublish", { id: +state.questEditor.id, lockVersion: +state.questEditor.lockVersion, requestId: String(Date.now()) });
+                    setStatus("Publikowanie rewizji", "");
+                }
+            });
+            return;
+        }
+        if (action === "quest-archive") { if (questBlockUnsaved("zarchiwizować questa")) return; openConfirmModal({ title: "Archiwizacja questa", message: "Quest przestanie być dostępny do rozpoczęcia. Aktywne stany postaci zachowają opublikowaną rewizję.", okLabel: "Archiwizuj", danger: true, onConfirm: function () { send("questArchive", { id: +state.questEditor.id, lockVersion: +state.questEditor.lockVersion, requestId: String(Date.now()), confirm: true }); setStatus("Archiwizowanie questa", ""); } }); return; }
+        var payload = questEditorPayload();
+        if (!payload) return;
+        if (action === "quest-validate") {
+            if (questBlockUnsaved("zweryfikować publikację")) return;
+            payload.publishing = true;
+            state.questUi.submitted = questFingerprint();
+            send("questValidate", payload);
+            return setStatus("Sprawdzanie definicji, NPC i zasobów", "");
+        }
+        if (action === "quest-save") { state.questUi.submitted = questFingerprint(); send("questSave", payload); return setStatus("Zapisywanie draftu", ""); }
+    };
+
+    function questBindValue(selector, callback) {
+        body.querySelectorAll(selector).forEach(function (element) {
+            var eventName = element.type === "checkbox" || element.tagName === "SELECT" || element.type === "number" ? "change" : "input";
+            element.addEventListener(eventName, function () { callback(element); questDirty(); });
+        });
+    }
+
+    function bindQuestMakerHandlers() {
+        var filter = body.querySelector("[data-quest-list-filter]");
+        if (filter) filter.addEventListener("input", function () { state.questList.filter = filter.value; state.questList.offset = 0; clearTimeout(state.questUi.filterTimer); state.questUi.filterTimer = setTimeout(questRequestList, 250); });
+        var status = body.querySelector("[data-quest-list-status]");
+        if (status) status.addEventListener("change", function () { state.questList.status = status.value; state.questList.offset = 0; questRequestList(); });
+        if (!state.questEditor) return;
+        var npcFilter = body.querySelector("[data-quest-npc-filter]");
+        if (npcFilter) npcFilter.addEventListener("input", function () {
+            state.questUi.npcFilter = npcFilter.value;
+            var needle = npcFilter.value.trim().toLowerCase();
+            var visible = 0;
+            body.querySelectorAll("[data-quest-npc-card]").forEach(function (card) {
+                var match = !needle || String(card.dataset.search || "").indexOf(needle) >= 0;
+                card.hidden = !match;
+                if (match) visible += 1;
+            });
+            var count = body.querySelector("[data-quest-npc-count]");
+            if (count) count.textContent = visible + " / " + (state.questCatalog.npcs || []).length + " NPC";
+        });
+        var pickerFilter = body.querySelector("[data-quest-objective-picker-filter]");
+        if (pickerFilter) pickerFilter.addEventListener("input", function () {
+            if (pickerFilter.dataset.kind === "monster") state.questUi.monsterFilter = pickerFilter.value;
+            else state.questUi.itemFilter = pickerFilter.value;
+            clearTimeout(state.questUi.pickerTimer);
+            state.questUi.pickerTimer = setTimeout(function () { render(true); }, 220);
+        });
+        questBindValue("[data-q-code]", function (element) { state.questEditor.code = element.value.trim().toUpperCase(); });
+        questBindValue("[data-q-meta]", function (element) { state.questEditor.content.metadata[element.dataset.qMeta] = element.value; });
+        questBindValue("[data-q-root]", function (element) { state.questEditor.content[element.dataset.qRoot] = element.value; });
+        questBindValue("[data-q-availability]", function (element) {
+            var availability = questSimpleAvailability(state.questEditor.content.availability);
+            if (availability.advanced) return;
+            var field = element.dataset.qAvailability;
+            if (field === "levelEnabled" || field === "questEnabled") availability[field] = element.checked;
+            else if (field === "level") availability.level = Math.max(1, Math.floor(Number(element.value) || 1));
+            else if (field === "questCode") availability.questCode = element.value.trim().toUpperCase();
+            state.questEditor.content.availability = questBuildAvailability(availability);
+            if (field === "levelEnabled" || field === "questEnabled") render(true);
+        });
+        questBindValue("[data-q-acknowledge-warnings]", function (element) { if (element.checked) state.questEditor.content.acknowledgeWarnings = true; else delete state.questEditor.content.acknowledgeWarnings; });
+        questBindValue("[data-q-binding]", function (element) { var binding = state.questEditor.content.npcBindings[+element.dataset.qBinding]; var field = element.dataset.field; binding[field] = field === "markerOffset" ? (+element.value || 0) : element.value; if (field === "refType") { var references = questNpcReferences(element.value, ""); binding.refValue = references.length ? references[0].value : ""; render(true); } });
+        questBindValue("[data-q-stage]", function (element) {
+            var stage = state.questEditor.content.stages[+element.dataset.qStage];
+            var field = element.dataset.field;
+            stage[field] = element.type === "checkbox" ? element.checked : element.value;
+            if (field === "terminal" && element.value) {
+                stage.transitions = [];
+                render(true);
+            }
+            if (field === "turnInBindingKey") questEnsureDeliverMarkers(state.questEditor.content);
+        });
+        questBindValue("[data-q-objective]", function (element) {
+            var parts = element.dataset.qObjective.split(":");
+            var stageIndex = +parts[0];
+            var objectiveIndex = +parts[1];
+            var objective = state.questEditor.content.stages[stageIndex].objectives[objectiveIndex];
+            var field = element.dataset.field;
+            objective[field] = element.type === "checkbox" ? element.checked : field === "required" ? Math.max(1, +element.value || 1) : element.value;
+            if (field === "type") {
+                objective.config = questDefaultObjectiveConfig(element.value);
+                questEnsureDeliverMarkers(state.questEditor.content);
+                state.questUi.picker = element.value === "kill" ? { kind: "monster", stage: stageIndex, objective: objectiveIndex } : (element.value === "collect" || element.value === "deliver" ? { kind: "item", stage: stageIndex, objective: objectiveIndex } : null);
+                render(true);
+            }
+        });
+        questBindValue("[data-q-objective-config]", function (element) {
+            var parts = element.dataset.qObjectiveConfig.split(":");
+            var objective = state.questEditor.content.stages[+parts[0]].objectives[+parts[1]];
+            if (!objective.config) objective.config = {};
+            var field = element.dataset.field;
+            var previousReference = questObjectiveReference(objective.config);
+            objective.config[field] = ["x", "y", "z", "radius"].indexOf(field) >= 0 ? Number(element.value) : element.value;
+            if (field === "refValue" && !objective.config.refType) objective.config.refType = previousReference.refType || "spawn";
+            if (field === "refType") {
+                objective.config.refValue = "";
+                render(true);
+                return;
+            }
+            if (element.tagName === "SELECT" || element.type === "number") render(true);
+        });
+        questBindValue("[data-q-deliver-binding]", function (element) {
+            var stage = state.questEditor.content.stages[+element.dataset.qDeliverBinding];
+            var current = -1;
+            for (var i = 0; i < stage.markerBindings.length; i += 1) if ((stage.markerBindings[i].markerType || "continue") === "continue") { current = i; break; }
+            if (!element.value) {
+                if (current >= 0) stage.markerBindings.splice(current, 1);
+                render(true);
+                return;
+            }
+            if (current >= 0) stage.markerBindings[current].bindingKey = element.value;
+            else stage.markerBindings.push({ bindingKey: element.value, markerType: "continue" });
+            render(true);
+        });
+        questBindValue("[data-q-dialog-graph]", function (element) { state.questEditor.content.dialogGraphs[+element.dataset.qDialogGraph][element.dataset.field] = element.value; });
+        questBindValue("[data-q-dialog-node]", function (element) { var parts = element.dataset.qDialogNode.split(":"); state.questEditor.content.dialogGraphs[+parts[0]].nodes[+parts[1]][element.dataset.field] = element.value; });
+        questBindValue("[data-q-dialog-choice]", function (element) { var parts = element.dataset.qDialogChoice.split(":"); var choice = state.questEditor.content.dialogGraphs[+parts[0]].nodes[+parts[1]].choices[+parts[2]]; choice[element.dataset.field] = element.value; });
+        questBindValue("[data-q-dialog-action]", function (element) {
+            var parts = element.dataset.qDialogAction.split(":");
+            var choice = state.questEditor.content.dialogGraphs[+parts[0]].nodes[+parts[1]].choices[+parts[2]];
+            var actionIndex = +parts[3];
+            var field = element.dataset.field;
+            if (field === "type") { choice.actions[actionIndex] = questDialogDefaultAction(element.value); render(true); return; }
+            choice.actions[actionIndex][field] = field === "amount" ? Math.max(1, +element.value || 1) : element.value;
+        });
+        questBindValue("[data-q-transition]", function (element) { var parts = element.dataset.qTransition.split(":"); state.questEditor.content.stages[+parts[0]].transitions[+parts[1]][element.dataset.field] = element.value; });
+        questBindValue("[data-q-marker]", function (element) { var parts = element.dataset.qMarker.split(":"); state.questEditor.content.stages[+parts[0]].markerBindings[+parts[1]][element.dataset.field] = element.value; });
+        questBindValue("[data-q-reward-choice]", function (element) {
+            var reward = state.questEditor.content.rewards[+element.dataset.qRewardChoice];
+            if (element.checked) {
+                reward.choiceGroup = questRewardChoiceGroup();
+                if (!reward.label) reward.label = questRewardLabel(reward.type || "experience");
+            } else {
+                delete reward.choiceGroup;
+                delete reward.label;
+            }
+            render(true);
+        });
+        questBindValue("[data-q-reward]", function (element) { var reward = state.questEditor.content.rewards[+element.dataset.qReward]; var field = element.dataset.field; var value = field === "amount" ? Math.max(1, +element.value || 1) : element.value; if (value === "" && (field === "choiceGroup" || field === "label")) delete reward[field]; else reward[field] = value; if (field === "type") { var key = reward.key; var choiceGroup = reward.choiceGroup; var label = reward.label; var replacement = questDefaultReward(value); replacement.key = key; if (choiceGroup) { replacement.choiceGroup = choiceGroup; replacement.label = label || questRewardLabel(value); } state.questEditor.content.rewards[+element.dataset.qReward] = replacement; render(true); } });
+        var raw = body.querySelector("[data-q-json]");
+        if (raw) raw.addEventListener("input", function () { state.questUi.rawText = raw.value; questDirty(); });
+    }
+
+    close = function () {
+        if (state.questUi.dirty && activeTab === "quests") { questGuardDiscard(function () { questBaseClose(); }); return; }
+        questBaseClose();
+    };
+
+    bindHandlers = function () {
+        questBaseBindHandlers();
+        if (activeTab === "quests") bindQuestMakerHandlers();
+    };
+
+    onResponse = function (p) {
+        if (!p || !p.action || p.action.indexOf("quest") !== 0) return questBaseResponse(p);
+        var pl = p.payload || {};
+        if (p.action === "questList" && p.success) { state.questDefinitions = pl.entries || []; state.questList.total = +pl.total || 0; state.questList.offset = +pl.offset || 0; state.questList.limit = +pl.limit || state.questList.limit; return render(true); }
+        if (p.action === "questCatalog") {
+            clearTimeout(state.questUi.catalogTimer);
+            if (p.success) {
+                state.questCatalog = pl;
+                state.questUi.catalogStatus = "ready";
+                state.questUi.catalogError = "";
+                state.questUi.catalogRetries = 0;
+                return render(true);
+            }
+            state.questUi.catalogRetries += 1;
+            if (p.error === "npcCatalogNotReady" && state.questUi.catalogRetries <= 8) {
+                state.questUi.catalogStatus = "loading";
+                state.questUi.catalogTimer = setTimeout(function () { send("questCatalog"); }, +pl.retryAfter || 1000);
+            } else {
+                state.questUi.catalogStatus = "error";
+                state.questUi.catalogError = p.error === "npcCatalogNotReady" ? "Serwer nie zakończył przygotowania tabeli NPC." : "Błąd serwera: " + (p.error || "unknown");
+            }
+            return render(true);
+        }
+        if (p.action === "questLegacyReport" && p.success) { state.questLegacyReport = pl.entries || []; setStatus("Raport legacy gotowy", "ok"); return render(true); }
+        if (p.action === "questLegacyConvert" && p.success) { send("questLegacyReport"); questRequestList(); if (+pl.id > 0) { state.questUi.expectedGetId = +pl.id; send("questGet", { id: +pl.id }); } return setStatus(pl.alreadyConverted ? "Quest był już przekonwertowany" : "Utworzono draft z danych legacy", "ok"); }
+        if (p.action === "questGet" && p.success) {
+            if (state.questUi.expectedGetId && +pl.id !== +state.questUi.expectedGetId) return;
+            state.questUi.expectedGetId = 0;
+            questPrepareEditor({ id: +pl.id || 0, code: pl.code || "", status: pl.status || "draft", lockVersion: +pl.lockVersion || 0, content: pl.draftContent || pl.publishedContent || {} }, false);
+            state.questSelected = state.questEditor.id;
+            return render(true);
+        }
+        if (p.action === "questValidate") {
+            state.questValidation = pl;
+            state.questUi.validationFingerprint = p.success && state.questUi.submitted === questFingerprint() ? state.questUi.submitted : "";
+            state.questUi.submitted = "";
+            setStatus(p.success ? "Definicja jest gotowa do publikacji" : "Definicja wymaga poprawy", p.success ? "ok" : "error");
+            return render(true);
+        }
+        if (p.action === "questSave" && p.success) {
+            if (!state.questEditor) return;
+            state.questEditor.id = +pl.id || state.questEditor.id;
+            state.questEditor.lockVersion = +pl.lockVersion || state.questEditor.lockVersion;
+            state.questSelected = state.questEditor.id;
+            state.questValidation = pl.validation || null;
+            state.questUi.validationFingerprint = "";
+            if (questFingerprint() === state.questUi.submitted) { state.questUi.baseline = state.questUi.submitted; state.questUi.dirty = false; }
+            state.questUi.submitted = "";
+            questRequestList();
+            var blockers = state.questValidation && state.questValidation.errors ? state.questValidation.errors.length : 0;
+            var saveMessage = state.questUi.dirty ? "Draft zapisany; w edytorze są nowsze zmiany" : blockers ? "Draft zapisany, ale wymaga uzupełnienia (" + blockers + ")" : "Draft zapisany";
+            setStatus(saveMessage, blockers ? "" : "ok");
+            return render(true);
+        }
+        if (p.action === "questClone" && p.success) { state.questSelected = +pl.id || 0; questRequestList(); if (state.questSelected) { state.questUi.expectedGetId = state.questSelected; send("questGet", { id: state.questSelected }); } return setStatus("Quest sklonowany", "ok"); }
+        if ((p.action === "questPublish" || p.action === "questArchive") && p.success) { if (state.questEditor) { state.questEditor.lockVersion = +pl.lockVersion || state.questEditor.lockVersion; state.questEditor.status = p.action === "questPublish" ? "published" : "archived"; state.questUi.baseline = questFingerprint(); state.questUi.dirty = false; } questRequestList(); if (state.questEditor && state.questEditor.id) { state.questUi.expectedGetId = state.questEditor.id; send("questGet", { id: state.questEditor.id }); } return setStatus(p.action === "questPublish" ? "Quest opublikowany" : "Quest zarchiwizowany", "ok"); }
+        if (p.action === "questDelete" && p.success) {
+            state.questEditor = null;
+            state.questSelected = 0;
+            state.questValidation = null;
+            state.questUi.baseline = "";
+            state.questUi.dirty = false;
+            state.questUi.submitted = "";
+            state.questUi.validationFingerprint = "";
+            questRequestList();
+            setStatus("Definicja questa została usunięta", "ok");
+            return render(true);
+        }
+        if (!p.success) {
+            if (pl && (pl.errors || pl.warnings)) state.questValidation = pl;
+            state.questUi.validationFingerprint = "";
+            state.questUi.submitted = "";
+            var errorMessage = p.error === "STALE_VERSION" ? "Konflikt wersji: inny administrator zmienił ten draft. Odśwież quest przed ponownym zapisem." : p.error === "ARCHIVED" ? "Ta definicja jest zarchiwizowana. Zapisz bieżące zmiany jako nowy draft." : p.error === "QUEST_IN_USE" ? "Nie można usunąć definicji: istnieje postęp lub historia postaci. Zachowaj zarchiwizowaną definicję." : p.error === "LEGACY_MAPPED" ? "Nie można usunąć definicji: jest powiązana z migracją legacy." : p.error === "NOT_ARCHIVED" ? "Najpierw zarchiwizuj quest, a dopiero potem usuń definicję." : "Operacja questa nie powiodła się: " + (p.error || "unknown");
+            setStatus(errorMessage, "error");
+            return render(true);
+        }
+    };
+
+    document.addEventListener("click", function (event) {
+        if (questDiscardBypass) { questDiscardBypass = false; return; }
+        if (!state.questUi.dirty || activeTab !== "quests") return;
+        var target = event.target.closest(".phoenix-adminpanel__close, .phoenix-adminpanel__tab");
+        if (!target || target.classList.contains("is-active")) return;
+        event.preventDefault();
+        event.stopImmediatePropagation();
+        questGuardDiscard(function () { questDiscardBypass = true; target.click(); });
+    }, true);
+    global.addEventListener("beforeunload", function (event) { if (!state.questUi.dirty) return; event.preventDefault(); event.returnValue = ""; });
 
     bridge.on("phoenix:admin:response", onResponse);
     bridge.on("phoenix:account:identity", function (p) {

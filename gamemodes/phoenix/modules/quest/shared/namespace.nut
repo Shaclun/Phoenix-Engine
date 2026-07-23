@@ -1,13 +1,10 @@
-phoenix.quest <- {}
-phoenix.quest.Status <- {
-	Active = "active",
-	Completed = "completed",
-	Failed = "failed",
-	Abandoned = "abandoned"
+if (!("quest" in phoenix)) phoenix.quest <- {}
+phoenix.quest.Message <- {}
+phoenix.quest.Schema <- {}
+phoenix.quest.Registry <- {
+	conditions = {},
+	objectives = {},
+	rewards = {},
+	events = {}
 }
-phoenix.quest.Type <- {
-	Fetch = "fetch",
-	Kill = "kill",
-	Talk = "talk",
-	Escort = "escort"
-}
+phoenix.quest.ProtocolVersion <- 1

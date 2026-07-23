@@ -30,7 +30,7 @@ phoenix.admin.Server <- {
 		m.success = success
 		m.error = error
 		m.payload = payload
-		try { m.serialize().send(playerId, RELIABLE_ORDERED) } catch (e) {}
+		try { m.serialize().send(playerId, RELIABLE_ORDERED) } catch (e) { print("[admin] Response '" + action + "' failed: " + e + "\n") }
 	}
 
 	function dispatchListPlayers(playerId, _payload) {
@@ -1324,11 +1324,15 @@ phoenix.admin.Server <- {
 	dispatchers = null
 
 	function onRequest(playerId, message) {
-		if (!phoenix.account.Auth.isAdmin(playerId)) {
-			phoenix.admin.Server.reply(playerId, message.action, false, "denied", null)
+		local action = message.action
+		local authorized = phoenix.account.Auth.isAdmin(playerId)
+		if (!authorized) {
+			try { authorized = phoenix.quest.Admin.authorized(playerId, action) } catch (error) { authorized = false }
+		}
+		if (!authorized) {
+			phoenix.admin.Server.reply(playerId, action, false, "denied", null)
 			return
 		}
-		local action = message.action
 		if (!(action in phoenix.admin.Server.dispatchers)) {
 			phoenix.admin.Server.reply(playerId, action, false, "unknownAction", null)
 			return
@@ -1398,7 +1402,18 @@ phoenix.admin.Server.dispatchers = {
 	bestiaryRenderSave = phoenix.admin.Server.dispatchBestiaryRenderSave,
 	itemRenderList = phoenix.admin.Server.dispatchItemRenderList,
 	itemRenderSave = phoenix.admin.Server.dispatchItemRenderSave,
-	itemRenderDelete = phoenix.admin.Server.dispatchItemRenderDelete
+	itemRenderDelete = phoenix.admin.Server.dispatchItemRenderDelete,
+	questList = phoenix.quest.Admin.list,
+	questGet = phoenix.quest.Admin.get,
+	questSave = phoenix.quest.Admin.save,
+	questClone = phoenix.quest.Admin.cloneQuest,
+	questValidate = phoenix.quest.Admin.validate,
+	questPublish = phoenix.quest.Admin.publish,
+	questArchive = phoenix.quest.Admin.archive,
+	questDelete = phoenix.quest.Admin.deleteDefinition,
+	questCatalog = phoenix.quest.Admin.catalog,
+	questLegacyReport = phoenix.quest.Admin.legacyReport,
+	questLegacyConvert = phoenix.quest.Admin.legacyConvert
 }
 
 phoenix.admin.Message.Request.bind(phoenix.admin.Server.onRequest)

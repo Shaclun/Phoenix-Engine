@@ -1,4 +1,8 @@
 phoenix.database.Connector <- {
+	asyncConnected = false
+	schemaReady = false
+	readyEmitted = false
+
 	function loadEnv() {
 		if (!("_initialized" in dotenv) || !dotenv._initialized) {
 			dotenv.init()
@@ -21,6 +25,13 @@ phoenix.database.Connector <- {
 		return true
 	}
 
+	function notifyReady() {
+		if (readyEmitted || !asyncConnected || !schemaReady) return
+		readyEmitted = true
+		phoenix.database.ready = true
+		callEvent("phoenix.database.OnReady")
+	}
+
 	function bootstrap() {
 		loadEnv()
 		ORM.migration_enabled = true
@@ -34,15 +45,14 @@ phoenix.database.Connector <- {
 		}
 
 		ORM.onAsyncConnect = function(connection) {
-			phoenix.database.ready = true
-			callEvent("phoenix.database.OnReady")
+			phoenix.database.Connector.asyncConnected = true
+			phoenix.database.Connector.notifyReady()
 		}
 
 		local port = cfg.port == null ? 3306 : cfg.port.tointeger()
 		ORM.engine = ORM.MySQL(cfg.host, cfg.user, cfg.password, cfg.dbname, port)
 
 		addEventHandler("onInit", function() {
-
 			ORM.Migration.createNewTables = function() {
 				foreach (c, class_data in ORM.Model.classes) {
 					local q = ORM.Query(c).createTable().build()
@@ -50,6 +60,9 @@ phoenix.database.Connector <- {
 				}
 			}
 			ORM.init()
+			phoenix.database.Migrations.apply()
+			phoenix.database.Connector.schemaReady = true
+			phoenix.database.Connector.notifyReady()
 		})
 	}
 }

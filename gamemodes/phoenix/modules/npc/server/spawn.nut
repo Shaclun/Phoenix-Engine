@@ -730,6 +730,14 @@ phoenix.npc.Spawn <- {
 							if (rec != null) {
 								phoenix.npc.Bestiary.bumpFromEntry(rec.id, entry)
 								if (xp > 0) phoenix.player.Progression.awardExperience(killerId, xp)
+								try {
+									callEvent("phoenix.quest.OnDomainEvent", killerId, "kill", {
+										spawnId = sid,
+										presetId = ("presetId" in row) ? row.presetId : 0,
+										instance = row.instance,
+										tag = row.tag
+									}, "kill:" + npcId + ":" + getTickCount())
+								} catch (eQuest) {}
 							}
 						}
 					}
@@ -746,6 +754,29 @@ phoenix.npc.Spawn <- {
 				return
 			}
 		}
+	}
+
+	function listStored() {
+		if (!phoenix.npc.Spawn.loaded)
+			throw "(phoenix.npc.Spawn) catalog is not ready"
+		local out = []
+		local rows = ORM.engine.execute("SELECT `id`,`instance`,`name`,`world`,`tag`,`kind`,`presetId` FROM `phoenix_npc_spawns` ORDER BY `id` ASC")
+		if (rows == null) return out
+		foreach (row in rows) {
+			local spawnId = phoenix.npc.Spawn._readInt(row, "id", 0)
+			if (spawnId <= 0) continue
+			out.append({
+				spawnId = spawnId,
+				name = phoenix.npc.Spawn._readStr(row, "name", ""),
+				label = phoenix.npc.Spawn._resolveDisplayName(row),
+				instance = phoenix.npc.Spawn._readStr(row, "instance", ""),
+				tag = phoenix.npc.Spawn._readStr(row, "tag", ""),
+				kind = phoenix.npc.Spawn._readStr(row, "kind", "monster"),
+				world = phoenix.npc.Spawn._readStr(row, "world", ""),
+				presetId = phoenix.npc.Spawn._readInt(row, "presetId", 0)
+			})
+		}
+		return out
 	}
 
 	function listAll() {

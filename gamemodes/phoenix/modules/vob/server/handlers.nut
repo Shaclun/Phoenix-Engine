@@ -22,11 +22,26 @@ phoenix.vob.Handlers.onPlayerJoin <- function(playerId) {
 	setTimer(phoenix.vob.Handlers.lateSnapshot, 3500, 1)
 }
 
+phoenix.vob.Handlers.isInRange <- function(playerId, entry, maxDistance = 450.0) {
+	try {
+		local playerWorld = getPlayerWorld(playerId)
+		local entryWorld = ("world" in entry && entry.world != null) ? entry.world.tostring() : ""
+		if (entryWorld != "" && playerWorld != entryWorld) return false
+		local position = getPlayerPosition(playerId)
+		if (position == null) return false
+		local dx = position.x - entry.x.tofloat()
+		local dy = position.y - entry.y.tofloat()
+		local dz = position.z - entry.z.tofloat()
+		return sqrt(dx * dx + dy * dy + dz * dz) <= maxDistance
+	} catch (e) { return false }
+}
+
 phoenix.vob.Handlers.onInteractRequest <- function(playerId, message) {
 	if (message == null || message.vobId == null || message.vobId == "") return
 	local id = message.vobId.tostring()
 	if (!(id in phoenix.vob.Structure.entries)) return
 	local entry = phoenix.vob.Structure.entries[id]
+	if (!phoenix.vob.Handlers.isInRange(playerId, entry)) return
 	local entryVisual = ""
 	try { entryVisual = ("visual" in entry && entry.visual != null) ? entry.visual.tostring().toupper() : "" } catch (eV) {}
 	local isStation = false
@@ -38,11 +53,19 @@ phoenix.vob.Handlers.onInteractRequest <- function(playerId, message) {
 	local wantsCraft = false
 	try { if ("craftInteraction" in entry && entry.craftInteraction == true) wantsCraft = true } catch (eCi) {}
 	if (entry.interactive != true && !isStation && !wantsCraft && entry.entryKind != "item") return
-	if (phoenix.vob.Structure.pickupDroppedItem(playerId, id)) return
+	if (phoenix.vob.Structure.pickupDroppedItem(playerId, id)) {
+		try { phoenix.quest.Events.vobInteracted(playerId, id, entry) } catch (eQuest) {}
+		return
+	}
 	if (isStation || wantsCraft) {
-		try { phoenix.crafting.Crafter.open(playerId, id); return } catch (eS) {}
+		try {
+			phoenix.crafting.Crafter.open(playerId, id)
+			try { phoenix.quest.Events.vobInteracted(playerId, id, entry) } catch (eQuest) {}
+			return
+		} catch (eS) {}
 	}
 	try { phoenix.notification.notify(playerId, "info", "VOB", phoenix.vob.GroundLabel(entry), 2500) } catch (e) {}
+	try { phoenix.quest.Events.vobInteracted(playerId, id, entry) } catch (eQuest) {}
 }
 
 phoenix.vob.GroundLabel <- function(entry) {

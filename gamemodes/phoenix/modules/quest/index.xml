@@ -1,6 +1,27 @@
 <server>
 	<script src="shared/namespace.nut" type="shared" />
+	<script src="shared/enums.nut" type="shared" />
+	<script src="shared/schemas.nut" type="shared" />
+	<script src="shared/messages.nut" type="shared" />
 	<script src="shared/catalog.nut" type="shared" />
 
+	<script src="server/repository.nut" type="server" />
+	<script src="server/validator.nut" type="server" />
+	<script src="server/definitions.nut" type="server" />
+	<script src="server/legacy.nut" type="server" />
+	<script src="server/conditions.nut" type="server" />
+	<script src="server/objectives.nut" type="server" />
+	<script src="server/engine.nut" type="server" />
+	<script src="server/events.nut" type="server" />
+	<script src="server/dialog.nut" type="server" />
+	<script src="server/rewards.nut" type="server" />
+	<script src="server/markers.nut" type="server" />
+	<script src="server/handlers.nut" type="server" />
 	<script src="server/state.nut" type="server" />
+
+	<script src="client/model.nut" type="client" />
+	<script src="client/routes.nut" type="client" />
+	<script src="client/input.nut" type="client" />
+	<script src="client/dialog.nut" type="client" />
+	<script src="client/markers.nut" type="client" />
 </server>
