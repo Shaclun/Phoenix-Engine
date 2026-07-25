@@ -118,6 +118,11 @@ docker exec -it g2o_server_image-server-1 /bin/bash
 
 Use `exit` command to go back to host.
 
+## Third-party software
+
+Copyright notices and license texts for bundled dependencies are available in
+[`THIRD_PARTY_NOTICES.md`](THIRD_PARTY_NOTICES.md).
+
 ## Customization
 
 You can customize this image to your needs by defining new services, or removing the existing ones.  

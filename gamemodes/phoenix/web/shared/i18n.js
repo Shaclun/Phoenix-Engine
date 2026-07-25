@@ -3176,6 +3176,10 @@
 			const key = node.getAttribute("data-t-title");
 			node.setAttribute("title", t(key));
 		});
+		(scope || document).querySelectorAll("[data-t-aria-label]").forEach(function (node) {
+			const key = node.getAttribute("data-t-aria-label");
+			node.setAttribute("aria-label", t(key));
+		});
 	}
 
 	global.PhoenixI18n = {
