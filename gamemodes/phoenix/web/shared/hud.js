@@ -169,7 +169,7 @@
 	}
 
 	const portraitState = { headModel: "", bodyModel: "", bodyTexIndex: 0, face: 0, current: "" };
-	const portraitConfig = { rotX: 1.5708, rotY: 3.1416, rotZ: 0, scale: 4.6, light: 2.4 };
+	const portraitConfig = { rotX: -0.022, rotY: 0.58, rotZ: 1.584, scale: 1.68, light: 1.75 };
 
 	function applyPortraitConfig(raw) {
 		if (raw == null) return;

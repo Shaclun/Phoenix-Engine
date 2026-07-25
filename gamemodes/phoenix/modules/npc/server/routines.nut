@@ -510,14 +510,12 @@ phoenix.npc.Routines <- {
 	}
 }
 
-addEventHandler("onInit", function () {
-	setTimer(function () {
-		try {
-			phoenix.npc.Routines.loadAll(function (_) {
-				foreach (sid, entry in phoenix.npc.Spawn.live) {
-					phoenix.npc.Routines.onSpawnBound(sid, entry)
-				}
-			})
-		} catch (e) {}
-	}, 3500, 1)
+addEventHandler("phoenix.database.OnReady", function () {
+	try {
+		phoenix.npc.Routines.loadAll(function (_) {
+			foreach (sid, entry in phoenix.npc.Spawn.live) {
+				phoenix.npc.Routines.onSpawnBound(sid, entry)
+			}
+		})
+	} catch (e) {}
 })

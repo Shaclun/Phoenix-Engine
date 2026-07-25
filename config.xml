@@ -25,7 +25,10 @@
 	<module src="LocalStorage.dll" type="client" />
 	<module src="CEF.dll" type="client" />
 
-	
+	<downloader>
+		<compress>false</compress>
+	</downloader>
+
 	<!-- Ids -->
 	<data src="data.xml" />
 	<mds src="mds.xml" />

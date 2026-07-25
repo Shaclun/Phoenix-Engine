@@ -179,10 +179,6 @@ phoenix.npc.Preset <- {
 	}
 }
 
-addEventHandler("onInit", function () {
-	setTimer(function () {
-		try {
-			phoenix.npc.Preset.loadAll(function (list) {})
-		} catch (e) {}
-	}, 2000, 1)
+addEventHandler("phoenix.database.OnReady", function () {
+	try { phoenix.npc.Preset.loadAll(function (list) {}) } catch (e) {}
 })

@@ -38,7 +38,7 @@ phoenix.database.Connector <- {
 
 		local cfg = readConfig()
 		if (!isComplete(cfg))
-			throw "(phoenix.database) missing DATABASE_* values in .env"
+			throw "ORM: Missing DATABASE_* values in .env"
 
 		ORM.onSyncConnect = function(connection) {
 			callEvent("phoenix.database.OnSyncReady")

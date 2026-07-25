@@ -3,7 +3,7 @@ phoenix.web.Manager <- {
 	ready = false
 	currentPage = null
 	overlayPersistent = false
-	url = "file://C:\\Users\\sudak\\Documents\\GitHub\\Phoenix-Engine\\gamemodes\\phoenix\\web\\index.html"
+	url = "file:///C:/Users/sudak/Documents/GitHub/Phoenix-Engine/gamemodes/phoenix/web/index.html"
 	pendingCalls = []
 
 	function create() {

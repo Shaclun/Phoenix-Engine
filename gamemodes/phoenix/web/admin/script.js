@@ -1302,7 +1302,7 @@
         return html;
     }
 
-    function defaultHudPortrait() { return { rotX: 1.5708, rotY: 3.1416, rotZ: 0, scale: 4.6, light: 2.4, head: "Hum_Head_Pony" }; }
+    function defaultHudPortrait() { return { rotX: -0.022, rotY: 0.58, rotZ: 1.584, scale: 1.68, light: 1.75, head: "Hum_Head_Pony" }; }
     function parseHudPortrait(raw) {
         var out = defaultHudPortrait();
         if (!raw) return out;

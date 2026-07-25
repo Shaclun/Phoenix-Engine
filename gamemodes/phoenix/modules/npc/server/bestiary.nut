@@ -148,10 +148,8 @@ phoenix.npc.Bestiary <- {
 	}
 }
 
-addEventHandler("onInit", function () {
-	setTimer(function () {
-		try { phoenix.npc.Bestiary.ensureSchema(null) } catch (e) {}
-	}, 2500, 1)
+addEventHandler("phoenix.database.OnReady", function () {
+	try { phoenix.npc.Bestiary.ensureSchema(null) } catch (e) {}
 })
 
 phoenix.npc.Bestiary.onRequest <- function (playerId, _message) {

@@ -3,3 +3,7 @@ cache/
 server.log
 *.bak
 node_modules/
+G2MDK/
+logs/
+addons/
+backups/

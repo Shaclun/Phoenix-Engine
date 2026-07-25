@@ -47,10 +47,8 @@ phoenix.worldclock.Bootstrap <- {
 	}
 }
 
-addEventHandler("onInit", function () {
-	setTimer(function () {
-		try { phoenix.worldclock.Bootstrap.start() } catch (e) {}
-	}, 2500, 1)
+addEventHandler("phoenix.database.OnReady", function () {
+	try { phoenix.worldclock.Bootstrap.start() } catch (e) {}
 })
 
 addEventHandler("onTime", function (day, hour, min) {
