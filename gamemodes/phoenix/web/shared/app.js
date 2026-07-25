@@ -1,12 +1,33 @@
 (function (global) {
 	const pages = {};
 	let active = null;
+	let splashComplete = false;
+	let splashTimer = null;
+	let pendingIntroPage = null;
 
 	function register(name, page) {
 		pages[name] = page;
 	}
 
-	function show(name) {
+	function splashElement() {
+		return document.getElementById("phoenix-splash");
+	}
+
+	function setSplashStatus(key, fallback) {
+		const splash = splashElement();
+		const node = splash ? splash.querySelector('[data-role="splash-status"]') : null;
+		if (!node) return;
+		let value = fallback;
+		try {
+			if (global.PhoenixI18n && PhoenixI18n.t) {
+				const translated = PhoenixI18n.t(key);
+				if (translated && translated !== key) value = translated;
+			}
+		} catch (error) {}
+		node.textContent = value;
+	}
+
+	function revealPage(name) {
 		if (active === name) return;
 		const previous = active;
 		Object.keys(pages).forEach(function (key) {
@@ -29,7 +50,66 @@
 		}
 	}
 
+	function finishIntro() {
+		if (splashComplete) return;
+		if (splashTimer) clearTimeout(splashTimer);
+		splashTimer = null;
+		const splash = splashElement();
+		if (splash) splash.classList.add("is-leaving");
+		setTimeout(function () {
+			splashComplete = true;
+			document.body.classList.remove("phoenix-splash-active");
+			if (splash) splash.classList.remove("is-active", "is-intro", "is-leaving");
+			const target = pendingIntroPage;
+			pendingIntroPage = null;
+			if (target) revealPage(target);
+		}, 680);
+	}
+
+	function startIntro(name) {
+		pendingIntroPage = name || pendingIntroPage;
+		const splash = splashElement();
+		document.body.classList.add("phoenix-splash-active");
+		if (splash) {
+			splash.classList.remove("is-loading", "is-leaving");
+			splash.classList.add("is-active", "is-intro");
+		}
+		setSplashStatus("app.tagline", "POWSTAŃ Z POPIOŁÓW");
+		if (!splashTimer) splashTimer = setTimeout(finishIntro, 2350);
+	}
+
+	function showLoading(kind) {
+		const splash = splashElement();
+		if (!splash) return;
+		document.body.classList.add("phoenix-splash-active");
+		splash.classList.remove("is-intro", "is-leaving");
+		splash.classList.add("is-active", "is-loading");
+		setSplashStatus(kind === "world" ? "quest.tracker.loadingWorld" : "app.loading", kind === "world" ? "ŁADOWANIE ŚWIATA" : "ŁADOWANIE");
+	}
+
+	function hideLoading(immediate) {
+		const splash = splashElement();
+		if (!splash || !splash.classList.contains("is-loading")) return;
+		const finish = function () {
+			document.body.classList.remove("phoenix-splash-active");
+			splash.classList.remove("is-active", "is-loading", "is-leaving");
+		};
+		if (immediate) { finish(); return; }
+		splash.classList.add("is-leaving");
+		setTimeout(finish, 680);
+	}
+
+	function show(name) {
+		if (!splashComplete && name === "auth") {
+			startIntro(name);
+			return;
+		}
+		hideLoading(true);
+		revealPage(name);
+	}
+
 	function hide() {
+		hideLoading(true);
 		const previous = active;
 		Object.keys(pages).forEach(function (key) {
 			const node = document.getElementById("page-" + key);
@@ -52,6 +132,8 @@
 		register: register,
 		show: show,
 		hide: hide,
+		showLoading: showLoading,
+		hideLoading: hideLoading,
 		emit: emit,
 		current: function () { return active; }
 	};

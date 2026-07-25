@@ -292,6 +292,7 @@
 
 	window.app.register("auth", {
 		onShow: function () {
+			document.body.classList.add("phoenix-body--veiled");
 			render();
 			prefillRemember();
 			setBusy(false);

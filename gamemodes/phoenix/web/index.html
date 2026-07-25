@@ -4,6 +4,7 @@
 	<meta charset="utf-8" />
 	<meta name="viewport" content="width=device-width, initial-scale=1" />
 	<title>Phoenix</title>
+	<link rel="preload" href="shared/pe.png" as="image" />
 	<link rel="stylesheet" href="shared/style.css" />
 	<link rel="stylesheet" href="auth/style.css" />
 	<link rel="stylesheet" href="character/style.css" />
@@ -21,7 +22,17 @@
 	<link rel="stylesheet" href="shared/notifications.css" />
 	<link rel="stylesheet" href="shared/debugconsole.css" />
 </head>
-<body class="phoenix-body">
+<body class="phoenix-body phoenix-splash-active">
+	<div id="phoenix-splash" class="phoenix-splash is-active is-intro" role="status" aria-live="polite">
+		<div class="phoenix-splash__embers" aria-hidden="true"></div>
+		<div class="phoenix-splash__halo" aria-hidden="true"></div>
+		<div class="phoenix-splash__brand">
+			<img class="phoenix-splash__logo" src="shared/pe.png" alt="Phoenix Engine" />
+			<div class="phoenix-splash__line" aria-hidden="true"><i></i></div>
+			<span class="phoenix-splash__caption">PHOENIX ENGINE</span>
+			<span class="phoenix-splash__status" data-role="splash-status">POWSTAŃ Z POPIOŁÓW</span>
+		</div>
+	</div>
 	<div class="phoenix-bg">
 		<div class="phoenix-bg__veil"></div>
 		<div class="phoenix-bg__embers"></div>

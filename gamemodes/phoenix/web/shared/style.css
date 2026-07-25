@@ -458,3 +458,75 @@ body.phoenix-body--bare .phoenix-root {
 	background: linear-gradient(180deg, transparent, rgba(0,0,0,0.6));
 	z-index: 10;
 }
+
+
+/* Phoenix Engine splash / loading screen */
+.phoenix-splash {
+	position: fixed;
+	inset: 0;
+	z-index: 10000;
+	display: flex;
+	align-items: center;
+	justify-content: center;
+	visibility: hidden;
+	opacity: 0;
+	pointer-events: none;
+	overflow: hidden;
+	background:
+		radial-gradient(circle at 50% 45%, rgba(112, 42, 12, .22), transparent 34%),
+		linear-gradient(180deg, #030202 0%, #0b0604 52%, #020202 100%);
+	transition: opacity 680ms ease, visibility 680ms ease;
+}
+.phoenix-splash.is-active { visibility: visible; opacity: 1; pointer-events: auto; }
+.phoenix-splash.is-leaving { opacity: 0; }
+.phoenix-splash__embers {
+	position: absolute;
+	inset: -15%;
+	background:
+		radial-gradient(2px 2px at 18% 72%, #ffb255, transparent 70%),
+		radial-gradient(1px 1px at 31% 84%, #ff7a2e, transparent 70%),
+		radial-gradient(2px 2px at 68% 76%, #d6b169, transparent 70%),
+		radial-gradient(1px 1px at 81% 61%, #ff7a2e, transparent 70%);
+	filter: blur(.3px);
+	opacity: .55;
+	animation: phoenix-splash-embers 6s ease-in-out infinite;
+}
+.phoenix-splash__halo {
+	position: absolute;
+	left: 50%; top: 50%;
+	width: min(540px, 68vw); height: min(540px, 68vw);
+	transform: translate(-50%, -50%) scale(.72);
+	border-radius: 50%;
+	background: radial-gradient(circle, rgba(255,122,46,.13), rgba(214,177,105,.035) 42%, transparent 69%);
+	filter: blur(8px);
+	animation: phoenix-splash-breathe 2.8s ease-in-out infinite;
+}
+.phoenix-splash__brand { position: relative; display: flex; flex-direction: column; align-items: center; width: min(520px, 72vw); }
+.phoenix-splash__logo {
+	display: block;
+	width: min(350px, 48vw);
+	max-height: 40vh;
+	object-fit: contain;
+	opacity: 0;
+	transform: scale(.86) translateY(10px);
+	filter: drop-shadow(0 0 24px rgba(255,122,46,.22));
+	animation: phoenix-logo-arrive 1.15s .12s cubic-bezier(.2,.75,.2,1) forwards;
+}
+.phoenix-splash__line { width: min(390px, 62vw); height: 1px; margin-top: 22px; overflow: hidden; background: rgba(214,177,105,.08); }
+.phoenix-splash__line i { display: block; width: 100%; height: 100%; transform: translateX(-101%); background: linear-gradient(90deg, transparent, #ff7a2e 22%, #d6b169 50%, #ff7a2e 78%, transparent); animation: phoenix-splash-line 1.1s .7s ease forwards; }
+.phoenix-splash__caption { margin-top: 14px; color: var(--phoenix-gold); font-size: 13px; font-weight: 600; letter-spacing: .55em; text-indent: .55em; text-shadow: 0 0 18px rgba(255,122,46,.38); opacity: 0; animation: phoenix-splash-copy .7s .9s ease forwards; }
+.phoenix-splash__status { margin-top: 10px; color: rgba(246,230,200,.46); font-size: 9px; letter-spacing: .34em; text-indent: .34em; opacity: 0; animation: phoenix-splash-copy .7s 1.15s ease forwards; }
+.phoenix-splash.is-loading .phoenix-splash__logo { animation: none; opacity: 1; transform: scale(.78); }
+.phoenix-splash.is-loading .phoenix-splash__line i { animation: phoenix-loading-line 1.5s ease-in-out infinite; transform: none; }
+.phoenix-splash.is-loading .phoenix-splash__caption,
+.phoenix-splash.is-loading .phoenix-splash__status { animation: none; opacity: 1; }
+body.phoenix-splash-active .phoenix-root,
+body.phoenix-splash-active .phoenix-topbar,
+body.phoenix-splash-active .phoenix-footer { visibility: hidden !important; }
+@keyframes phoenix-logo-arrive { 0% { opacity: 0; transform: scale(.86) translateY(10px); filter: blur(5px) drop-shadow(0 0 0 transparent); } 62% { opacity: 1; } 100% { opacity: 1; transform: scale(1) translateY(0); filter: blur(0) drop-shadow(0 0 28px rgba(255,122,46,.3)); } }
+@keyframes phoenix-splash-line { to { transform: translateX(0); } }
+@keyframes phoenix-splash-copy { to { opacity: 1; } }
+@keyframes phoenix-splash-breathe { 0%,100% { opacity: .58; transform: translate(-50%,-50%) scale(.72); } 50% { opacity: 1; transform: translate(-50%,-50%) scale(1); } }
+@keyframes phoenix-splash-embers { 0%,100% { transform: translateY(18px); opacity: .34; } 50% { transform: translateY(-24px); opacity: .7; } }
+@keyframes phoenix-loading-line { 0% { transform: translateX(-105%); } 50%,100% { transform: translateX(105%); } }
+@media (prefers-reduced-motion: reduce) { .phoenix-splash * { animation-duration: .01ms !important; animation-iteration-count: 1 !important; } }

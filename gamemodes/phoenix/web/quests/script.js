@@ -5,9 +5,11 @@
 	if (!trackerRoot) {
 		trackerRoot = document.createElement("section");
 		trackerRoot.id = "phoenix-quest-objective-ribbon";
-		trackerRoot.className = "quest-objective-ribbon";
+		trackerRoot.className = "quest-tracker";
 		trackerRoot.setAttribute("aria-live", "polite");
 		document.body.appendChild(trackerRoot);
+	} else {
+		trackerRoot.className = "quest-tracker";
 	}
 
 	const state = {
@@ -18,7 +20,8 @@
 		dialogStage: { source: null, revealed: true, npcName: "" },
 		lastError: "",
 		trackerFingerprint: "",
-		trackerTimer: null
+		trackerTimer: null,
+		trackerHideTimer: null
 	};
 
 	function esc(value) {
@@ -53,6 +56,7 @@
 	}
 
 	function trackerPriority(entry) {
+		if (entry.tracked && entry.status === "active") return 5;
 		if (entry.status === "reward_pending") return 4;
 		if (entry.status === "ready_to_turn_in") return 3;
 		if (entry.tracked) return 2;
@@ -85,22 +89,53 @@
 		return { label: entry.stageTitle || tr("quest.tracker.noObjective"), progress: 0, required: 1 };
 	}
 
+	function trackerObjectives(entry) {
+		if (entry.status === "reward_pending" || entry.status === "ready_to_turn_in") return [trackerObjective(entry)];
+		const objectives = Array.isArray(entry.objectives) ? entry.objectives : [];
+		const pending = objectives.filter(function (objective) {
+			return !objective.completed && Number(objective.progress) < Number(objective.required);
+		});
+		return (pending.length ? pending : [trackerObjective(entry)]).slice(0, 3);
+	}
+
 	function renderTracker() {
 		const entry = trackerCandidate();
 		if (!entry) {
-			trackerRoot.classList.remove("is-visible", "is-updated", "is-turn-in", "is-reward");
-			trackerRoot.innerHTML = "";
+			trackerRoot.classList.remove("is-updated", "is-turn-in", "is-reward");
+			trackerRoot.classList.add("is-hiding");
+			clearTimeout(state.trackerTimer);
+			clearTimeout(state.trackerHideTimer);
+			state.trackerHideTimer = setTimeout(function () {
+				trackerRoot.classList.remove("is-visible", "is-hiding");
+				trackerRoot.innerHTML = "";
+			}, 430);
 			state.trackerFingerprint = "";
 			return;
 		}
-		const objective = trackerObjective(entry);
-		const required = Math.max(1, Number(objective.required) || 1);
-		const progress = Math.max(0, Math.min(required, Number(objective.progress) || 0));
-		const percent = Math.round(progress / required * 100);
-		const fingerprint = [entry.id, entry.status, objective.key || objective.label || "", progress, required].join(":");
+
+		clearTimeout(state.trackerHideTimer);
+		const objectives = trackerObjectives(entry);
+		const stats = trackerStats(entry);
+		const special = entry.status === "ready_to_turn_in" || entry.status === "reward_pending";
+		const percent = special ? 100 : Math.max(0, Math.min(100, Math.round(stats.ratio * 100)));
+		const fingerprint = [entry.id, entry.status, entry.currentStageKey || "", objectives.map(function (objective) {
+			return [objective.key || objective.label || "", Number(objective.progress) || 0, Number(objective.required) || 1].join("/");
+		}).join("|")].join(":");
+		const rows = objectives.map(function (objective) {
+			const required = Math.max(1, Number(objective.required) || 1);
+			const progress = Math.max(0, Math.min(required, Number(objective.progress) || 0));
+			return '<div class="quest-tracker__objective"><i></i><span>' + esc(objective.label || objective.key || tr("quest.tracker.noObjective")) + '</span><b>' + progress + ' / ' + required + '</b></div>';
+		}).join("");
+
 		trackerRoot.classList.toggle("is-turn-in", entry.status === "ready_to_turn_in");
 		trackerRoot.classList.toggle("is-reward", entry.status === "reward_pending");
-		trackerRoot.innerHTML = '<div class="quest-objective-ribbon__sigil">◆</div><div class="quest-objective-ribbon__content"><div class="quest-objective-ribbon__meta"><span>' + esc(tr("quest.tracker.objective")) + '</span><strong>' + esc(entry.title || entry.code) + '</strong></div><div class="quest-objective-ribbon__target"><span>' + esc(objective.label || objective.key || entry.stageTitle || tr("quest.tracker.noObjective")) + '</span><b>' + progress + ' / ' + required + '</b></div><div class="quest-objective-ribbon__bar"><i style="width:' + percent + '%"></i></div></div>';
+		trackerRoot.classList.remove("is-hiding");
+		trackerRoot.innerHTML = '<div class="quest-tracker__frame">' +
+			'<div class="quest-tracker__head"><div class="quest-tracker__sigil"><span>◆</span></div><div class="quest-tracker__heading"><span class="quest-tracker__eyebrow">' + esc(tr("quest.tracker.objective")) + '</span><strong class="quest-tracker__title">' + esc(entry.title || entry.code) + '</strong></div><b class="quest-tracker__percent">' + percent + '%</b></div>' +
+			'<div class="quest-tracker__stage">' + esc(entry.stageTitle || entry.currentStageKey || tr("quest.tracker.noObjective")) + '</div>' +
+			'<div class="quest-tracker__objectives">' + rows + '</div>' +
+			'<div class="quest-tracker__bar"><i style="width:' + percent + '%"></i></div>' +
+			'<span class="quest-tracker__updated">' + esc(tr("quest.tracker.updated")) + '</span></div>';
 		trackerRoot.classList.add("is-visible");
 		if (state.trackerFingerprint && state.trackerFingerprint !== fingerprint) {
 			trackerRoot.classList.remove("is-updated");
@@ -186,28 +221,37 @@
 			{ id: "completed", label: tr("quest.status.completed") },
 			{ id: "failed", label: tr("quest.status.failed") }
 		];
+		const countFor = function (group) {
+			return state.entries.filter(function (entry) { return statusGroup(entry) === group; }).length;
+		};
 		let detail = '<div class="quest-empty">' + esc(tr("quest.log.choose")) + '</div>';
 		if (selected) {
 			const objectives = Array.isArray(selected.objectives) ? selected.objectives : [];
+			const questStats = trackerStats(selected);
+			const questPercent = selected.status === "completed" ? 100 : Math.max(0, Math.min(100, Math.round(questStats.ratio * 100)));
 			const objectiveRows = objectives.map(function (objective) {
-				const complete = objective.completed || objective.progress >= objective.required;
-				return '<div class="quest-objective' + (complete ? ' is-complete' : '') + '"><span class="quest-check">' + (complete ? '✓' : '○') + '</span><div class="quest-objective__body"><strong>' + esc(objective.label || objective.key) + '</strong><span class="quest-objective__progress">' + esc(objective.progress) + ' / ' + esc(objective.required) + '</span></div></div>';
+				const required = Math.max(1, Number(objective.required) || 1);
+				const progress = Math.max(0, Math.min(required, Number(objective.progress) || 0));
+				const complete = objective.completed || progress >= required;
+				const objectivePercent = complete ? 100 : Math.round(progress / required * 100);
+				return '<div class="quest-objective' + (complete ? ' is-complete' : '') + '"><span class="quest-check"><span>' + (complete ? '✓' : '◆') + '</span></span><div class="quest-objective__body"><strong>' + esc(objective.label || objective.key) + '</strong><span class="quest-objective__progress">' + progress + ' / ' + required + '</span><span class="quest-objective__bar"><i style="width:' + objectivePercent + '%"></i></span></div></div>';
 			}).join("");
 			detail = '<article class="quest-detail">' +
 				'<div class="quest-detail__meta"><span class="quest-code">' + esc(selected.code) + '</span><span class="quest-status quest-status--' + esc(statusGroup(selected)) + '">' + esc(statusLabel(selected.status)) + '</span></div>' +
 				'<h2>' + esc(selected.title) + '</h2>' +
-				'<p class="quest-description">' + esc(selected.description || "Brak dodatkowego opisu zadania.") + '</p>' +
-				'<section class="quest-stage"><span>Aktualny etap</span><strong>' + esc(selected.stageTitle || selected.currentStageKey) + '</strong></section>' +
-				'<section class="quest-objectives"><h3>Cele zadania</h3>' + (objectiveRows || '<div class="quest-empty quest-empty--objectives">Brak widocznych celów na tym etapie.</div>') + '</section>' +
-				(selected.status === "active" ? '<button class="quest-track' + (selected.tracked ? ' is-active' : '') + '" data-action="track" data-id="' + selected.id + '">' + (selected.tracked ? 'Śledzone zadanie' : 'Śledź zadanie') + '</button>' : '') +
+				'<p class="quest-description">' + esc(selected.description || tr("quest.log.descriptionEmpty")) + '</p>' +
+				'<section class="quest-progress-summary"><div class="quest-progress-summary__top"><span>' + esc(tr("quest.log.progress")) + '</span><b>' + questPercent + '%</b></div><div class="quest-progress-summary__bar"><i style="width:' + questPercent + '%"></i></div></section>' +
+				'<section class="quest-stage"><span>' + esc(tr("quest.log.activeStage")) + '</span><strong>' + esc(selected.stageTitle || selected.currentStageKey || tr("quest.tracker.noObjective")) + '</strong></section>' +
+				'<section class="quest-objectives"><h3>' + esc(tr("quest.log.objectives")) + '</h3>' + (objectiveRows || '<div class="quest-empty quest-empty--objectives">' + esc(tr("quest.log.objectivesEmpty")) + '</div>') + '</section>' +
+				(selected.status === "active" ? '<button class="quest-track' + (selected.tracked ? ' is-active' : '') + '" data-action="track" data-id="' + selected.id + '"><span>◆</span>' + esc(selected.tracked ? tr("quest.log.tracked") : tr("quest.log.track")) + '</button>' : '') +
 				'</article>';
 		}
 		root.innerHTML = '<div class="quest-shell">' +
-			'<header class="quest-head"><div><span class="quest-kicker">DZIENNIK BOHATERA</span><h1>Zadania</h1></div><button class="quest-close" data-action="close">✕</button></header>' +
-			'<nav class="quest-tabs">' + tabs.map(function (tab) { return '<button class="quest-tab' + (tab.id === state.filter ? ' is-active' : '') + '" data-action="filter" data-filter="' + tab.id + '">' + tab.label + '</button>'; }).join("") + '</nav>' +
-			'<div class="quest-layout"><aside class="quest-list">' + entries.map(function (entry) {
-				return '<button class="quest-list-item' + (String(entry.id) === String(state.selectedId) ? ' is-active' : '') + '" data-action="select" data-id="' + entry.id + '"><strong>' + esc(entry.title) + '</strong><small>' + esc(entry.code) + '</small></button>';
-			}).join("") + (entries.length ? "" : '<div class="quest-empty quest-empty--list">Brak zadań w tej kategorii.</div>') + '</aside><section class="quest-content">' + detail + '</section></div>' +
+			'<header class="quest-head"><div class="quest-head__identity"><span class="quest-head__sigil">◆</span><div><span class="quest-kicker">' + esc(tr("quest.log.kicker")) + '</span><h1>' + esc(tr("quest.log.title")) + '</h1></div></div><div class="quest-head__summary"><strong>' + countFor("active") + ' / ' + state.entries.length + '</strong><span>' + esc(tr("quest.log.journal")) + '</span></div><button class="quest-close" data-action="close" aria-label="Zamknij">✕</button></header>' +
+			'<nav class="quest-tabs">' + tabs.map(function (tab) { return '<button class="quest-tab' + (tab.id === state.filter ? ' is-active' : '') + '" data-action="filter" data-filter="' + tab.id + '"><span>' + esc(tab.label) + '</span><b>' + countFor(tab.id) + '</b></button>'; }).join("") + '</nav>' +
+			'<div class="quest-layout"><aside class="quest-list"><div class="quest-list__caption">' + esc(tr("quest.log.journal")) + '</div>' + entries.map(function (entry) {
+				return '<button class="quest-list-item' + (String(entry.id) === String(state.selectedId) ? ' is-active' : '') + (entry.tracked ? ' is-tracked' : '') + '" data-action="select" data-id="' + entry.id + '"><span class="quest-list-item__mark"></span><span class="quest-list-item__copy"><strong>' + esc(entry.title) + '</strong><small>' + esc(entry.stageTitle || entry.code) + '</small></span><span class="quest-list-item__state">' + (entry.tracked ? '◆' : '›') + '</span></button>';
+			}).join("") + (entries.length ? "" : '<div class="quest-empty quest-empty--list">' + esc(tr("quest.log.emptyCategory")) + '</div>') + '</aside><section class="quest-content">' + detail + '</section></div>' +
 			(state.lastError ? '<div class="quest-error">' + esc(state.lastError) + '</div>' : '') +
 			'</div>';
 	}
@@ -250,11 +294,12 @@
 	PhoenixBridge.on("phoenix:quest:snapshot", function (payload) {
 		state.entries = payload && Array.isArray(payload.entries) ? payload.entries : [];
 		state.lastError = "";
+		renderTracker();
 		render();
 	});
 
 	PhoenixBridge.on("phoenix:quest:response", function (payload) {
-		if (payload && !payload.success) state.lastError = payload.error || "Nie udało się wykonać operacji.";
+		if (payload && !payload.success) state.lastError = payload.error || tr("quest.error.operation");
 		else state.lastError = "";
 		render();
 	});
@@ -266,8 +311,15 @@
 		render();
 	});
 
+	if (window.PhoenixI18n && PhoenixI18n.onChange) {
+		PhoenixI18n.onChange(function () {
+			renderTracker();
+			if (app.current && app.current() === "quests") render();
+		});
+	}
+
 	app.register("quests", {
 		onShow: function () { render(); },
-		onHide: function () {}
+		onHide: function () { renderTracker(); }
 	});
 })();

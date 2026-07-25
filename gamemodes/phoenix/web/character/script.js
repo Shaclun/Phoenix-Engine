@@ -324,6 +324,7 @@
 		root.querySelector('[data-action="enter"]').addEventListener("click", function () {
 			if (selectedId == null) return;
 			storeSelection(selectedId);
+			if (window.app && window.app.showLoading) window.app.showLoading("world");
 			PhoenixBridge.send("phoenix:character:select", { characterId: selectedId });
 		});
 		root.querySelector('[data-action="delete"]').addEventListener("click", function () {

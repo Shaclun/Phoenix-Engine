@@ -842,6 +842,8 @@
 		if (target) target.classList.toggle("is-blocked", blocked);
 		const weapon = document.querySelector(".phoenix-weapon-progress");
 		if (weapon) weapon.classList.toggle("is-blocked", blocked);
+		const questTracker = document.querySelector(".quest-tracker");
+		if (questTracker) questTracker.classList.toggle("is-blocked", blocked);
 		const worldClock = document.querySelector(".phoenix-worldclock");
 		if (worldClock) worldClock.classList.toggle("is-blocked", blocked);
 	}
