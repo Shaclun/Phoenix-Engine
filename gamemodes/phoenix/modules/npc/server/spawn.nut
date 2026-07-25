@@ -377,6 +377,40 @@ phoenix.npc.Spawn <- {
 				labelRu = phoenix.npc.Spawn._catalogLabel(r.instance, "ru")
 			})
 		}
+		local maxSlots = getMaxSlots()
+		for (local pid = 0; pid < maxSlots; pid += 1) {
+			try { if (!isPlayerConnected(pid)) continue } catch (eConnected) { continue }
+			try { if (phoenix.account.Auth.isVanished(pid)) continue } catch (eVanish) {}
+			local record = null
+			try { record = phoenix.character.Structure.getActive(pid) } catch (eCharacter) {}
+			if (record == null) continue
+			local hp = record.hp
+			local hpMax = record.hpMax > 0 ? record.hpMax : 100
+			local mana = record.mana
+			local manaMax = record.manaMax > 0 ? record.manaMax : 0
+			try { hp = getPlayerHealth(pid) } catch (eHp) {}
+			try { local runtimeHpMax = getPlayerMaxHealth(pid); if (runtimeHpMax > 0) hpMax = runtimeHpMax } catch (eHpMax) {}
+			try { mana = getPlayerMana(pid) } catch (eMana) {}
+			try { local runtimeManaMax = getPlayerMaxMana(pid); if (runtimeManaMax > 0) manaMax = runtimeManaMax } catch (eManaMax) {}
+			out.append({
+				npcId = pid,
+				spawnId = 0,
+				name = record.name,
+				instance = "",
+				kind = "player",
+				height = 130,
+				level = record.level > 0 ? record.level : 1,
+				hp = hp > 0 ? hp : 0,
+				hpMax = hpMax,
+				mana = mana > 0 ? mana : 0,
+				manaMax = manaMax,
+				testPlayer = false,
+				labelPl = "",
+				labelEn = "",
+				labelDe = "",
+				labelRu = ""
+			})
+		}
 		return out
 	}
 

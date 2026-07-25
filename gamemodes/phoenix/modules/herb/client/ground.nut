@@ -258,6 +258,7 @@ phoenix.herb.Ground <- {
 	}
 
 	function onKey(key) {
+		try { if (phoenix.chat.Client.inputOpen) return } catch (eChat) {}
 		if (phoenix.herb.Ground.busy) {
 			if (phoenix.herb.Ground.isMoveKey(key)) phoenix.herb.Ground.cancelGather()
 			return

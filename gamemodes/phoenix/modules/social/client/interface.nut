@@ -70,6 +70,7 @@ function phoenixSocialOnFocus(newFocus, _oldFocus) {
 }
 
 function phoenixSocialOnKeyDown(key) {
+	try { if (phoenix.chat.Client.inputOpen) return } catch (eChat) {}
 	if (key == KEY_K) {
 		if (phoenix.social.Interface.visible) phoenix.social.Interface.close()
 		else if (!phoenix.social.Interface.isBusy()) phoenix.social.Interface.open()

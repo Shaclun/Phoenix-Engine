@@ -152,6 +152,7 @@ phoenix.house.Ground <- {
 	}
 
 	function onKey(key) {
+		try { if (phoenix.chat.Client.inputOpen) return } catch (eChat) {}
 		if (key == KEY_H) {
 			if (phoenix.house.Ground.visible) phoenix.house.Ground.close()
 			else phoenix.house.Ground.openPanel()

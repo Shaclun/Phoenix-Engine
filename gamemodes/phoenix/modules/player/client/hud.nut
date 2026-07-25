@@ -225,7 +225,13 @@ phoenix.player.Target <- {
 	}
 
 	function kindOf(pid) {
-		try { if (pid in phoenix.npc.Nameplates.entries) return "npc" } catch (e) {}
+		try {
+			if (pid in phoenix.npc.Nameplates.entries) {
+				local entry = phoenix.npc.Nameplates.entries[pid]
+				if (("kind" in entry) && entry.kind == "player") return "player"
+				return "npc"
+			}
+		} catch (e) {}
 		return "player"
 	}
 

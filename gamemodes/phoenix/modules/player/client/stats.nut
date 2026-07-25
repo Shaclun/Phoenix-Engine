@@ -18,6 +18,7 @@ phoenix.player.StatsClient <- {
 
 	function onKeyDown(key) {
 		if (key != KEY_B) return
+		try { if (phoenix.chat.Client.inputOpen) return } catch (eChat) {}
 		if (phoenix.player.StatsClient.visible) {
 			phoenix.player.StatsClient.close()
 			try { cancelEvent() } catch (e) {}

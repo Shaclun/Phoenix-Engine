@@ -42,6 +42,7 @@ phoenix.quest.Interface <- {
 }
 
 addEventHandler("onKeyDown", function(key) {
+	try { if (phoenix.chat.Client.inputOpen) return } catch (e) {}
 	if (key == KEY_L) phoenix.quest.Interface.toggle()
 })
 

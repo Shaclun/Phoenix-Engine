@@ -31,6 +31,7 @@ phoenix.item.Interface <- {
 
 	function onKeyDown(key) {
 		if (key != KEY_I && key != KEY_TAB) return
+		try { if (phoenix.chat.Client.inputOpen) return } catch (eChat) {}
 
 		if (phoenix.item.Interface.visible) {
 			phoenix.item.Interface.close()

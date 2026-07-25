@@ -130,6 +130,7 @@ phoenix.npc.Nameplates <- {
 		local bestDist = maxDistance
 		foreach (npcId, entry in phoenix.npc.Nameplates.entries) {
 			try {
+				if (npcId == heroId || entry.kind == "player") continue
 				local hp = getPlayerHealth(npcId)
 				if (hp <= 0) continue
 				local pos = getPlayerPosition(npcId)
@@ -156,9 +157,35 @@ phoenix.npc.Nameplates <- {
 		return sqrt(dx * dx + dy * dy + dz * dz)
 	}
 
-	function renderLabel(npcId, entry, pos, heroPos, selected) {
+	function effectiveHeight(npcId, entry) {
+		local height = entry.height > 0 ? entry.height.tofloat() : phoenix.npc.Nameplates.baseHeight.tofloat()
+		try {
+			if (("chat" in phoenix) && ("Client" in phoenix.chat) && npcId in phoenix.chat.Client.overheadEntries) {
+				local overhead = phoenix.chat.Client.overheadEntries[npcId]
+				if (overhead != null && overhead.draw != null && getTickCount() < overhead.expiresAt) {
+					local raised = phoenix.chat.Client.baseHeight + 42.0
+					if (height < raised) height = raised
+				}
+			}
+		} catch (e) {}
+		return height
+	}
+
+	function levelColor(entry) {
+		local selfLevel = 0
+		try {
+			if (phoenix.player.HudClient.last != null) selfLevel = phoenix.player.HudClient.last.level
+		} catch (e) {}
+		if (selfLevel <= 0 || entry.level <= 0) return Color(210, 210, 210, 240)
+		local delta = entry.level - selfLevel
+		if (delta > 20) return Color(255, 75, 65, 245)
+		if (delta > 10) return Color(255, 205, 65, 245)
+		return Color(105, 225, 125, 245)
+	}
+
+	function renderLabel(npcId, entry, pos, heroPos, selected, height) {
 		local project = null
-		try { project = Camera.project(pos.x, pos.y + entry.height, pos.z) } catch (e) { project = null }
+		try { project = Camera.project(pos.x, pos.y + height, pos.z) } catch (e) { project = null }
 		if (project == null) return false
 
 		local text = phoenix.text.Encoding.forLabel(phoenix.npc.Nameplates.displayName(entry), phoenix.npc.Nameplates.lang)
@@ -169,19 +196,41 @@ phoenix.npc.Nameplates <- {
 		if (scale < 0.35) scale = 0.35
 		if (scale > 1.0) scale = 1.0
 
-		local draw = null
-		try { draw = Label(0, 0, text) } catch (e) { return false }
-		try { draw.setScale(scale, scale) } catch (e) {}
+		local nameDraw = null
+		try { nameDraw = Label(0, 0, text) } catch (e) { return false }
+		try { nameDraw.setScale(scale, scale) } catch (e) {}
 		try {
-			if (selected) draw.color = Color(255, 10, 10, 240)
-			else draw.color = phoenix.npc.Nameplates.colorFor(entry.kind)
+			if (selected) nameDraw.color = Color(255, 10, 10, 240)
+			else nameDraw.color = phoenix.npc.Nameplates.colorFor(entry.kind)
 		} catch (e) {}
+
+		local levelDraw = null
+		local showLevel = entry.kind == "player" || (("testPlayer" in entry) && entry.testPlayer)
+		if (showLevel && entry.level > 0) {
+			try {
+				levelDraw = Label(0, 0, "Lv. " + entry.level)
+				levelDraw.setScale(scale, scale)
+				levelDraw.color = phoenix.npc.Nameplates.levelColor(entry)
+			} catch (eLevel) { levelDraw = null }
+		}
+
 		try {
-			draw.setPositionPx(project.x - draw.widthPx / 2, project.y)
-			draw.visible = true
+			local gap = levelDraw != null ? 7.0 * scale : 0.0
+			local totalWidth = nameDraw.widthPx + (levelDraw != null ? gap + levelDraw.widthPx : 0)
+			local left = project.x - totalWidth / 2
+			nameDraw.setPositionPx(left, project.y)
+			nameDraw.visible = true
+			if (levelDraw != null) {
+				levelDraw.setPositionPx(left + nameDraw.widthPx + gap, project.y)
+				levelDraw.visible = true
+			}
 		} catch (e) { return false }
-		try { draw.top() } catch (e) {}
-		phoenix.npc.Nameplates.bucket.push(draw)
+		try { nameDraw.top() } catch (e) {}
+		phoenix.npc.Nameplates.bucket.push(nameDraw)
+		if (levelDraw != null) {
+			try { levelDraw.top() } catch (e) {}
+			phoenix.npc.Nameplates.bucket.push(levelDraw)
+		}
 		return true
 	}
 
@@ -198,6 +247,7 @@ phoenix.npc.Nameplates <- {
 			try {
 				if (entry.draw == null) entry.draw = phoenix.npc.Nameplates.createDraw(npcId, phoenix.npc.Nameplates.displayName(entry), entry.kind, entry.height)
 				if (entry.draw != null) entry.draw.visible = false
+				if (npcId == heroId) continue
 				local pos = getPlayerPosition(npcId)
 				if (pos == null || (pos.x == 0 && pos.y == 0 && pos.z == 0)) continue
 				if (heroPos == null) continue
@@ -206,8 +256,9 @@ phoenix.npc.Nameplates <- {
 				if (!shouldShow) continue
 				local dist = phoenix.npc.Nameplates.distance(heroPos, pos)
 				if (dist > 800.0) continue
-				if (!phoenix.npc.Nameplates.renderLabel(npcId, entry, pos, heroPos, selected) && entry.draw != null) {
-					entry.draw.setWorldPosition(pos.x, pos.y + entry.height, pos.z)
+				local height = phoenix.npc.Nameplates.effectiveHeight(npcId, entry)
+				if (!phoenix.npc.Nameplates.renderLabel(npcId, entry, pos, heroPos, selected, height) && entry.draw != null) {
+					entry.draw.setWorldPosition(pos.x, pos.y + height, pos.z)
 					entry.draw.visible = true
 				}
 			} catch (e) {}

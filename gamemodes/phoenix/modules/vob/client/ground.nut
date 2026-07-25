@@ -258,6 +258,7 @@ phoenix.vob.Ground <- {
 	}
 
 	function onKey(key) {
+		try { if (phoenix.chat.Client.inputOpen) return } catch (eChat) {}
 		local interact = false
 		try { if (key == KEY_LCONTROL || key == KEY_RCONTROL || key == KEY_E) interact = true } catch (e) {}
 		if (interact) phoenix.vob.Ground.tryInteract()

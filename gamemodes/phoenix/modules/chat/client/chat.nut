@@ -315,7 +315,10 @@ phoenix.chat.Client <- {
 			try { cancelEvent() } catch (e) {}
 			return
 		}
-		if (phoenix.chat.Client.inputOpen) return
+		if (phoenix.chat.Client.inputOpen) {
+			try { cancelEvent() } catch (e) {}
+			return
+		}
 		if (phoenix.chat.Client.menuOpen) return
 		if (!phoenix.chat.Client.chatVisible) return
 		if (key == KEY_T || key == KEY_RETURN) {
