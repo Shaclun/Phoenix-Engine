@@ -619,3 +619,83 @@ body.phoenix-escmenu-open .phoenix-worldclock {
 	display: flex;
 	flex-direction: column;
 }
+
+
+/* Party members — compact cards below the local-player HUD. */
+.phoenix-party-hud {
+	position: fixed;
+	left: 1.15%;
+	top: 12.2%;
+	z-index: 29;
+	display: none;
+	width: 270px;
+	gap: 7px;
+	flex-direction: column;
+	pointer-events: none;
+	font-family: "Cinzel", "Trajan Pro", serif;
+	color: #f5e6c4;
+}
+.phoenix-party-hud.is-visible { display: flex; }
+.phoenix-party-hud.is-blocked,
+body.phoenix-inventory-open .phoenix-party-hud,
+body.phoenix-stats-open .phoenix-party-hud,
+body.phoenix-teacher-open .phoenix-party-hud,
+body.phoenix-house-open .phoenix-party-hud,
+body.phoenix-social-open .phoenix-party-hud,
+body.phoenix-crafting-open .phoenix-party-hud,
+body.phoenix-character-open .phoenix-party-hud,
+body.phoenix-auth-open .phoenix-party-hud,
+body.phoenix-admin-open .phoenix-party-hud,
+body.phoenix-escmenu-open .phoenix-party-hud { display: none !important; }
+.phoenix-party-member {
+	display: grid;
+	grid-template-columns: 72px 188px;
+	align-items: center;
+	gap: 7px;
+	min-height: 72px;
+	padding: 0;
+	box-sizing: border-box;
+	background: transparent;
+	border: 0;
+	box-shadow: none;
+	filter: drop-shadow(0 6px 8px rgba(0, 0, 0, .58));
+}
+.phoenix-party-member__portrait {
+	position: relative;
+	width: 72px;
+	height: 72px;
+}
+.phoenix-party-member__portrait-frame {
+	position: absolute;
+	left: 50%;
+	top: 50%;
+	width: 50px;
+	height: 50px;
+	transform: translate(-50%, -50%) rotate(45deg);
+	border: 2px solid rgba(247, 198, 106, .82);
+	background: rgba(0, 0, 0, .72);
+	box-shadow: inset 0 0 18px rgba(247, 198, 106, .15), 0 0 10px rgba(0, 0, 0, .72);
+}
+.phoenix-party-member__portrait-inner {
+	position: absolute;
+	left: 50%;
+	top: 50%;
+	width: 68px;
+	height: 68px;
+	transform: translate(-50%, -50%);
+	overflow: hidden;
+	clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+	background: radial-gradient(circle at 50% 35%, rgba(247, 198, 106, .1), rgba(0, 0, 0, 0));
+}
+.phoenix-party-member__portrait-inner > span { position: absolute; inset: 0; display: grid; place-items: center; color: rgba(245, 230, 196, .38); }
+.phoenix-party-member__portrait-inner gothic-render,
+.phoenix-party-member__portrait-inner gothic-render canvas { position: absolute; inset: 0; width: 68px !important; height: 68px !important; object-fit: contain; }
+.phoenix-party-member__body { min-width: 0; display: flex; flex-direction: column; justify-content: center; gap: 3px; }
+.phoenix-party-member__head { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; text-shadow: 0 1px 4px #000, 0 0 5px #000; }
+.phoenix-party-member__head strong { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11px; letter-spacing: .04em; }
+.phoenix-party-member__head em { flex: 0 0 auto; color: #f7c66a; font-size: 8px; font-style: normal; }
+.phoenix-party-member__bar { position: relative; width: 186px; height: 8px; overflow: hidden; background: rgba(0, 0, 0, .74); border: 1px solid rgba(245, 230, 196, .3); box-shadow: 0 0 5px rgba(0, 0, 0, .8); }
+.phoenix-party-member__bar i { position: absolute; inset: 0 auto 0 0; width: 0; transition: width 180ms linear; }
+.phoenix-party-member__bar--hp i { background: linear-gradient(180deg, #d24a4a, #7a1a1a); }
+.phoenix-party-member__bar--mana i { background: linear-gradient(180deg, #4a7ed2, #1a3b7a); }
+.phoenix-party-member__bar span { position: absolute; inset: 0; display: grid; place-items: center; color: #fff; font: 600 7px/1 Arial, sans-serif; text-shadow: 0 1px 2px #000; }

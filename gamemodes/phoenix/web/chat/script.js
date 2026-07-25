@@ -313,11 +313,24 @@
 		const logout = escMenu.querySelector("#escmenu-logout");
 		const exit = escMenu.querySelector("#escmenu-exit");
 		const settings = escMenu.querySelector("#escmenu-settings");
+		const partyLeave = escMenu.querySelector("#escmenu-party-leave");
+		let inParty = false;
+		const refreshPartyLeave = function () {
+			if (!partyLeave) return;
+			if (inParty) partyLeave.removeAttribute("hidden");
+			else partyLeave.setAttribute("hidden", "");
+		};
 		if (back)   back.addEventListener("click", function () { closeEscMenu(); });
 		if (char)   char.addEventListener("click", function () { PhoenixBridge.send("phoenix:menu:changeChar", {}); closeEscMenu(); });
 		if (settings) settings.addEventListener("click", function () {
 			closeEscMenu();
 			PhoenixBridge.send("phoenix:settings:openRequest", {});
+		});
+		if (partyLeave) partyLeave.addEventListener("click", function () {
+			inParty = false;
+			refreshPartyLeave();
+			PhoenixBridge.send("phoenix:social:partyLeave", {});
+			closeEscMenu();
 		});
 		if (admin)  admin.addEventListener("click", function () {
 			closeEscMenu();
@@ -328,6 +341,12 @@
 		});
 		if (logout) logout.addEventListener("click", function () { PhoenixBridge.send("phoenix:menu:logout", {}); closeEscMenu(); });
 		if (exit)   exit.addEventListener("click", function () { PhoenixBridge.send("phoenix:app:exit", {}); });
+		escMenu.addEventListener("focus", function () { PhoenixBridge.send("phoenix:social:request", {}); });
+		PhoenixBridge.on("phoenix:social:state", function (payload) {
+			inParty = !!(payload && (parseInt(payload.partyId, 10) || 0) > 0);
+			refreshPartyLeave();
+		});
+		refreshPartyLeave();
 		refreshEscMenuAdmin();
 	}
 

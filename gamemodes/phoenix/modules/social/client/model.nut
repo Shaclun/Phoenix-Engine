@@ -13,6 +13,7 @@ phoenix.social.Model <- {
 			if ("itemId" in data) msg.itemId = data.itemId.tointeger()
 			if ("amount" in data) msg.amount = data.amount.tointeger()
 			if ("gold" in data) msg.gold = data.gold.tointeger()
+			if ("inviteId" in data) msg.inviteId = data.inviteId.tointeger()
 			if ("text" in data && data.text != null) msg.text = data.text.tostring()
 			msg.payload = data
 		}
@@ -56,6 +57,14 @@ phoenix.social.Model <- {
 		if (action == "partyInvite") {
 			phoenix.social.Model.emit("partyInvite", message.payload)
 			phoenix.social.Interface.open("social")
+			return
+		}
+		if (action == "partyInviteClosed") {
+			phoenix.social.Model.emit("partyInviteClosed", message.payload)
+			return
+		}
+		if (action == "partySnapshot") {
+			phoenix.social.Model.emit("partySnapshot", message.payload)
 			return
 		}
 		if (action == "error") {

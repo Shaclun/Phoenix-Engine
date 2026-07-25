@@ -2,6 +2,7 @@
 	<script src="shared/namespace.nut" type="shared" />
 	<script src="shared/messages.nut" type="shared" />
 	<script src="server/structure.nut" type="server" />
+	<script src="server/party.nut" type="server" />
 	<script src="server/handlers.nut" type="server" />
 	<script src="client/model.nut" type="client" />
 	<script src="client/interface.nut" type="client" />

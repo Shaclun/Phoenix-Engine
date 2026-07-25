@@ -11,9 +11,12 @@ phoenix.social.Handlers <- {
 		if (action == "tradeCancel") { phoenix.social.Structure.cancelTrade(playerId, "cancel"); return }
 		if (action == "friendAdd") { phoenix.social.Structure.addFriend(playerId, message.targetId); return }
 		if (action == "dm") { phoenix.social.Structure.sendDm(playerId, message.targetId, message.text); return }
-		if (action == "partyInvite") { phoenix.social.Structure.inviteParty(playerId, message.targetId); return }
-		if (action == "partyAccept") { phoenix.social.Structure.acceptParty(playerId, message.targetId); return }
-		if (action == "partyLeave") { phoenix.social.Structure.leaveParty(playerId); return }
+		if (action == "partyInvite") { phoenix.social.Party.invite(playerId, message.targetId); return }
+		if (action == "partyAccept") { phoenix.social.Party.accept(playerId, message.inviteId); return }
+		if (action == "partyDecline") { phoenix.social.Party.decline(playerId, message.inviteId); return }
+		if (action == "partyLeave") { phoenix.social.Party.leave(playerId); return }
+		if (action == "partyKick") { phoenix.social.Party.kick(playerId, message.targetId); return }
+		if (action == "partyTransfer") { phoenix.social.Party.transfer(playerId, message.targetId); return }
 	}
 
 	function interact(playerId, targetId) {

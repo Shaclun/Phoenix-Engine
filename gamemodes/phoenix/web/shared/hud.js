@@ -26,6 +26,7 @@
 
 	const els = {};
 	let targetNodes = null;
+	let partyNodes = null;
 	let knockdownNodes = null;
 	let herbNodes = null;
 	let weaponNodes = null;
@@ -169,7 +170,7 @@
 	}
 
 	const portraitState = { headModel: "", bodyModel: "", bodyTexIndex: 0, face: 0, current: "" };
-	const portraitConfig = { rotX: -0.022, rotY: 0.58, rotZ: 1.584, scale: 1.68, light: 1.75 };
+	const portraitConfig = { rotX: -0.022, rotY: 0.58, rotZ: 1.584, scale: 1.60, light: 1.75 };
 
 	function applyPortraitConfig(raw) {
 		if (raw == null) return;
@@ -227,6 +228,63 @@
 		el.setAttribute("head-tex-index", String(faceTex));
 		el.setAttribute("visual", visual);
 		target.appendChild(el);
+	}
+
+	function buildPartyHud() {
+		if (partyNodes) return partyNodes;
+		const root = document.createElement("div");
+		root.className = "phoenix-party-hud";
+		root.id = "phoenix-party-hud";
+		document.body.appendChild(root);
+		partyNodes = { root: root, signature: "" };
+		return partyNodes;
+	}
+
+	function applyPartySnapshot(payload) {
+		const nodes = buildPartyHud();
+		const members = payload && Array.isArray(payload.members) ? payload.members.slice(0, 3) : [];
+		const signature = JSON.stringify(members);
+		if (nodes.signature === signature) return;
+		nodes.signature = signature;
+		nodes.root.innerHTML = "";
+		members.forEach(function (member) {
+			const card = document.createElement("article");
+			card.className = "phoenix-party-member" + (member.isLeader ? " is-leader" : "") + (member.testPlayerNpc ? " is-test-player" : "");
+			card.innerHTML =
+				'<div class="phoenix-party-member__portrait">' +
+					'<div class="phoenix-party-member__portrait-frame"></div>' +
+					'<div class="phoenix-party-member__portrait-inner"><span>?</span></div>' +
+				'</div>' +
+				'<div class="phoenix-party-member__body">' +
+					'<div class="phoenix-party-member__head"><strong></strong><em></em></div>' +
+					'<div class="phoenix-party-member__bar phoenix-party-member__bar--hp"><i></i><span></span></div>' +
+					'<div class="phoenix-party-member__bar phoenix-party-member__bar--mana"><i></i><span></span></div>' +
+				'</div>';
+			card.querySelector("strong").textContent = member.name || "—";
+			card.querySelector("em").textContent = (member.isLeader ? "◆ " : "") + t("stats.levelShort", "Lv") + " " + (member.level | 0);
+			const bars = card.querySelectorAll(".phoenix-party-member__bar");
+			bars[0].querySelector("i").style.width = pct(member.hp, member.hpMax) + "%";
+			bars[0].querySelector("span").textContent = fmt(member.hp, member.hpMax);
+			bars[1].querySelector("i").style.width = pct(member.mana, member.manaMax) + "%";
+			bars[1].querySelector("span").textContent = fmt(member.mana, member.manaMax);
+			const head = String(member.headModel || "").trim();
+			if (head) {
+				const portrait = card.querySelector(".phoenix-party-member__portrait-inner");
+				const render = document.createElement("gothic-render");
+				render.setAttribute("width", "72");
+				render.setAttribute("height", "72");
+				render.setAttribute("rot-x", String(portraitConfig.rotX));
+				render.setAttribute("rot-y", String(portraitConfig.rotY));
+				render.setAttribute("rot-z", String(portraitConfig.rotZ));
+				render.setAttribute("scale", String(portraitConfig.scale));
+				render.setAttribute("light-intensity", String(portraitConfig.light));
+				render.setAttribute("head-tex-index", String(member.face | 0));
+				render.setAttribute("visual", head.toUpperCase().endsWith(".MMB") ? head : head + ".MMB");
+				portrait.appendChild(render);
+			}
+			nodes.root.appendChild(card);
+		});
+		nodes.root.classList.toggle("is-visible", state.visible && members.length > 0 && !blocked);
 	}
 
 	function buildTargetHud() {
@@ -449,6 +507,7 @@
 			if (els[k] && els[k].classList) els[k].classList.add("is-visible");
 		});
 		if (worldClockNodes) worldClockNodes.root.classList.add("is-visible");
+		if (partyNodes && partyNodes.root.children.length > 0 && !blocked) partyNodes.root.classList.add("is-visible");
 		if (window.PhoenixMinimap) window.PhoenixMinimap.setVisible(true);
 		renderHotbar();
 	}
@@ -460,6 +519,7 @@
 			if (els[k] && els[k].classList) els[k].classList.remove("is-visible");
 		});
 		if (targetNodes) targetNodes.root.classList.remove("is-visible");
+		if (partyNodes) partyNodes.root.classList.remove("is-visible");
 		if (weaponNodes) weaponNodes.root.classList.remove("is-visible", "is-hiding", "is-notify", "is-updated");
 		if (knockdownNodes) knockdownNodes.root.classList.remove("is-visible");
 		if (herbNodes) herbNodes.root.classList.remove("is-visible");
@@ -809,6 +869,7 @@
 
 	if (window.PhoenixBridge) {
 		PhoenixBridge.on("phoenix:hud:snapshot", applySnapshot);
+		PhoenixBridge.on("phoenix:social:partySnapshot", applyPartySnapshot);
 		PhoenixBridge.on("phoenix:hud:weapon", applyWeapon);
 		PhoenixBridge.on("phoenix:hud:target", applyTarget);
 		PhoenixBridge.on("phoenix:hud:target:clear", function () { applyTarget(null); });
@@ -851,6 +912,11 @@
 		blocked = !!value;
 		const target = document.querySelector(".phoenix-target-hud");
 		if (target) target.classList.toggle("is-blocked", blocked);
+		const partyHud = document.querySelector(".phoenix-party-hud");
+		if (partyHud) {
+			partyHud.classList.toggle("is-blocked", blocked);
+			partyHud.classList.toggle("is-visible", !blocked && state.visible && partyHud.children.length > 0);
+		}
 		const weapon = document.querySelector(".phoenix-weapon-progress");
 		if (weapon) weapon.classList.toggle("is-blocked", blocked);
 		const questTracker = document.querySelector(".quest-tracker");

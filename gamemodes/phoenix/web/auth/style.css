@@ -63,6 +63,7 @@
 	position: relative;
 	width: min(460px, 92vw);
 	padding: 24px 40px 22px;
+	clip-path: var(--clip-angular);
 }
 
 .phoenix-auth .phoenix-card__title {

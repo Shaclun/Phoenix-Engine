@@ -81,10 +81,15 @@ phoenix.player.Progression <- {
 	function awardExperience(playerId, amount) {
 		if (amount <= 0) return
 		try {
-			if ("social" in phoenix && phoenix.social != null && "Structure" in phoenix.social && phoenix.social.Structure != null) {
-				if (!phoenix.social.Structure._awardingParty && phoenix.social.Structure.distributeExperience(playerId, amount)) return
+			if ("social" in phoenix && phoenix.social != null && "Party" in phoenix.social && phoenix.social.Party != null) {
+				if (phoenix.social.Party.distributeExperience(playerId, amount)) return
 			}
 		} catch (eParty) {}
+		phoenix.player.Progression.awardExperienceDirect(playerId, amount)
+	}
+
+	function awardExperienceDirect(playerId, amount) {
+		if (amount <= 0) return
 		local record = phoenix.character.Structure.getActive(playerId)
 		if (record == null) return
 		phoenix.player.Progression.normalizeRecordStats(record)

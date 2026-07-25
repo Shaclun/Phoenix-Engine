@@ -80,6 +80,14 @@ body.phoenix-body--veiled {
 		linear-gradient(180deg, var(--phoenix-bg-0) 0%, var(--phoenix-bg-1) 60%, var(--phoenix-bg-0) 100%);
 }
 
+body.phoenix-body--auth-transparent {
+	background: transparent !important;
+}
+body.phoenix-body--auth-transparent .phoenix-bg {
+	display: none !important;
+	background: transparent !important;
+}
+
 body.phoenix-body--bare .phoenix-topbar,
 body.phoenix-body--bare .phoenix-footer {
 	display: none !important;

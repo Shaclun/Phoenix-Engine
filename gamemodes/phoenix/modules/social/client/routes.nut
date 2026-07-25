@@ -30,8 +30,20 @@ if ("Router" in phoenix.web && phoenix.web.Router != null) {
 		phoenix.social.Model.send("partyInvite", { targetId = payload.targetId })
 	})
 	phoenix.web.Router.on("phoenix:social:partyAccept", function(payload) {
-		if (payload == null || !("targetId" in payload)) return
-		phoenix.social.Model.send("partyAccept", { targetId = payload.targetId })
+		if (payload == null || !("inviteId" in payload)) return
+		phoenix.social.Model.send("partyAccept", { inviteId = payload.inviteId })
+	})
+	phoenix.web.Router.on("phoenix:social:partyDecline", function(payload) {
+		local inviteId = (payload != null && "inviteId" in payload) ? payload.inviteId : 0
+		phoenix.social.Model.send("partyDecline", { inviteId = inviteId })
 	})
 	phoenix.web.Router.on("phoenix:social:partyLeave", function(payload) { phoenix.social.Model.send("partyLeave") })
+	phoenix.web.Router.on("phoenix:social:partyKick", function(payload) {
+		if (payload == null || !("targetId" in payload)) return
+		phoenix.social.Model.send("partyKick", { targetId = payload.targetId })
+	})
+	phoenix.web.Router.on("phoenix:social:partyTransfer", function(payload) {
+		if (payload == null || !("targetId" in payload)) return
+		phoenix.social.Model.send("partyTransfer", { targetId = payload.targetId })
+	})
 }

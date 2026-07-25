@@ -292,13 +292,14 @@
 
 	window.app.register("auth", {
 		onShow: function () {
-			document.body.classList.add("phoenix-body--veiled");
+			document.body.classList.remove("phoenix-body--veiled");
+			document.body.classList.add("phoenix-body--auth-transparent");
 			render();
 			prefillRemember();
 			setBusy(false);
 		},
 		onHide: function () {
-			document.body.classList.remove("phoenix-body--veiled");
+			document.body.classList.remove("phoenix-body--auth-transparent");
 		}
 	});
 

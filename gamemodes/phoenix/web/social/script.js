@@ -11,6 +11,7 @@
 	let confirmOpen = false;
 	let amountPicker = null;
 	const ITEM_RENDER = { rotX: "1.584", rotY: "-1.662", rotZ: "-0.488", scale: "1.40", light: "2.85" };
+	const PLAYER_RENDER = { rotX: "-0.022", rotY: "0.58", rotZ: "1.584", scale: "1.60", light: "1.75" };
 	const VISUAL_BY_INSTANCE = { ITMI_GOLD: "ITMI_GOLD.MRM", ITRW_ARROW: "ITRW_ARROW.MRM", ITRW_BOLT: "ITRW_BOLT.MRM" };
 	const meshQueue = {
 		pending: [], active: 0, gen: 0,
@@ -116,6 +117,18 @@
 		return '<div class="social-item__render" data-visual="' + esc(visual) + '"><div class="social-item__fallback' + (visual ? ' is-loading' : '') + '"></div></div>';
 	}
 
+	function playerPortraitHtml(player) {
+		const head = String(player && player.headModel || "").trim();
+		const initial = String(player && player.name || "?").slice(0, 1).toUpperCase();
+		return '<div class="social-interaction-card__sigil social-player-portrait" data-head="' + esc(head) + '" data-face="' + num(player && player.face) + '"><span>' + esc(initial || "?") + '</span></div>';
+	}
+
+	function personPortraitHtml(player) {
+		const head = String(player && player.headModel || "").trim();
+		const initial = String(player && player.name || "?").slice(0, 1).toUpperCase();
+		return '<div class="social-person__portrait social-player-portrait" data-head="' + esc(head) + '" data-face="' + num(player && player.face) + '"><span>' + esc(initial || "?") + '</span></div>';
+	}
+
 	function itemCard(item) {
 		const offered = ownOfferItem(item.id);
 		const amount = num(item.amount || 1);
@@ -151,9 +164,10 @@
 		const otherAccepted = trade.otherOffer && trade.otherOffer.accepted;
 		const otherName = trade.other && trade.other.name ? trade.other.name : t("social.player", "Gracz");
 		return '<section class="social-trade merchant-screen">' +
-			'<section class="social-offer social-offer--other merchant-panel"><header class="merchant-panel__head"><h2>' + esc(otherName) + '</h2><span>' + esc(otherAccepted ? t("social.trade.accepted", "Zaakceptowano") : t("social.trade.waiting", "Czeka")) + '</span></header><h3>' + esc(t("social.trade.otherOffer", "Oferta gracza")) + '</h3>' + offerList(trade.otherOffer, false) + '</section>' +
-			'<section class="social-offer merchant-panel"><header class="merchant-panel__head"><h2>' + esc(t("social.trade.yourOffer", "Twoja oferta")) + '</h2><span>' + esc(ownAccepted ? t("social.trade.accepted", "Zaakceptowano") : t("social.trade.canChange", "Mozesz zmienic oferte")) + '</span></header>' + offerList(trade.ownOffer, true) + '<label class="social-gold-input"><span>' + esc(t("stats.gold", "Zloto")) + '</span><input type="number" min="0" max="' + num(inventory.gold) + '" value="' + num(trade.ownOffer && trade.ownOffer.gold) + '" data-role="trade-gold"></label><footer><button type="button" class="social-primary" data-action="accept-trade">' + esc(t("social.action.accept", "Akceptuj")) + '</button><button type="button" data-action="cancel-trade">' + esc(t("social.action.cancel", "Anuluj")) + '</button></footer></section>' +
-			'<aside class="social-inventory merchant-panel"><header class="merchant-panel__head"><h2>' + esc(t("inv.bag", "Plecak")) + '</h2><span>' + num(inventory.gold) + ' ' + esc(t("inv.unit.gold", "zlota")) + '</span></header><div class="social-items">' + (inventory.items || []).filter(function (it) { return !it.equipped; }).map(itemCard).join("") + '</div></aside>' +
+			'<header class="social-screen-head social-trade__head"><div><span>' + esc(t("social.trade.kicker", "Bezpieczna wymiana")) + '</span><h1>' + esc(t("social.trade.title", "Handel")) + '</h1></div><p>' + esc(t("social.trade.with", "Wymiana z")) + ' <strong>' + esc(otherName) + '</strong></p></header>' +
+			'<section class="social-offer social-offer--other merchant-panel"><header class="merchant-panel__head"><div><span>' + esc(t("social.trade.otherOffer", "Oferta gracza")) + '</span><h2>' + esc(otherName) + '</h2></div><em class="social-status' + (otherAccepted ? ' is-ready' : '') + '">' + esc(otherAccepted ? t("social.trade.accepted", "Zaakceptowano") : t("social.trade.waiting", "Czeka")) + '</em></header>' + offerList(trade.otherOffer, false) + '</section>' +
+			'<section class="social-offer merchant-panel"><header class="merchant-panel__head"><div><span>' + esc(t("social.trade.yourOffer", "Twoja oferta")) + '</span><h2>' + esc(t("character.hero", "Ty")) + '</h2></div><em class="social-status' + (ownAccepted ? ' is-ready' : '') + '">' + esc(ownAccepted ? t("social.trade.accepted", "Zaakceptowano") : t("social.trade.canChange", "Edytowalna")) + '</em></header>' + offerList(trade.ownOffer, true) + '<label class="social-gold-input"><span>' + esc(t("stats.gold", "Złoto")) + '</span><input type="number" min="0" max="' + num(inventory.gold) + '" value="' + num(trade.ownOffer && trade.ownOffer.gold) + '" data-role="trade-gold"></label><footer><button type="button" class="social-primary" data-action="accept-trade">' + esc(t("social.action.accept", "Akceptuj")) + '</button><button type="button" data-action="cancel-trade">' + esc(t("social.action.cancel", "Anuluj")) + '</button></footer></section>' +
+			'<aside class="social-inventory merchant-panel"><header class="merchant-panel__head"><div><span>' + esc(t("inv.bag", "Plecak")) + '</span><h2>' + esc(t("social.trade.chooseItems", "Wybierz przedmioty")) + '</h2></div><strong>' + num(inventory.gold) + ' ' + esc(t("inv.unit.gold", "zł")) + '</strong></header><div class="social-items">' + (inventory.items || []).filter(function (it) { return !it.equipped; }).map(itemCard).join("") + '</div></aside>' +
 		'</section>' + renderConfirmModal() + renderAmountModal();
 	}
 
@@ -162,17 +176,38 @@
 		if (!friends.length) return '<p class="social-empty">' + esc(t("social.friendsEmpty", "Brak znajomych.")) + '</p>';
 		return friends.map(function (friend) {
 			const online = num(friend.playerId) >= 0;
-			return '<article><div><b>' + esc(friend.name || t("social.player", "Gracz")) + '</b><small>' + esc(online ? t("social.online", "online") : t("social.offline", "offline")) + '</small></div><div class="social-row-actions">' + (online ? '<button type="button" data-action="dm-open" data-target="' + num(friend.playerId) + '" data-name="' + esc(friend.name || "") + '">' + esc(t("social.action.dm", "DM")) + '</button><button type="button" data-action="party-invite" data-target="' + num(friend.playerId) + '">' + esc(t("social.action.party", "Party")) + '</button>' : '') + '</div></article>';
+			return '<article class="social-person' + (online ? ' is-online' : '') + '">' + personPortraitHtml(friend) + '<div class="social-person__identity"><b>' + esc(friend.name || t("social.player", "Gracz")) + '</b><small><i></i>' + esc(online ? t("social.online", "online") : t("social.offline", "offline")) + '</small></div><div class="social-row-actions">' + (online ? '<button type="button" data-action="dm-open" data-target="' + num(friend.playerId) + '" data-name="' + esc(friend.name || "") + '">' + esc(t("social.action.dm", "Wiadomość")) + '</button><button type="button" data-action="party-invite" data-target="' + num(friend.playerId) + '">' + esc(t("social.action.party", "Party")) + '</button>' : '') + '</div></article>';
 		}).join("");
+	}
+
+	function renderInvite() {
+		if (!invite || !invite.from) return "";
+		return '<section class="social-invite"><div><span>' + esc(t("social.party.invitation", "Zaproszenie do drużyny")) + '</span><strong>' + esc(invite.from.name || t("social.player", "Gracz")) + '</strong></div><div class="social-row-actions"><button type="button" class="social-primary" data-action="party-accept" data-invite="' + num(invite.inviteId) + '">' + esc(t("social.action.join", "Dołącz")) + '</button><button type="button" data-action="party-decline" data-invite="' + num(invite.inviteId) + '">' + esc(t("social.action.decline", "Odrzuć")) + '</button></div></section>';
+	}
+
+	function renderPartyPanel() {
+		const members = social.party || [];
+		const selfId = num(social.self && social.self.playerId);
+		const leaderId = num(social.partyLeaderId);
+		const isLeader = members.length > 0 && selfId === leaderId;
+		const maxMembers = num(social.partyMaxMembers) || 4;
+		const body = members.length ? members.map(function (member) {
+			const memberId = num(member.playerId);
+			const transfer = member.testPlayerNpc ? '' : '<button type="button" data-action="party-transfer" data-target="' + memberId + '">' + esc(t("social.party.transfer", "Lider")) + '</button>';
+			const controls = isLeader && memberId !== selfId ? transfer + '<button type="button" class="is-danger" data-action="party-kick" data-target="' + memberId + '">' + esc(t("social.party.kick", "Usuń")) + '</button>' : '';
+			return '<article class="social-party-member' + (member.isLeader ? ' is-leader' : '') + (member.testPlayerNpc ? ' is-test-player' : '') + '">' + personPortraitHtml(member) + '<div><b>' + esc(member.name || t("social.player", "Gracz")) + '</b><small>' + (member.isLeader ? '◆ ' : '') + esc(t("stats.levelShort", "Lv")) + ' ' + num(member.level) + (memberId === selfId ? ' · ' + esc(t("character.hero", "Ty")) : '') + '</small></div><div class="social-row-actions">' + controls + '</div></article>';
+		}).join("") : '<p class="social-empty">' + esc(t("social.party.empty", "Nie jesteś w drużynie.")) + '</p>';
+		return '<div class="social-column social-column--party"><header><div><span>' + esc(t("social.party.title", "Drużyna")) + '</span><small>' + esc(t("social.party.sharedExp", "Współdzielony EXP w zasięgu")) + '</small></div><strong>' + members.length + ' / ' + maxMembers + '</strong></header><div class="social-list">' + body + '</div>' + (members.length ? '<footer><button type="button" data-action="party-leave">' + esc(t("social.party.leave", "Opuść drużynę")) + '</button></footer>' : '') + '</div>';
 	}
 
 	function renderSocialHome() {
 		const players = social.players || [];
-		const inviteBlock = invite && invite.from ? '<section class="social-invite"><strong>' + esc(t("social.party.inviteFrom", "Zaproszenie do party od")) + ' ' + esc(invite.from.name) + '</strong><button type="button" class="social-primary" data-action="party-accept" data-target="' + num(invite.from.playerId) + '">' + esc(t("social.action.join", "Dolacz")) + '</button></section>' : '';
-		return '<section class="social-panel social-panel--home">' + inviteBlock +
-			'<div class="social-column social-column--friends"><header><span>' + esc(t("social.friends", "Znajomi")) + '</span><strong>' + (social.friends || []).length + '</strong></header><div class="social-list">' + renderFriendList() + '</div></div>' +
-			'<div class="social-column social-column--players"><header><span>' + esc(t("social.playersOnline", "Gracze online")) + '</span><strong>' + players.length + '</strong></header><div class="social-list">' + (players.length ? players.map(function (player) {
-				return '<article><div><b>' + esc(player.name) + '</b><small>' + esc(player.near ? t("social.party.inRange", "w zasiegu party") : t("social.party.outRange", "poza zasiegiem party")) + '</small></div><div class="social-row-actions"><button type="button" data-action="friend-add" data-target="' + num(player.playerId) + '">' + esc(t("social.action.addFriend", "Dodaj znajomego")) + '</button><button type="button" data-action="dm-open" data-target="' + num(player.playerId) + '" data-name="' + esc(player.name) + '">' + esc(t("social.action.dm", "DM")) + '</button><button type="button" data-action="party-invite" data-target="' + num(player.playerId) + '">' + esc(t("social.action.party", "Party")) + '</button></div></article>';
+		return '<section class="social-panel social-panel--home">' + renderInvite() +
+			'<header class="social-screen-head"><div><span>' + esc(t("social.kicker", "Kontakty i drużyna")) + '</span><h1>' + esc(t("social.title", "Kompania")) + '</h1></div><p>' + esc(t("social.subtitle", "Znajomi, pobliscy bohaterowie i wspólna wyprawa.")) + '</p></header>' +
+			'<div class="social-column social-column--friends"><header><div><span>' + esc(t("social.friends", "Znajomi")) + '</span><small>' + esc(t("social.friendsHint", "Twoje stałe kontakty")) + '</small></div><strong>' + (social.friends || []).length + '</strong></header><div class="social-list">' + renderFriendList() + '</div></div>' +
+			renderPartyPanel() +
+			'<div class="social-column social-column--players"><header><div><span>' + esc(t("social.playersOnline", "Gracze online")) + '</span><small>' + esc(t("social.playersHint", "Zaproś do wspólnej gry")) + '</small></div><strong>' + players.length + '</strong></header><div class="social-list">' + (players.length ? players.map(function (player) {
+				return '<article class="social-person">' + personPortraitHtml(player) + '<div class="social-person__identity"><b>' + esc(player.name) + '</b><small>' + esc(player.near ? t("social.party.inRange", "w zasięgu party") : t("social.party.outRange", "poza zasięgiem party")) + '</small></div><div class="social-row-actions"><button type="button" data-action="friend-add" data-target="' + num(player.playerId) + '">' + esc(t("social.action.addFriend", "Dodaj")) + '</button><button type="button" data-action="dm-open" data-target="' + num(player.playerId) + '" data-name="' + esc(player.name) + '">' + esc(t("social.action.dm", "Wiadomość")) + '</button><button type="button" class="social-primary" data-action="party-invite" data-target="' + num(player.playerId) + '">' + esc(t("social.action.party", "Party")) + '</button></div></article>';
 			}).join("") : '<p class="social-empty">' + esc(t("social.playersEmpty", "Brak innych graczy online.")) + '</p>') + '</div></div>' +
 		'</section>';
 	}
@@ -180,10 +215,25 @@
 	function renderPanel() {
 		const target = interaction && interaction.target ? interaction.target : null;
 		if (view !== "interaction" || !target) return renderSocialHome();
-		const friendAction = '<button type="button" data-action="friend-add" data-target="' + num(target.playerId) + '">' + esc(t("social.action.addFriend", "Dodaj znajomego")) + '</button>';
-		const targetBlock = '<section class="social-target"><div><span>' + esc(t("social.selected", "Wybrany gracz")) + '</span><h2>' + esc(target.name) + '</h2>' + (target.testPlayerNpc ? '<small>' + esc(t("social.testNpc", "NPC testowy gracza")) + '</small>' : '') + '</div><div class="social-actions"><button type="button" data-action="trade-start" data-target="' + num(target.playerId) + '">' + esc(t("social.action.trade", "Handel")) + '</button>' + friendAction + '<button type="button" data-action="dm-open" data-target="' + num(target.playerId) + '" data-name="' + esc(target.name) + '">' + esc(t("social.action.dm", "Prywatna wiadomość")) + '</button><button type="button" data-action="party-invite" data-target="' + num(target.playerId) + '">' + esc(t("social.action.party", "Party")) + '</button></div></section>';
-		const inviteBlock = invite && invite.from ? '<section class="social-invite"><strong>' + esc(t("social.party.inviteFrom", "Zaproszenie do party od")) + ' ' + esc(invite.from.name) + '</strong><button type="button" class="social-primary" data-action="party-accept" data-target="' + num(invite.from.playerId) + '">' + esc(t("social.action.join", "Dolacz")) + '</button></section>' : '';
-		return '<section class="social-panel social-panel--npc">' + targetBlock + inviteBlock + '</section>';
+		return '<section class="social-panel social-panel--npc">' + renderInvite() + '<article class="social-interaction-card"><span class="social-interaction-card__kicker">' + esc(t("social.selected", "Wybrany gracz")) + '</span>' + playerPortraitHtml(target) + '<h2>' + esc(target.name) + '</h2>' + (target.testPlayerNpc ? '<small>' + esc(t("social.testNpc", "NPC testowy gracza")) + '</small>' : '<small>' + esc(t("social.interactionHint", "Wybierz sposób interakcji")) + '</small>') + '<div class="social-actions"><button type="button" class="social-primary" data-action="trade-start" data-target="' + num(target.playerId) + '">' + esc(t("social.action.trade", "Handel")) + '</button><button type="button" data-action="friend-add" data-target="' + num(target.playerId) + '">' + esc(t("social.action.addFriend", "Dodaj znajomego")) + '</button><button type="button" data-action="dm-open" data-target="' + num(target.playerId) + '" data-name="' + esc(target.name) + '">' + esc(t("social.action.dm", "Prywatna wiadomość")) + '</button><button type="button" data-action="party-invite" data-target="' + num(target.playerId) + '">' + esc(t("social.action.party", "Zaproś do party")) + '</button></div></article></section>';
+	}
+
+	function schedulePlayerPortraits() {
+		root.querySelectorAll(".social-player-portrait[data-head]").forEach(function (cell) {
+			const head = String(cell.dataset.head || "").trim();
+			if (!head) return;
+			const render = document.createElement("gothic-render");
+			render.setAttribute("width", "96");
+			render.setAttribute("height", "96");
+			render.setAttribute("rot-x", PLAYER_RENDER.rotX);
+			render.setAttribute("rot-y", PLAYER_RENDER.rotY);
+			render.setAttribute("rot-z", PLAYER_RENDER.rotZ);
+			render.setAttribute("scale", PLAYER_RENDER.scale);
+			render.setAttribute("light-intensity", PLAYER_RENDER.light);
+			render.setAttribute("head-tex-index", String(num(cell.dataset.face)));
+			render.setAttribute("visual", head.toUpperCase().endsWith(".MMB") ? head : head + ".MMB");
+			cell.appendChild(render);
+		});
 	}
 
 	function scheduleMeshes() {
@@ -191,6 +241,7 @@
 			const visual = cell.dataset.visual || "";
 			if (visual) meshQueue.schedule(cell, visual);
 		});
+		schedulePlayerPortraits();
 	}
 
 	function render() {
@@ -209,8 +260,11 @@
 		if (action === "trade-start") send("phoenix:social:tradeStart", { targetId: targetId });
 		if (action === "friend-add") send("phoenix:social:friendAdd", { targetId: targetId });
 		if (action === "party-invite") send("phoenix:social:partyInvite", { targetId: targetId });
-		if (action === "party-accept") { send("phoenix:social:partyAccept", { targetId: targetId }); invite = null; }
+		if (action === "party-accept") { send("phoenix:social:partyAccept", { inviteId: num(button.dataset.invite) }); invite = null; }
+		if (action === "party-decline") { send("phoenix:social:partyDecline", { inviteId: num(button.dataset.invite) }); invite = null; }
 		if (action === "party-leave") send("phoenix:social:partyLeave", {});
+		if (action === "party-kick") send("phoenix:social:partyKick", { targetId: targetId });
+		if (action === "party-transfer") send("phoenix:social:partyTransfer", { targetId: targetId });
 		if (action === "accept-trade") { confirmOpen = true; render(); return; }
 		if (action === "confirm-close") { confirmOpen = false; render(); return; }
 		if (action === "confirm-trade") { confirmOpen = false; send("phoenix:social:tradeAccept", {}); }
@@ -259,6 +313,7 @@
 		PhoenixBridge.on("phoenix:social:trade", function (payload) { view = "trade"; trade = payload || null; confirmOpen = false; amountPicker = null; render(); });
 		PhoenixBridge.on("phoenix:social:tradeClosed", function () { trade = null; confirmOpen = false; amountPicker = null; view = "social"; render(); });
 		PhoenixBridge.on("phoenix:social:partyInvite", function (payload) { invite = payload || null; render(); });
+		PhoenixBridge.on("phoenix:social:partyInviteClosed", function () { invite = null; render(); });
 	}
 
 	if (window.phoenixApp) {

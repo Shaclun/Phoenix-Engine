@@ -106,9 +106,26 @@ phoenix.social.Structure <- {
 		if (fake != null) {
 			local label = "Testowy gracz"
 			try { label = fake.row.name != null && fake.row.name != "" ? fake.row.name : getPlayerName(playerId) } catch (eName) {}
-			return { playerId = playerId, characterId = 0, name = label, testPlayerNpc = true }
+			return {
+				playerId = playerId,
+				characterId = 0,
+				name = label,
+				level = fake.row.level > 0 ? fake.row.level : 1,
+				headModel = fake.row.headModel != null ? fake.row.headModel : "HUM_HEAD_PONY",
+				face = fake.row.headTex != null ? fake.row.headTex : 0,
+				testPlayerNpc = true
+			}
 		}
-		return { playerId = playerId, characterId = phoenix.social.Structure.charId(playerId), name = phoenix.social.Structure.playerName(playerId) }
+		local record = phoenix.social.Structure.charOf(playerId)
+		return {
+			playerId = playerId,
+			characterId = record != null ? record.id : 0,
+			name = phoenix.social.Structure.playerName(playerId),
+			level = record != null && record.level > 0 ? record.level : 1,
+			headModel = record != null && record.headModel != null ? record.headModel : "",
+			face = record != null && record.face != null ? record.face : 0,
+			testPlayerNpc = false
+		}
 	}
 
 	function esc(value) {
@@ -129,8 +146,16 @@ phoenix.social.Structure <- {
 		phoenix.social.Structure.ensureSchema(function() {
 			local map = {}
 			try {
-				ORM.engine.executeAsync("SELECT `friendCharacterId`,`friendName` FROM `phoenix_social_friends` WHERE `characterId`=" + characterId + " ORDER BY `friendName` ASC", function(rows) {
-					if (rows != null) foreach (row in rows) map[row.friendCharacterId.tointeger()] <- row.friendName
+				local sql = "SELECT sf.`friendCharacterId`,sf.`friendName`,pc.`level`,pc.`headModel`,pc.`face` FROM `phoenix_social_friends` sf LEFT JOIN `phoenix_characters` pc ON pc.`id`=sf.`friendCharacterId` WHERE sf.`characterId`=" + characterId + " ORDER BY sf.`friendName` ASC"
+				ORM.engine.executeAsync(sql, function(rows) {
+					if (rows != null) foreach (row in rows) {
+						map[row.friendCharacterId.tointeger()] <- {
+							name = row.friendName,
+							level = row.level != null && row.level > 0 ? row.level : 1,
+							headModel = row.headModel != null ? row.headModel : "",
+							face = row.face != null ? row.face : 0
+						}
+					}
 					phoenix.social.Structure.friends[characterId] <- map
 					if (callback != null) callback(map)
 				})
@@ -159,7 +184,9 @@ phoenix.social.Structure <- {
 			if (charId <= 0) continue
 			local near = false
 			try { near = phoenix.social.Structure.isNear(viewerId, pid, phoenix.social.Structure.partyExpRange) } catch (e2) {}
-			list.append({ playerId = pid, characterId = charId, name = phoenix.social.Structure.playerName(pid), near = near })
+			local entry = phoenix.social.Structure.playerEntry(pid)
+			entry.near <- near
+			list.append(entry)
 		}
 		return list
 	}
@@ -444,8 +471,14 @@ phoenix.social.Structure <- {
 		local tid = phoenix.social.Structure.charId(targetId)
 		if (cid <= 0 || tid <= 0 || cid == tid) { phoenix.social.Structure.send(playerId, "error", false, "badFriend", null); return }
 		local name = phoenix.social.Structure.playerName(targetId)
+		local targetRecord = phoenix.social.Structure.charOf(targetId)
 		if (!(cid in phoenix.social.Structure.friends)) phoenix.social.Structure.friends[cid] <- {}
-		phoenix.social.Structure.friends[cid][tid] <- name
+		phoenix.social.Structure.friends[cid][tid] <- {
+			name = name,
+			level = targetRecord != null && targetRecord.level > 0 ? targetRecord.level : 1,
+			headModel = targetRecord != null && targetRecord.headModel != null ? targetRecord.headModel : "",
+			face = targetRecord != null && targetRecord.face != null ? targetRecord.face : 0
+		}
 		phoenix.social.Structure.ensureSchema(function() {
 			local sql = "INSERT IGNORE INTO `phoenix_social_friends` (`characterId`,`friendCharacterId`,`friendName`) VALUES (" + cid + "," + tid + ",'" + phoenix.social.Structure.esc(name) + "')"
 			try { ORM.engine.executeAsync(sql, function(_) { phoenix.social.Structure.pushSocial(playerId) }) } catch (e) { phoenix.social.Structure.pushSocial(playerId) }
@@ -538,20 +571,43 @@ phoenix.social.Structure <- {
 		}
 		local list = []
 		if (cid in phoenix.social.Structure.friends) {
-			foreach (friendId, name in phoenix.social.Structure.friends[cid]) {
+			foreach (friendId, data in phoenix.social.Structure.friends[cid]) {
+				local friendName = typeof data == "table" ? data.name : data
 				local onlinePid = phoenix.social.Structure.findOnlineByCharacter(friendId)
-				list.append({ characterId = friendId, playerId = onlinePid, name = name })
+				if (onlinePid >= 0) {
+					local onlineEntry = phoenix.social.Structure.playerEntry(onlinePid)
+					onlineEntry.characterId = friendId
+					list.append(onlineEntry)
+				} else {
+					list.append({
+						characterId = friendId,
+						playerId = -1,
+						name = friendName,
+						level = typeof data == "table" ? data.level : 1,
+						headModel = typeof data == "table" ? data.headModel : "",
+						face = typeof data == "table" ? data.face : 0,
+						testPlayerNpc = false
+					})
+				}
 			}
 		}
 		if (playerId in phoenix.social.Structure.fakeFriends) {
 			foreach (_pid, entry in phoenix.social.Structure.fakeFriends[playerId]) list.append(entry)
 		}
-		local party = []
-		local partyId = phoenix.social.Structure.partyIdOf(playerId)
-		if (partyId > 0 && (partyId in phoenix.social.Structure.parties)) {
-			foreach (pid, _v in phoenix.social.Structure.parties[partyId].members) party.append(phoenix.social.Structure.playerEntry(pid))
-		}
-		phoenix.social.Structure.send(playerId, "socialState", true, "", { self = phoenix.social.Structure.playerEntry(playerId), friends = list, party = party, players = phoenix.social.Structure.onlinePlayers(playerId) })
+		local partyState = { partyId = 0, leaderId = -1, maxMembers = 4, members = [] }
+		try {
+			if ("Party" in phoenix.social && phoenix.social.Party != null)
+				partyState = phoenix.social.Party.socialPayload(playerId)
+		} catch (eParty) {}
+		phoenix.social.Structure.send(playerId, "socialState", true, "", {
+			self = phoenix.social.Structure.playerEntry(playerId),
+			friends = list,
+			party = partyState.members,
+			partyId = partyState.partyId,
+			partyLeaderId = partyState.leaderId,
+			partyMaxMembers = partyState.maxMembers,
+			players = phoenix.social.Structure.onlinePlayers(playerId)
+		})
 	}
 
 	function distributeExperience(playerId, amount) {
@@ -574,7 +630,7 @@ phoenix.social.Structure <- {
 
 	function onDisconnect(playerId) {
 		phoenix.social.Structure.cancelTrade(playerId, "disconnect")
-		phoenix.social.Structure.leaveParty(playerId)
+		try { phoenix.social.Party.onDisconnect(playerId) } catch (eParty) {}
 		try { delete phoenix.social.Structure.recentCombat[playerId] } catch (e) {}
 	}
 }

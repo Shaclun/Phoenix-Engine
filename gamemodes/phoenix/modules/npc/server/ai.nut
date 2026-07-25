@@ -757,7 +757,7 @@ phoenix.npc.AI <- {
 	function _ensureWeapon(entry, wm) {
 		local npcId = entry.npcId
 		local ai = entry.ai
-		if (wm == WEAPONMODE_FIST || wm == WEAPONMODE_NONE) return true
+		if (wm == WEAPONMODE_NONE) return true
 		local cur = WEAPONMODE_NONE
 		try { cur = getPlayerWeaponMode(npcId) } catch (e) {}
 		if (cur == wm) return true
@@ -835,6 +835,7 @@ phoenix.npc.AI <- {
 		if (!phoenix.npc.AI._actionFinished(npcId, entry.ai.waitAction)) return
 		if (!phoenix.npc.AI._ensureWeapon(entry, wm)) return
 		if (now - entry.ai.lastAttack < 1100) return
+		phoenix.npc.AI._haltCombatMovement(entry)
 		entry.ai.lastAttack = now
 		local roll = rand() % 100
 		try {
@@ -857,7 +858,7 @@ phoenix.npc.AI <- {
 			if (wm == WEAPONMODE_BOW || wm == WEAPONMODE_CBOW) {
 				npcAttackRanged(npcId, target, true)
 			} else {
-				npcAttackMelee(npcId, target, ATTACK_FORWARD, -1, true)
+				npcAttackMelee(npcId, target, kind, -1, true)
 			}
 			entry.ai.waitAction = phoenix.npc.AI._lastAction(npcId)
 			// Replenish ammo for ranged NPCs so they never run out
@@ -898,14 +899,8 @@ phoenix.npc.AI <- {
 				} catch (eDmg) {}
 			}, 450, 1)
 		} catch (e) {
+			// A failed native attack must never deal invisible fallback damage.
 			phoenix.npc.AI._play(npcId, phoenix.npc.AI._attackAnimFor(row, wm))
-			try {
-				local victimHp = getPlayerHealth(target)
-				if (victimHp > 0) {
-					local dmg = row.attackDamage > 0 ? row.attackDamage : 10
-					phoenix.npc.AI._applyDamageToTarget(npcId, target, dmg)
-				}
-			} catch (e2) {}
 		}
 		entry.ai.state = "attack"
 	}
@@ -996,7 +991,7 @@ phoenix.npc.AI <- {
 				entry.ai.lootSearchStart <- now
 				phoenix.npc.AI._setAngleTo(npcId, pos.x, pos.z, vp.x, vp.z, entry.ai, now, true)
 				try { stopAni(npcId, phoenix.npc.AI._neutralWalkAnim(entry.row)) } catch (e) {}
-				try { stopAni(npcId, phoenix.npc.AI._walkAnimFor(entry.row, WEAPONMODE_FIST)) } catch (e) {}
+				try { stopAni(npcId, "S_FISTWALKL") } catch (e) {}
 				try {
 					if (getPlayerWeaponMode(npcId) != WEAPONMODE_NONE) drawWeapon(npcId, WEAPONMODE_NONE)
 				} catch (e) {}
@@ -1261,7 +1256,7 @@ phoenix.npc.AI <- {
 			if (d < 80.0) {
 				entry.ai.state = "idle"
 				try { stopAni(npcId, phoenix.npc.AI._neutralWalkAnim(entry.row)) } catch (e) {}
-				try { stopAni(npcId, phoenix.npc.AI._walkAnimFor(entry.row, WEAPONMODE_FIST)) } catch (e) {}
+				try { stopAni(npcId, "S_FISTWALKL") } catch (e) {}
 				phoenix.npc.AI._ensureIdle(entry, true)
 				return
 			}
