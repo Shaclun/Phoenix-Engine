@@ -1,3 +1,26 @@
+/* Settings own the screen: HUD is previewed only for explicit edit targets. */
+body.phoenix-settings-open .phoenix-hud-el,
+body.phoenix-settings-open .phoenix-minimap,
+body.phoenix-settings-open .phoenix-chat,
+body.phoenix-settings-open .phoenix-worldclock,
+body.phoenix-settings-open .phoenix-target-hud,
+body.phoenix-settings-open .phoenix-party-hud,
+body.phoenix-settings-open .phoenix-weapon-progress,
+body.phoenix-settings-open .quest-tracker {
+	display: none !important;
+}
+
+body.phoenix-settings-open.phoenix-settings-editmode .phoenix-edit-target {
+	display: block !important;
+	z-index: 230 !important;
+}
+
+body.phoenix-settings-open.phoenix-settings-editmode #phoenix-hud-hotbar.phoenix-edit-target,
+body.phoenix-settings-open.phoenix-settings-editmode .phoenix-minimap.phoenix-edit-target,
+body.phoenix-settings-open.phoenix-settings-editmode .phoenix-chat.phoenix-edit-target {
+	display: flex !important;
+}
+
 #page-settings {
 	display: none;
 	position: fixed;

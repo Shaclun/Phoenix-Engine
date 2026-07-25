@@ -3213,6 +3213,18 @@
 	dictionaries.en["menu.partyLeave"] = "Leave party";
 	dictionaries.de["menu.partyLeave"] = "Gruppe verlassen";
 	dictionaries.ru["menu.partyLeave"] = "Покинуть группу";
+	dictionaries.pl["settings.other.orbitalCamera"] = "Kamera orbitalna";
+	dictionaries.pl["settings.other.orbitalCamera.enabled"] = "Włącz kamerę orbitalną";
+	dictionaries.pl["settings.other.orbitalCamera.hint"] = "Po wyłączeniu używana jest domyślna kamera gry.";
+	dictionaries.en["settings.other.orbitalCamera"] = "Orbital camera";
+	dictionaries.en["settings.other.orbitalCamera.enabled"] = "Enable orbital camera";
+	dictionaries.en["settings.other.orbitalCamera.hint"] = "When disabled, the default game camera is used.";
+	dictionaries.de["settings.other.orbitalCamera"] = "Orbitalkamera";
+	dictionaries.de["settings.other.orbitalCamera.enabled"] = "Orbitalkamera aktivieren";
+	dictionaries.de["settings.other.orbitalCamera.hint"] = "Wenn deaktiviert, wird die Standardkamera des Spiels verwendet.";
+	dictionaries.ru["settings.other.orbitalCamera"] = "Орбитальная камера";
+	dictionaries.ru["settings.other.orbitalCamera.enabled"] = "Включить орбитальную камеру";
+	dictionaries.ru["settings.other.orbitalCamera.hint"] = "Если отключено, используется стандартная камера игры.";
 
 	const listeners = [];
 	let current = FALLBACK;

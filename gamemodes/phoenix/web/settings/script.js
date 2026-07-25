@@ -28,7 +28,10 @@
 		return out;
 	}
 
-	const DEFAULT_SETTINGS = { hud: buildDefaults() };
+	const DEFAULT_SETTINGS = {
+		hud: buildDefaults(),
+		camera: { orbitalEnabled: true }
+	};
 
 	let state = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
 	let activeTab = "hud";
@@ -59,6 +62,11 @@
 		window.PhoenixHud.applyLayout(state.hud);
 	}
 
+	function applyCameraSetting() {
+		const enabled = !state.camera || state.camera.orbitalEnabled !== false;
+		try { PhoenixBridge.send("phoenix:camera:orbital:set", { enabled: enabled }); } catch (e) {}
+	}
+
 	function loadFromString(raw) {
 		if (!raw) return;
 		try {
@@ -66,6 +74,7 @@
 			state = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
 			deepMerge(state, parsed);
 			applyToHud();
+			applyCameraSetting();
 		} catch (e) {}
 	}
 
@@ -361,16 +370,38 @@
 		actions.querySelector("[data-act='reset']").addEventListener("click", function () {
 			state = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
 			applyToHud();
+			applyCameraSetting();
 			persist();
 			renderContent();
 		});
 	}
 
 	function renderOtherTab(content) {
+		const section = document.createElement("div");
+		section.className = "settings-section";
+
+		const title = document.createElement("h3");
+		title.className = "settings-section__title";
+		title.textContent = t("settings.other.orbitalCamera", "Kamera orbitalna");
+		section.appendChild(title);
+
+		const toggle = document.createElement("label");
+		toggle.className = "settings-toggle";
+		const enabled = !state.camera || state.camera.orbitalEnabled !== false;
+		toggle.innerHTML = '<input type="checkbox" data-role="orbital-camera"' + (enabled ? " checked" : "") + '> <span>' + t("settings.other.orbitalCamera.enabled", "Włącz kamerę orbitalną") + '</span>';
+		toggle.querySelector("input").addEventListener("change", function (event) {
+			if (!state.camera) state.camera = { orbitalEnabled: true };
+			state.camera.orbitalEnabled = !!event.target.checked;
+			applyCameraSetting();
+			persist();
+		});
+		section.appendChild(toggle);
+
 		const hint = document.createElement("p");
 		hint.className = "settings-hint";
-		hint.textContent = t("settings.other.hint", "Wkrótce więcej opcji.");
-		content.appendChild(hint);
+		hint.textContent = t("settings.other.orbitalCamera.hint", "Po wyłączeniu używana jest domyślna kamera gry.");
+		section.appendChild(hint);
+		content.appendChild(section);
 	}
 
 	function makeOrientation(elId, current) {
@@ -452,6 +483,7 @@
 			if (!root) return;
 			buildLayout();
 			applyToHud();
+			applyCameraSetting();
 		},
 		onHide: function () {
 			persist();
