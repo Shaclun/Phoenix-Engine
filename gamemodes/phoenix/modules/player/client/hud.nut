@@ -13,14 +13,6 @@ phoenix.player.HudClient <- {
 		return ""
 	}
 
-	function weaponLabel(key) {
-		if (key == "oneHand") return "Broń jednoręczna"
-		if (key == "twoHand") return "Broń dwuręczna"
-		if (key == "bow") return "Łuk"
-		if (key == "crossbow") return "Kusza"
-		return ""
-	}
-
 	function emitWeapon(force = false, progressChanged = false) {
 		local mode = 0
 		try { mode = getPlayerWeaponMode(heroId) } catch (e) { mode = 0 }
@@ -34,7 +26,6 @@ phoenix.player.HudClient <- {
 			active = key != "",
 			mode = mode,
 			key = key,
-			label = phoenix.player.HudClient.weaponLabel(key),
 			weaponProgress = phoenix.player.HudClient.lastWeaponProgress,
 			changed = modeChanged,
 			updated = progressChanged

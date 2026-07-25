@@ -240,12 +240,17 @@
 		const channel = (typeof payload.channel === "number") ? payload.channel : 0;
 		const ch = channelById(channel);
 		const isSystem = !!payload.system;
+		const textKey = payload.textKey ? String(payload.textKey) : "";
 		wrap.className = "phoenix-chat__msg " + (isSystem ? "phoenix-chat__msg--system" : ("phoenix-chat__msg--" + ch.key));
 		const tag = "<span class='phoenix-chat__tag" + (channel === 1 ? " phoenix-chat__tag--global" : (channel === 2 ? " phoenix-chat__tag--admin" : (ch.dm ? " phoenix-chat__tag--dm" : ""))) + "'>[" + ch.short + "]</span>";
 		const name = isSystem
 			? "<span class='phoenix-chat__name phoenix-chat__name--system'>*</span>"
 			: ("<span class='phoenix-chat__name" + (channel === 1 ? " phoenix-chat__name--global" : (channel === 2 ? " phoenix-chat__name--admin" : (ch.dm ? " phoenix-chat__name--dm" : ""))) + "'>" + escapeHtml(payload.name || "?") + ":</span>");
-		wrap.innerHTML = tag + " " + name + " " + escapeHtml(payload.text || "");
+		wrap.innerHTML = tag + " " + name + " ";
+		const message = document.createElement("span");
+		if (textKey) message.setAttribute("data-t", textKey);
+		message.textContent = textKey && global.PhoenixI18n ? global.PhoenixI18n.t(textKey) : (payload.text || "");
+		wrap.appendChild(message);
 		list.insertBefore(wrap, list.firstChild);
 		while (list.children.length > HISTORY_MAX) list.removeChild(list.lastChild);
 		if (!isSystem && channel !== currentChannel) {

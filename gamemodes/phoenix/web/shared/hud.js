@@ -365,8 +365,15 @@
 		const item = progress[key] || { level: 0, xp: 0, xpNext: 20, cap: 30 };
 		const capped = item.level >= item.cap;
 		const percent = capped ? 100 : pct(item.xp, item.xpNext || weaponXpToNext(item.level));
-		weaponNodes.name.textContent = payload.label || key;
-		weaponNodes.level.textContent = "Lv " + item.level;
+		const weaponLabelKeys = {
+			oneHand: "stats.weapon.oneHand",
+			twoHand: "stats.weapon.twoHand",
+			bow: "stats.weapon.bow",
+			crossbow: "stats.weapon.crossbow"
+		};
+		const weaponLabelKey = weaponLabelKeys[key];
+		weaponNodes.name.textContent = weaponLabelKey ? t(weaponLabelKey, payload.label || key) : (payload.label || key);
+		weaponNodes.level.textContent = t("stats.levelShort", "Lv") + " " + item.level;
 		weaponNodes.fill.style.width = percent + "%";
 		weaponNodes.xp.textContent = capped ? t("stats.weaponState.capShort", "cap") : item.xp + " / " + (item.xpNext || weaponXpToNext(item.level));
 		weaponNodes.cap.textContent = item.cap >= 100 ? t("stats.weaponState.max", "MAX") : t("stats.weaponState.capShort", "cap") + " " + item.cap;
@@ -392,7 +399,7 @@
 		state.weaponProgress = payload.weaponProgress || "";
 		const r = els.refs;
 		r.name.textContent = payload.name || "—";
-		r.level.textContent = "Lv " + (payload.level | 0);
+		r.level.textContent = t("stats.levelShort", "Lv") + " " + (payload.level | 0);
 		setFill(r.hpFill, pct(payload.hp, payload.hpMax));
 		r.hpLabel.textContent = fmt(payload.hp, payload.hpMax);
 		setFill(r.manaFill, pct(payload.mana, payload.manaMax));
@@ -422,7 +429,7 @@
 			return;
 		}
 		targetNodes.name.textContent = payload.name || "?";
-		targetNodes.level.textContent = "Lv " + (payload.level | 0);
+		targetNodes.level.textContent = t("stats.levelShort", "Lv") + " " + (payload.level | 0);
 		targetNodes.hpFill.style.width = pct(payload.hp, payload.hpMax) + "%";
 		const manaMax = payload.manaMax | 0;
 		if (manaMax > 0) {
@@ -694,12 +701,12 @@
 
 	function weatherMeta(kind) {
 		switch (kind) {
-			case "rain": return { icon: "🌧", label: "Deszcz", cls: "is-rain" };
-			case "snow": return { icon: "❄", label: "Śnieg", cls: "is-snow" };
-			case "storm": return { icon: "⛈", label: "Burza", cls: "is-storm" };
-			case "stop": return { icon: "☁", label: "Pochmurno", cls: "is-clear" };
+			case "rain": return { icon: "🌧", label: t("hud.weather.rain", "Deszcz"), cls: "is-rain" };
+			case "snow": return { icon: "❄", label: t("hud.weather.snow", "Śnieg"), cls: "is-snow" };
+			case "storm": return { icon: "⛈", label: t("hud.weather.storm", "Burza"), cls: "is-storm" };
+			case "stop": return { icon: "☁", label: t("hud.weather.cloudy", "Pochmurno"), cls: "is-clear" };
 			case "clear":
-			default: return { icon: "☀", label: "Pogodnie", cls: "is-clear" };
+			default: return { icon: "☀", label: t("hud.weather.clear", "Pogodnie"), cls: "is-clear" };
 		}
 	}
 

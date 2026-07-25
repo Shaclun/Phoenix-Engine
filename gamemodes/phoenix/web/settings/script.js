@@ -124,7 +124,7 @@
 		overlay.dataset.editId = el.id;
 		overlay.innerHTML =
 			'<div class="phoenix-edit-overlay__label">' + t(el.labelKey, el.fallback) + '</div>' +
-			'<div class="phoenix-edit-overlay__handle phoenix-edit-overlay__handle--resize" data-handle="resize" title="Skala">⤡</div>';
+			'<div class="phoenix-edit-overlay__handle phoenix-edit-overlay__handle--resize" data-handle="resize" title="' + t("settings.scale", "Skala") + '">⤡</div>';
 		node.appendChild(overlay);
 
 		overlay.addEventListener("mousedown", function (e) {

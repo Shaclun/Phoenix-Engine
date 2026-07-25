@@ -119,6 +119,14 @@
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", initAdminResize);
     else initAdminResize();
 
+    global.addEventListener("phoenix:languagechange", function () {
+        if (!isOpen) return;
+        buildTabs();
+        syncPanelCollapsed();
+        if (global.PhoenixI18n && global.PhoenixI18n.applyDom && panel) global.PhoenixI18n.applyDom(panel);
+        render(true);
+    });
+
     var TABS = [
         { id: "players", labelKey: "admin.tab.players", fallback: "Gracze" },
         { id: "items",   labelKey: "admin.tab.items",   fallback: "Przedmioty" },
@@ -500,6 +508,16 @@
         return s;
     }
 
+    function tAdminText(value) {
+        return global.PhoenixAdminI18n && global.PhoenixAdminI18n.translateText
+            ? global.PhoenixAdminI18n.translateText(value) : value;
+    }
+
+    function tAdminHtml(value) {
+        return global.PhoenixAdminI18n && global.PhoenixAdminI18n.translateHtml
+            ? global.PhoenixAdminI18n.translateHtml(value) : value;
+    }
+
     function tItem(instance, suffix, fallback) {
         try {
             return (global.PhoenixI18n && global.PhoenixI18n.tItem)
@@ -768,7 +786,7 @@
     }
 
     function setStatus(text, kind) {
-        state.status = text ? { text: text, kind: kind || "" } : null;
+        state.status = text ? { text: tAdminText(text), kind: kind || "" } : null;
         render();
     }
 
@@ -1009,7 +1027,7 @@
             html += '<div class="adm-status' + (state.status.kind ? " is-" + state.status.kind : "") + '">' +
                 escapeHtml(state.status.text) + "</div>";
         }
-        body.innerHTML = html;
+        body.innerHTML = tAdminHtml(html);
         bindHandlers();
         if (activeTab === "items" || activeTab === "npc" || activeTab === "vobs" || activeTab === "craft" || activeTab === "bestiary" || activeTab === "quests") populateItemMeshes();
         restoreQuestRenderState(questRenderState);
@@ -2247,7 +2265,7 @@
         var title = sch ? itemName(sch) : t("admin.npc.human.none");
         var toggle = body.querySelector('[data-action="human-equip-toggle"][data-slot="' + slot + '"]');
         if (toggle) {
-            toggle.innerHTML = '<b>' + escapeHtml(t(labelKey)) + '</b><br><small>' + escapeHtml(title) + (selected ? ' [' + escapeHtml(selected) + ']' : '') + '</small>';
+            toggle.innerHTML = tAdminHtml('<b>' + escapeHtml(t(labelKey)) + '</b><br><small>' + escapeHtml(title) + (selected ? ' [' + escapeHtml(selected) + ']' : '') + '</small>');
         }
         var picker = toggle ? toggle.parentElement : null;
         if (picker) {
@@ -3410,8 +3428,8 @@
         if (pickEl) {
             if (sch) {
                 pickEl.classList.remove("adm-pick--empty");
-                pickEl.innerHTML = '<b style="color:#f0d785">' + escapeHtml(nm) + '</b>' +
-                    ' <span style="color:#8a7c5a;font-size:11px">[' + escapeHtml(sch.instance) + ']</span>';
+                pickEl.innerHTML = tAdminHtml('<b style="color:#f0d785">' + escapeHtml(nm) + '</b>' +
+                    ' <span style="color:#8a7c5a;font-size:11px">[' + escapeHtml(sch.instance) + ']</span>');
             } else {
                 pickEl.classList.add("adm-pick--empty");
                 pickEl.textContent = t("admin.items.pickBelow");
@@ -3435,18 +3453,18 @@
                     existing.setAttribute("scale", d.scale);
                     existing.setAttribute("light-intensity", d.light);
                 } else {
-                    rd.innerHTML = '<gothic-render width="180" height="180" rot-x="' + d.rotX + '" rot-y="' + d.rotY + '" rot-z="' + d.rotZ + '" scale="' + d.scale + '" light-intensity="' + d.light + '" visual="' + escapeHtml(visual) + '"></gothic-render>';
+                    rd.innerHTML = tAdminHtml('<gothic-render width="180" height="180" rot-x="' + d.rotX + '" rot-y="' + d.rotY + '" rot-z="' + d.rotZ + '" scale="' + d.scale + '" light-intensity="' + d.light + '" visual="' + escapeHtml(visual) + '"></gothic-render>');
                 }
             } else {
-                rd.innerHTML = '<div class="adm-render-debug__empty">Brak visuala</div>';
+                rd.innerHTML = tAdminHtml('<div class="adm-render-debug__empty">Brak visuala</div>');
             }
         }
-        var title = sch ? itemName(sch) : "Wybierz item z grida";
+        var title = sch ? itemName(sch) : t("admin.items.pickBelow", "Wybierz item z grida");
         var titleEl = body.querySelector(".adm-render-debug .adm-render-debug__body p");
         if (titleEl) {
             var instUp2 = sch ? String(sch.instance).toUpperCase() : "";
             var hasOverride2 = instUp2 && state.itemRenderConfig[instUp2] && state.itemRenderConfig[instUp2].__saved === true;
-            titleEl.innerHTML = '<b>' + escapeHtml(title) + '</b>' + (sch ? ' <small>[' + escapeHtml(sch.instance) + ']</small>' : '') + (hasOverride2 ? ' <span class="adm-pill" style="background:#3a5234;color:#d8e6c7;padding:1px 6px;border-radius:6px;font-size:10px">zapisano</span>' : '');
+            titleEl.innerHTML = tAdminHtml('<b>' + escapeHtml(title) + '</b>' + (sch ? ' <small>[' + escapeHtml(sch.instance) + ']</small>' : '') + (hasOverride2 ? ' <span class="adm-pill" style="background:#3a5234;color:#d8e6c7;padding:1px 6px;border-radius:6px;font-size:10px">zapisano</span>' : ''));
         }
         var dEdit = currentItemRenderEdit();
         body.querySelectorAll(".adm-render-debug input[data-render-debug]").forEach(function (inp) {
@@ -3469,7 +3487,7 @@
                 var html = '<button class="adm-btn adm-btn--primary" data-action="item-render-save">Zapisz dla ' + escapeHtml(sch.instance) + '</button>';
                 html += '<button class="adm-btn" data-action="item-render-reset">Reset domyślny</button>';
                 if (hasOverrideT) html += '<button class="adm-btn adm-btn--danger" data-action="item-render-delete">Usuń override z DB</button>';
-                toolbar.innerHTML = html;
+                toolbar.innerHTML = tAdminHtml(html);
             } else {
                 toolbar.innerHTML = "";
             }
@@ -3511,7 +3529,7 @@
         if (value)  html += stat(t("inv.stat.value"),  value + " " + t("inv.unit.gold"));
         if (weight) html += stat(t("inv.stat.weight"), weight);
         html += '<div class="adm-tooltip__instance">' + escapeHtml(sch.instance) + "</div>";
-        tooltipEl.innerHTML = html;
+        tooltipEl.innerHTML = tAdminHtml(html);
         tooltipEl.style.setProperty("--tooltip-color", color);
         tooltipEl.classList.add("is-visible");
         moveTooltip(e);
@@ -4326,7 +4344,7 @@
     function openModal(html, onMount) {
         ensureModal();
         var pnl = modalEl.querySelector(".adm-modal__panel");
-        pnl.innerHTML = html;
+        pnl.innerHTML = tAdminHtml(html);
         modalEl.hidden = false;
         if (onMount) onMount(pnl);
     }
@@ -6199,7 +6217,7 @@
         Object.keys(CATEGORY_LABELS).forEach(function (k) {
             var kk = +k;
             if (kk === 0) return;
-            html += '<option value="' + kk + '"' + (catFilter === kk ? " selected" : "") + '>' + escapeHtml(CATEGORY_LABELS[k]) + '</option>';
+            html += '<option value="' + kk + '"' + (catFilter === kk ? " selected" : "") + '>' + escapeHtml(catLabel(kk)) + '</option>';
         });
         html += '</select>';
         html += '</div>';

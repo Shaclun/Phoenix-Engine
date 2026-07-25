@@ -46,7 +46,7 @@ phoenix.chat.Client <- {
 		phoenix.chat.Client.chatVisible = true
 		try { phoenix.web.Manager.showOverlay() } catch (e) {}
 		phoenix.web.Manager.emit("phoenix:chat:show", null)
-		phoenix.chat.Client.systemLine("Phoenix chat: T = pisz, TAB = kanal, /g globalny, /pos <nazwa> = zapis pozycji")
+		phoenix.chat.Client.systemLine("", "chat.system.help")
 	}
 
 	function hide() {
@@ -56,9 +56,9 @@ phoenix.chat.Client <- {
 		try { phoenix.web.Manager.hideOverlay() } catch (e) {}
 	}
 
-	function systemLine(text) {
+	function systemLine(text, textKey = "") {
 		phoenix.web.Manager.emit("phoenix:chat:append", {
-			channel = 0, name = "*", text = text, system = true, playerId = 0
+			channel = 0, name = "*", text = text, textKey = textKey, system = true, playerId = 0
 		})
 	}
 

@@ -17,6 +17,8 @@
         ["quest.dialog.trade", "Handel", "Trade", "Handel", "Торговля"],
         ["quest.dialog.continue", "Kontynuuj zadanie", "Continue quest", "Quest fortsetzen", "Продолжить задание"],
         ["quest.dialog.empty", "Brak dostępnych odpowiedzi.", "No responses available.", "Keine Antworten verfügbar.", "Нет доступных ответов."],
+        ["quest.common.close", "Zamknij", "Close", "Schließen", "Закрыть"],
+        ["quest.dialog.advanceHint", "Spacja / LPM", "Space / LMB", "Leertaste / LMT", "Пробел / ЛКМ"],
         ["quest.log.choose", "Wybierz zadanie z listy.", "Choose a quest from the list.", "Wähle eine Quest aus der Liste.", "Выберите задание из списка."],
         ["quest.log.descriptionEmpty", "Brak dodatkowego opisu zadania.", "No additional quest description.", "Keine zusätzliche Questbeschreibung.", "Дополнительного описания нет."],
         ["quest.log.currentStage", "Aktualny etap", "Current stage", "Aktuelle Etappe", "Текущий этап"],
