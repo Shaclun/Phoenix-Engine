@@ -98,6 +98,48 @@
 		return (pending.length ? pending : [trackerObjective(entry)]).slice(0, 3);
 	}
 
+	function positionTrackerAroundMinimap() {
+		const minimap = document.getElementById("phoenix-minimap");
+		const viewportWidth = window.innerWidth || 1;
+		const viewportHeight = window.innerHeight || 1;
+		const baseTop = Math.round(viewportHeight * 0.2);
+		const baseRight = 26;
+		trackerRoot.style.top = baseTop + "px";
+		trackerRoot.style.right = baseRight + "px";
+		if (!minimap) return;
+
+		const mapRect = minimap.getBoundingClientRect();
+		const trackerRect = trackerRoot.getBoundingClientRect();
+		if (mapRect.width < 1 || mapRect.height < 1 || trackerRect.width < 1) return;
+		const trackerLeft = viewportWidth - baseRight - trackerRect.width;
+		const overlapsHorizontally = trackerLeft < mapRect.right + 18 && viewportWidth - baseRight > mapRect.left - 18;
+		const overlapsVertically = baseTop < mapRect.bottom + 18 && baseTop + trackerRect.height > mapRect.top - 18;
+		if (!overlapsHorizontally || !overlapsVertically) return;
+
+		const belowTop = Math.round(mapRect.bottom + 18);
+		if (belowTop + trackerRect.height <= viewportHeight - 18) {
+			trackerRoot.style.top = belowTop + "px";
+			return;
+		}
+		if (mapRect.left > trackerRect.width + 44) {
+			trackerRoot.style.right = Math.round(viewportWidth - mapRect.left + 18) + "px";
+			return;
+		}
+		trackerRoot.style.top = Math.max(18, Math.round(mapRect.top - trackerRect.height - 18)) + "px";
+	}
+
+	function bindTrackerCollision(attempt) {
+		const minimap = document.getElementById("phoenix-minimap");
+		if (!minimap) {
+			if ((attempt || 0) < 20) setTimeout(function () { bindTrackerCollision((attempt || 0) + 1); }, 100);
+			return;
+		}
+		const observer = new MutationObserver(positionTrackerAroundMinimap);
+		observer.observe(minimap, { attributes: true, attributeFilter: ["style", "class"] });
+		if (window.ResizeObserver) new ResizeObserver(positionTrackerAroundMinimap).observe(minimap);
+		positionTrackerAroundMinimap();
+	}
+
 	function renderTracker() {
 		const entry = trackerCandidate();
 		if (!entry) {
@@ -137,6 +179,7 @@
 			'<div class="quest-tracker__bar"><i style="width:' + percent + '%"></i></div>' +
 			'<span class="quest-tracker__updated">' + esc(tr("quest.tracker.updated")) + '</span></div>';
 		trackerRoot.classList.add("is-visible");
+		requestAnimationFrame(positionTrackerAroundMinimap);
 		if (state.trackerFingerprint && state.trackerFingerprint !== fingerprint) {
 			trackerRoot.classList.remove("is-updated");
 			void trackerRoot.offsetWidth;
@@ -317,6 +360,9 @@
 			if (app.current && app.current() === "quests") render();
 		});
 	}
+
+	window.addEventListener("resize", positionTrackerAroundMinimap);
+	setTimeout(function () { bindTrackerCollision(0); }, 0);
 
 	app.register("quests", {
 		onShow: function () { render(); },
