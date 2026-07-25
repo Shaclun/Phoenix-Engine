@@ -1,0 +1,3 @@
+<server>
+	<script src="client/hud.nut" type="client" />
+</server>

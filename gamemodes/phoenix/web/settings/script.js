@@ -15,9 +15,9 @@
 		{ id: "stamina",    labelKey: "settings.hud.stamina",    fallback: "Pasek staminy",   x: 6.2,  y: 9.2,  orientable: true },
 		{ id: "exp",        labelKey: "settings.hud.exp",        fallback: "Pasek EXP",       x: 39.0, y: 91.0, orientable: true },
 		{ id: "magicxp",    labelKey: "settings.hud.magicxp",    fallback: "Pasek M-EXP",     x: 39.0, y: 93.6, orientable: true },
-		{ id: "hotbar",     labelKey: "settings.hud.hotbar",     fallback: "Hotbar",          x: 39.0, y: 95.5, orientable: true },
-		{ id: "worldclock", labelKey: "settings.hud.worldclock", fallback: "Zegar + pogoda",  x: 90.0, y: 1.5,  orientable: false },
-		{ id: "chat",       labelKey: "settings.hud.chat",       fallback: "Czat",            x: 1.0,  y: 87.0, orientable: false }
+		{ id: "hotbar",     labelKey: "settings.hud.hotbar",     fallback: "Hotbar",             x: 39.0, y: 95.5, orientable: true },
+		{ id: "minimap",    labelKey: "settings.hud.minimap",    fallback: "Minimapa + zegar",  x: 84.5, y: 2.0,  orientable: false },
+		{ id: "chat",       labelKey: "settings.hud.chat",       fallback: "Czat",               x: 1.0,  y: 87.0, orientable: false }
 	];
 
 	function buildDefaults() {

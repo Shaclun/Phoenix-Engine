@@ -449,6 +449,7 @@
 			if (els[k] && els[k].classList) els[k].classList.add("is-visible");
 		});
 		if (worldClockNodes) worldClockNodes.root.classList.add("is-visible");
+		if (window.PhoenixMinimap) window.PhoenixMinimap.setVisible(true);
 		renderHotbar();
 	}
 
@@ -463,6 +464,7 @@
 		if (knockdownNodes) knockdownNodes.root.classList.remove("is-visible");
 		if (herbNodes) herbNodes.root.classList.remove("is-visible");
 		if (worldClockNodes) worldClockNodes.root.classList.remove("is-visible");
+		if (window.PhoenixMinimap) window.PhoenixMinimap.setVisible(false);
 		if (knockdownInterval) { clearInterval(knockdownInterval); knockdownInterval = null; }
 		if (herbTimer) { clearInterval(herbTimer); herbTimer = null; }
 	}
@@ -688,7 +690,8 @@
 			'<span class="phoenix-worldclock__sep">·</span>' +
 			'<span class="phoenix-worldclock__icon" data-role="icon">☀</span>' +
 			'<span class="phoenix-worldclock__label" data-role="label">Clear</span>';
-		document.body.appendChild(root);
+		const host = document.getElementById("phoenix-minimap-meta");
+		(host || document.body).appendChild(root);
 		worldClockNodes = {
 			root: root,
 			time: root.querySelector('[data-role="time"]'),
@@ -751,6 +754,7 @@
 
 
 	function getElementNodeById(id) {
+		if (id === "minimap") return document.getElementById("phoenix-minimap");
 		if (id === "worldclock") return worldClockNodes ? worldClockNodes.root : document.getElementById("phoenix-worldclock");
 		if (id === "chat") return document.getElementById("phoenix-chat");
 		if (id === "target") return targetNodes ? targetNodes.root : document.getElementById("phoenix-target-hud");
@@ -853,6 +857,8 @@
 		if (questTracker) questTracker.classList.toggle("is-blocked", blocked);
 		const worldClock = document.querySelector(".phoenix-worldclock");
 		if (worldClock) worldClock.classList.toggle("is-blocked", blocked);
+		const minimap = document.querySelector(".phoenix-minimap");
+		if (minimap) minimap.classList.toggle("is-blocked", blocked);
 	}
 
 	window.PhoenixHud = {
