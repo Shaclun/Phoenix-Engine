@@ -185,9 +185,6 @@ addEventHandler("phoenix.database.OnReady", function () {
 				})
 			} catch (eU2) {}
 		})
-		try { ORM.engine.executeAsync("ALTER TABLE `phoenix_characters` ADD COLUMN `magicLevel` INT(11) NOT NULL DEFAULT 0 AFTER `crossbow`", function (_) {}) } catch (eMl) {}
-		try { ORM.engine.executeAsync("ALTER TABLE `phoenix_characters` ADD COLUMN `magicXp` INT(11) NOT NULL DEFAULT 0 AFTER `magicLevel`", function (_) {}) } catch (eMx) {}
-		try { ORM.engine.executeAsync("ALTER TABLE `phoenix_characters` ADD COLUMN `uiSettings` TEXT NULL AFTER `hotbar`", function (_) {}) } catch (eUs) {}
 	} catch (e) {}
 })
 
