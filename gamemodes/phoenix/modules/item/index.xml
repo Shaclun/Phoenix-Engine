@@ -19,6 +19,7 @@
 	<script src="server/structure.nut" type="server" />
 	<script src="server/upgrader.nut"  type="server" />
 	<script src="server/spells.nut"    type="server" />
+	<script src="server/effects.nut"   type="server" />
 	<script src="server/handlers.nut"  type="server" />
 	<script src="server/render.nut"    type="server" />
 

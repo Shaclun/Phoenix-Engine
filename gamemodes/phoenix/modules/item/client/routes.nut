@@ -4,7 +4,8 @@ if ("Router" in phoenix.web && phoenix.web.Router != null) {
 
 	phoenix.web.Router.on("phoenix:item:requestUse", function(payload) {
 		if (payload == null || !("id" in payload)) return
-		phoenix.item.Model.requestUse(payload.id)
+		local source = ("source" in payload && payload.source != null) ? payload.source.tostring() : "inventory"
+		phoenix.item.Model.requestUse(payload.id, source)
 	})
 
 	phoenix.web.Router.on("phoenix:item:requestEquip", function(payload) {

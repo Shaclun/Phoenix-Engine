@@ -21,6 +21,9 @@ phoenix.item.Model._emit <- function(eventName, payload) {
 
 phoenix.item.Model._enrich <- function(entry) {
 	if (entry == null) return entry
+	try { entry.labels <- phoenix.web.Json.parse(entry.labelsJson) } catch (e) { entry.labels <- null }
+	try { entry.descriptions <- phoenix.web.Json.parse(entry.descriptionsJson) } catch (e) { entry.descriptions <- null }
+	try { entry.effect <- phoenix.web.Json.parse(entry.effectJson) } catch (e) { entry.effect <- null }
 	local scheme = phoenix.item.find(entry.instance)
 	if (scheme == null) return entry
 	local stats = phoenix.item.computeStats(scheme, entry.quality, entry.upgrade)
@@ -168,10 +171,11 @@ phoenix.item.Model.onUpgradeResult <- function(message) {
 	})
 }
 
-phoenix.item.Model.requestUse <- function(itemId) {
+phoenix.item.Model.requestUse <- function(itemId, source = "inventory") {
 	try {
 		local m = phoenix.item.Message.UseRequest()
 		m.id = itemId
+		m.source = source
 		m.serialize().send(RELIABLE)
 	} catch (e) {}
 }
@@ -227,9 +231,26 @@ phoenix.item.Model.onRenderConfig <- function(message) {
 	phoenix.item.Model._emit("phoenix:item:renderConfig", { entries = entries })
 }
 
+phoenix.item.Model.onDocumentOpen <- function(message) {
+	local source = "inventory"
+	try { if (message.source != null) source = message.source.tostring() } catch (e) {}
+	if (source == "hotbar") {
+		try { phoenix.item.Interface.open() } catch (e) {}
+	} else {
+		local inventoryVisible = false
+		try { inventoryVisible = phoenix.item.Interface.visible == true } catch (e) {}
+		if (!inventoryVisible) return
+	}
+	local titles = {}; local contents = {}
+	try { titles = phoenix.web.Json.parse(message.titleJson) } catch (e) {}
+	try { contents = phoenix.web.Json.parse(message.contentJson) } catch (e) {}
+	phoenix.item.Model._emit("phoenix:item:document", { titles = titles, contents = contents, source = source })
+}
+
 phoenix.item.Message.Inventory.bind(phoenix.item.Model.onInventory)
 phoenix.item.Message.Add.bind(phoenix.item.Model.onAdd)
 phoenix.item.Message.Remove.bind(phoenix.item.Model.onRemove)
 phoenix.item.Message.Update.bind(phoenix.item.Model.onUpdate)
 phoenix.item.Message.UpgradeResult.bind(phoenix.item.Model.onUpgradeResult)
+phoenix.item.Message.DocumentOpen.bind(phoenix.item.Model.onDocumentOpen)
 phoenix.item.Message.RenderConfig.bind(phoenix.item.Model.onRenderConfig)

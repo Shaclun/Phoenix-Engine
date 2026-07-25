@@ -1,6 +1,7 @@
 <server>
 	<script src="shared/namespace.nut" type="shared" />
-	<script src="shared/messages.nut" type="shared" />
+	<script src="shared/messages.nut"   type="shared" />
+	<script src="server/resources.nut" type="server" />
 	<script src="server/progression.nut" type="server" />
 	<script src="server/weaponProgression.nut" type="server" />
 	<script src="server/combat.nut" type="server" />

@@ -318,7 +318,12 @@
 		if (payload && Array.isArray(payload.items)) state.items = payload.items.slice();
 		if (!payload || !payload.success) {
 			if (payload && payload.error && window.PhoenixNotify) {
-				const msg = t("crafting.error." + payload.error, payload.error || "błąd");
+				const rawError = String(payload.error || "");
+				const separator = rawError.indexOf(":");
+				const errorCode = separator >= 0 ? rawError.slice(0, separator) : rawError;
+				const errorDetail = separator >= 0 ? rawError.slice(separator + 1) : "";
+				let msg = t("crafting.error." + errorCode, errorCode || "błąd");
+				if (errorDetail) msg += ": " + errorDetail;
 				PhoenixNotify.notify("error", t("crafting.title", "Warsztat"), msg, 2500);
 			}
 		} else if (window.PhoenixNotify && payload.resultInstance) {

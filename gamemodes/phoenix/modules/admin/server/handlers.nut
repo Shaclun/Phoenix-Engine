@@ -51,8 +51,23 @@ phoenix.admin.Server <- {
 					serial = "",
 					world = "",
 					level = 0,
+					experience = 0,
+					experienceNext = 0,
+					learnPoints = 0,
 					hp = 0,
 					hpMax = 0,
+					mana = 0,
+					manaMax = 0,
+					stamina = 0,
+					staminaMax = 0,
+					strength = 0,
+					dexterity = 0,
+					oneHand = 0,
+					twoHand = 0,
+					bow = 0,
+					crossbow = 0,
+					magicLevel = 0,
+					magicXp = 0,
 					posX = 0.0, posY = 0.0, posZ = 0.0,
 					gold = 0,
 					itemCount = 0,
@@ -81,7 +96,11 @@ phoenix.admin.Server <- {
 					entry.characterId = rec.id
 					try { entry.characterName = rec.name } catch (e) {}
 					try { entry.level = rec.level } catch (e) {}
-					try { entry.hpMax = rec.hpMax } catch (e) {}
+					try { entry.experience = rec.experience; entry.experienceNext = rec.experienceNext; entry.learnPoints = rec.learnPoints } catch (e) {}
+					try { entry.hp = phoenix.player.Resources.current(i, rec, "hp"); entry.hpMax = rec.hpMax; entry.mana = phoenix.player.Resources.current(i, rec, "mana"); entry.manaMax = rec.manaMax } catch (e) {}
+					try { entry.stamina = phoenix.player.Resources.current(i, rec, "stamina"); entry.staminaMax = rec.staminaMax } catch (e) {}
+					try { entry.strength = rec.strength; entry.dexterity = rec.dexterity; entry.oneHand = rec.oneHand; entry.twoHand = rec.twoHand; entry.bow = rec.bow; entry.crossbow = rec.crossbow } catch (e) {}
+					try { entry.magicLevel = rec.magicLevel; entry.magicXp = rec.magicXp } catch (e) {}
 					try {
 						local cacheKey = phoenix.item.Structure.key(PhoenixInventoryOwner.Player, rec.id)
 						if (cacheKey in phoenix.item.Structure.cache) {
@@ -95,6 +114,63 @@ phoenix.admin.Server <- {
 			} catch (e) {}
 		}
 		phoenix.admin.Server.reply(playerId, "players", true, "", { players = rows })
+	}
+
+	function dispatchSetPlayerStats(playerId, payload) {
+		if (payload == null || !("playerId" in payload) || !("stats" in payload)) return phoenix.admin.Server.reply(playerId, "setPlayerStats", false, "payload", null)
+		local targetPid = payload.playerId.tointeger()
+		if (targetPid < 0 || !isPlayerConnected(targetPid)) return phoenix.admin.Server.reply(playerId, "setPlayerStats", false, "offline", null)
+		local record = phoenix.character.Structure.getActive(targetPid)
+		if (record == null) return phoenix.admin.Server.reply(playerId, "setPlayerStats", false, "noCharacter", null)
+		local stats = payload.stats
+		local readInt = function(key, fallback, minimum, maximum) {
+			local value = fallback
+			try { if (key in stats && stats[key] != null) value = stats[key].tointeger() } catch (e) {}
+			if (value < minimum) value = minimum
+			if (value > maximum) value = maximum
+			return value
+		}
+		record.level = readInt("level", record.level, 1, phoenix.player.Progression.maxLevel)
+		record.experience = readInt("experience", record.experience, 0, phoenix.player.Progression.expForLevel(phoenix.player.Progression.maxLevel))
+		record.experienceNext = phoenix.player.Progression.expForLevel(record.level + 1)
+		record.learnPoints = readInt("learnPoints", record.learnPoints, 0, 100000)
+		record.hpMax = readInt("hpMax", record.hpMax, 1, 100000)
+		record.manaMax = readInt("manaMax", record.manaMax, 0, 100000)
+		record.staminaMax = readInt("staminaMax", record.staminaMax, 1, 100000)
+		record.strength = readInt("strength", record.strength, 0, 10000)
+		record.dexterity = readInt("dexterity", record.dexterity, 0, 10000)
+		record.oneHand = readInt("oneHand", record.oneHand, 0, 100)
+		record.twoHand = readInt("twoHand", record.twoHand, 0, 100)
+		record.bow = readInt("bow", record.bow, 0, 100)
+		record.crossbow = readInt("crossbow", record.crossbow, 0, 100)
+		record.magicLevel = readInt("magicLevel", record.magicLevel, 0, 20)
+		record.magicXp = readInt("magicXp", record.magicXp, 0, 100000000)
+		phoenix.player.Progression.normalizeRecordStats(record)
+		phoenix.player.Resources.syncMaximums(targetPid, record)
+		phoenix.player.Resources.set(targetPid, record, "hp", readInt("hp", record.hp, 0, record.hpMax), true)
+		phoenix.player.Resources.set(targetPid, record, "mana", readInt("mana", record.mana, 0, record.manaMax), true)
+		phoenix.player.Resources.set(targetPid, record, "stamina", readInt("stamina", record.stamina, 0, record.staminaMax), true)
+		local strengthBonus = 0; local dexterityBonus = 0
+		try { strengthBonus = phoenix.item.Effects.modifier(targetPid, "strength") } catch (e) {}
+		try { dexterityBonus = phoenix.item.Effects.modifier(targetPid, "dexterity") } catch (e) {}
+		try { setPlayerStrength(targetPid, record.strength + strengthBonus) } catch (e) {}
+		try { setPlayerDexterity(targetPid, record.dexterity + dexterityBonus) } catch (e) {}
+		try { setPlayerSkillWeapon(targetPid, WEAPON_1H, record.oneHand); setPlayerSkillWeapon(targetPid, WEAPON_2H, record.twoHand); setPlayerSkillWeapon(targetPid, WEAPON_BOW, record.bow); setPlayerSkillWeapon(targetPid, WEAPON_CBOW, record.crossbow) } catch (e) {}
+		try {
+			if (!(targetPid in phoenix.player.WeaponProgression.byPlayer)) phoenix.player.WeaponProgression.byPlayer[targetPid] <- phoenix.player.WeaponProgression._stateFromRecord(record)
+			foreach (key in phoenix.player.WeaponProgression.skills) {
+				local entry = phoenix.player.WeaponProgression.byPlayer[targetPid][key]
+				entry.level = phoenix.player.WeaponProgression._readRecordValue(record, key)
+				entry.cap = phoenix.player.WeaponProgression._capForLevel(entry.level)
+			}
+			phoenix.player.WeaponProgression.saveAll(targetPid)
+		} catch (eWp) {}
+		local sql = "UPDATE `phoenix_characters` SET `level`=" + record.level + ",`experience`=" + record.experience + ",`experienceNext`=" + record.experienceNext + ",`learnPoints`=" + record.learnPoints + ",`hp`=" + record.hp + ",`hpMax`=" + record.hpMax + ",`mana`=" + record.mana + ",`manaMax`=" + record.manaMax + ",`stamina`=" + record.stamina + ",`staminaMax`=" + record.staminaMax + ",`strength`=" + record.strength + ",`dexterity`=" + record.dexterity + ",`oneHand`=" + record.oneHand + ",`twoHand`=" + record.twoHand + ",`bow`=" + record.bow + ",`crossbow`=" + record.crossbow + ",`magicLevel`=" + record.magicLevel + ",`magicXp`=" + record.magicXp + " WHERE `id`=" + record.id
+		ORM.engine.executeAsync(sql, function(_) {
+			try { phoenix.player.Hud.pushSnapshot(targetPid); phoenix.player.Stats.pushSnapshot(targetPid) } catch (e) {}
+			phoenix.admin.Server.audit(playerId, "setPlayerStats", "character", record.id, record.name, "level=" + record.level + " hp=" + record.hp + "/" + record.hpMax)
+			phoenix.admin.Server.reply(playerId, "setPlayerStats", true, "", { playerId = targetPid, characterId = record.id })
+		})
 	}
 
 	function dispatchListSchemes(playerId, _payload) {
@@ -430,77 +506,84 @@ phoenix.admin.Server <- {
 		})
 	}
 
+	function _localizedPayload(payload, key, legacy) {
+		local out = { pl = legacy, en = "", de = "", ru = "" }
+		try {
+			if (key in payload && payload[key] != null) {
+				local source = payload[key]
+				foreach (lang in ["pl", "en", "de", "ru"]) if (lang in source && source[lang] != null) out[lang] = source[lang].tostring()
+			}
+		} catch (e) {}
+		return out
+	}
+
+	function _customData(payload, inst) {
+		local name = ("name" in payload) ? payload.name.tostring() : inst
+		local description = ("description" in payload) ? payload.description.tostring() : ""
+		local labels = phoenix.admin.Server._localizedPayload(payload, "labels", name)
+		local descriptions = phoenix.admin.Server._localizedPayload(payload, "descriptions", description)
+		local content = phoenix.admin.Server._localizedPayload(payload, "content", "")
+		if (labels.pl == "") labels.pl = name
+		if (descriptions.pl == "") descriptions.pl = description
+		local onUse = ("onUse" in payload && payload.onUse != null) ? payload.onUse.tostring() : ""
+		if (onUse != "" && onUse != "consumable" && onUse != "document") onUse = ""
+		local effects = []
+		try {
+			if ("effects" in payload && payload.effects != null) foreach (raw in payload.effects) {
+				local effect = phoenix.item.Effects._normalizeEffect(raw)
+				if (effect != null) effects.append(effect)
+			}
+		} catch (e) {}
+		local category = ("category" in payload) ? payload.category.tointeger() : PhoenixItemCategory.Misc
+		if (category < 0 || category > PhoenixItemCategory.Misc) category = PhoenixItemCategory.Misc
+		local slot = ("slot" in payload) ? payload.slot.tointeger() : 0
+		if (slot < 0 || slot > PhoenixItemSlot.Spell) slot = 0
+		local value = ("value" in payload) ? payload.value.tointeger() : 0; if (value < 0) value = 0
+		local weight = ("weight" in payload) ? payload.weight.tofloat() : 0.0; if (weight < 0.0) weight = 0.0
+		local stackMax = ("stackMax" in payload) ? payload.stackMax.tointeger() : 1; if (stackMax < 1) stackMax = 1; if (stackMax > 100000) stackMax = 100000
+		local damage = ("damage" in payload) ? payload.damage.tointeger() : 0; if (damage < 0) damage = 0
+		local damageType = ("damageType" in payload) ? payload.damageType.tointeger() : 0; if (damageType < 0 || damageType > 4) damageType = 0
+		local flags = ("flags" in payload) ? payload.flags.tointeger() : 0
+		local protection = { edge = 0, blunt = 0, point = 0, fire = 0, magic = 0 }
+		try { if ("protection" in payload && payload.protection != null) foreach (key, val in payload.protection) if (key in protection) protection[key] = val.tointeger() } catch (e) {}
+		return { category = category, slot = slot, name = labels.pl, description = descriptions.pl, labels = labels, descriptions = descriptions, content = content, onUse = (onUse == "" ? null : onUse), effects = effects, value = value, visual = ("visual" in payload && payload.visual != null && payload.visual != "") ? payload.visual.tostring() : null, weight = weight, stackMax = stackMax, damage = damage, damageType = damageType, flags = flags, protection = protection }
+	}
+
 	function dispatchSaveCustomItem(playerId, payload) {
 		if (payload == null) return phoenix.admin.Server.reply(playerId, "saveCustom", false, "payload", null)
 		local inst = ("instance" in payload) ? payload.instance.tostring().toupper() : ""
 		if (inst == "" || inst.len() > 64) return phoenix.admin.Server.reply(playerId, "saveCustom", false, "badInstance", null)
-		local name = ("name" in payload) ? payload.name.tostring() : inst
-		local description = ("description" in payload) ? payload.description.tostring() : ""
-		local visual = ("visual" in payload) ? payload.visual.tostring() : ""
-		local category = ("category" in payload) ? payload.category : 0
-		local slot = ("slot" in payload) ? payload.slot : 0
-		local value = ("value" in payload) ? payload.value : 0
-		local weight = ("weight" in payload) ? payload.weight.tofloat() : 0.0
-		local stackMax = ("stackMax" in payload) ? payload.stackMax : 1
-		local damage = ("damage" in payload) ? payload.damage : 0
-		local damageType = ("damageType" in payload) ? payload.damageType : 0
-		local flags = ("flags" in payload) ? payload.flags : 0
-		local pe = 0; local pb = 0; local pp = 0; local pf = 0; local pm = 0
-		if ("protection" in payload && payload.protection != null) {
-			local pr = payload.protection
-			if ("edge" in pr) pe = pr.edge
-			if ("blunt" in pr) pb = pr.blunt
-			if ("point" in pr) pp = pr.point
-			if ("fire" in pr) pf = pr.fire
-			if ("magic" in pr) pm = pr.magic
+		local data = null
+		try { data = phoenix.admin.Server._customData(payload, inst) } catch (error) { return phoenix.admin.Server.reply(playerId, "saveCustom", false, "validation", null) }
+		local session = phoenix.account.Structure.get(playerId)
+		local adminId = session != null ? session.id() : 0
+		local adminSql = adminId > 0 ? adminId.tostring() : "NULL"
+		local esc = function(value) { try { return ORM.engine.escape(value == null ? "" : value.tostring()) } catch (e) { return "" } }
+		local visual = data.visual != null ? data.visual : ""
+		local onUse = data.onUse != null ? data.onUse : ""
+		local sql = "INSERT INTO `phoenix_custom_items` (`instance`,`category`,`slot`,`name`,`description`,`visual`,`value`,`weight`,`stackMax`,`damage`,`damageType`,`protEdge`,`protBlunt`,`protPoint`,`protFire`,`protMagic`,`flags`,`onUse`,`effectJson`,`labelsJson`,`descriptionsJson`,`contentJson`,`createdBy`) VALUES ('" + esc(inst) + "'," + data.category + "," + data.slot + ",'" + esc(data.name) + "','" + esc(data.description) + "','" + esc(visual) + "'," + data.value + "," + data.weight + "," + data.stackMax + "," + data.damage + "," + data.damageType + "," + data.protection.edge + "," + data.protection.blunt + "," + data.protection.point + "," + data.protection.fire + "," + data.protection.magic + "," + data.flags + ",'" + esc(onUse) + "','" + esc(phoenix.web.Json.encode(data.effects)) + "','" + esc(phoenix.web.Json.encode(data.labels)) + "','" + esc(phoenix.web.Json.encode(data.descriptions)) + "','" + esc(phoenix.web.Json.encode(data.content)) + "'," + adminSql + ") ON DUPLICATE KEY UPDATE `category`=VALUES(`category`),`slot`=VALUES(`slot`),`name`=VALUES(`name`),`description`=VALUES(`description`),`visual`=VALUES(`visual`),`value`=VALUES(`value`),`weight`=VALUES(`weight`),`stackMax`=VALUES(`stackMax`),`damage`=VALUES(`damage`),`damageType`=VALUES(`damageType`),`protEdge`=VALUES(`protEdge`),`protBlunt`=VALUES(`protBlunt`),`protPoint`=VALUES(`protPoint`),`protFire`=VALUES(`protFire`),`protMagic`=VALUES(`protMagic`),`flags`=VALUES(`flags`),`onUse`=VALUES(`onUse`),`effectJson`=VALUES(`effectJson`),`labelsJson`=VALUES(`labelsJson`),`descriptionsJson`=VALUES(`descriptionsJson`),`contentJson`=VALUES(`contentJson`)"
+		try {
+			ORM.engine.execute("START TRANSACTION")
+			ORM.engine.execute(sql)
+			ORM.engine.execute("COMMIT")
+			phoenix.item.register(inst, data)
+		} catch (error) {
+			try { ORM.engine.execute("ROLLBACK") } catch (rollbackError) {}
+			return phoenix.admin.Server.reply(playerId, "saveCustom", false, "database", null)
 		}
-
-		local data = {
-			category = category, slot = slot, name = name, description = description,
-			value = value, visual = (visual != "" ? visual : null), weight = weight,
-			stackMax = stackMax, damage = damage, damageType = damageType, flags = flags,
-			protection = { edge = pe, blunt = pb, point = pp, fire = pf, magic = pm }
-		}
-		try { phoenix.item.register(inst, data) } catch (e) {
-			return phoenix.admin.Server.reply(playerId, "saveCustom", false, "register", null)
-		}
-
-		local s = phoenix.account.Structure.get(playerId)
-		local adminId = (s != null) ? s.id() : 0
-		local adminSql = (adminId > 0) ? adminId.tostring() : "NULL"
-		local function esc(v) { try { return ORM.engine.escape(v) } catch (e) { return v } }
-		local sql = "INSERT INTO `phoenix_custom_items` " +
-			"(`instance`,`category`,`slot`,`name`,`description`,`visual`,`value`,`weight`,`stackMax`,`damage`,`damageType`,`protEdge`,`protBlunt`,`protPoint`,`protFire`,`protMagic`,`flags`,`createdBy`) " +
-			"VALUES ('" + esc(inst) + "'," + category + "," + slot + ",'" + esc(name) + "','" + esc(description) + "','" + esc(visual) + "'," +
-			value + "," + weight + "," + stackMax + "," + damage + "," + damageType + "," + pe + "," + pb + "," + pp + "," + pf + "," + pm + "," + flags + "," + adminSql + ") " +
-			"ON DUPLICATE KEY UPDATE `category`=VALUES(`category`),`slot`=VALUES(`slot`),`name`=VALUES(`name`),`description`=VALUES(`description`),`visual`=VALUES(`visual`),`value`=VALUES(`value`),`weight`=VALUES(`weight`),`stackMax`=VALUES(`stackMax`),`damage`=VALUES(`damage`),`damageType`=VALUES(`damageType`),`protEdge`=VALUES(`protEdge`),`protBlunt`=VALUES(`protBlunt`),`protPoint`=VALUES(`protPoint`),`protFire`=VALUES(`protFire`),`protMagic`=VALUES(`protMagic`),`flags`=VALUES(`flags`)"
-		try { ORM.engine.executeAsync(sql, function(_){}) } catch (e) {}
-
-		phoenix.admin.Server.audit(playerId, "saveCustom", "item", null, inst, name)
+		phoenix.admin.Server.audit(playerId, "saveCustom", "item", null, inst, data.name)
 		phoenix.admin.Server.reply(playerId, "saveCustom", true, "", { instance = inst })
 	}
 
 	function loadCustomItems() {
-		local sql = "SELECT * FROM `phoenix_custom_items`"
 		try {
 			phoenix.admin.Server.ensureTables(function () {
-				ORM.engine.executeAsync(sql, function(rows) {
+				ORM.engine.executeAsync("SELECT * FROM `phoenix_custom_items`", function(rows) {
 					if (rows == null) return
-					local n = 0
-					foreach (r in rows) {
-						try {
-							local data = {
-								category = r.category, slot = r.slot,
-								name = r.name, description = r.description,
-								value = r.value, visual = (r.visual != "" ? r.visual : null),
-								weight = r.weight.tofloat(), stackMax = r.stackMax,
-								damage = r.damage, damageType = r.damageType, flags = r.flags,
-								protection = { edge = r.protEdge, blunt = r.protBlunt, point = r.protPoint, fire = r.protFire, magic = r.protMagic }
-							}
-							phoenix.item.register(r.instance, data)
-							n += 1
-						} catch (e) {}
-						}
+					foreach (r in rows) try {
+						local labels = phoenix.web.Json.parse(r.labelsJson); local descriptions = phoenix.web.Json.parse(r.descriptionsJson); local content = phoenix.web.Json.parse(r.contentJson); local effects = phoenix.web.Json.parse(r.effectJson)
+						phoenix.item.register(r.instance, { category = r.category, slot = r.slot, name = r.name, description = r.description, labels = labels, descriptions = descriptions, content = content, onUse = (r.onUse != null && r.onUse != "") ? r.onUse : null, effects = effects != null ? effects : [], value = r.value, visual = (r.visual != "" ? r.visual : null), weight = r.weight.tofloat(), stackMax = r.stackMax, damage = r.damage, damageType = r.damageType, flags = r.flags, protection = { edge = r.protEdge, blunt = r.protBlunt, point = r.protPoint, fire = r.protFire, magic = r.protMagic } })
+					} catch (e) {}
 				})
 			})
 		} catch (e) {}
@@ -508,14 +591,8 @@ phoenix.admin.Server <- {
 
 	function ensureTables(callback) {
 		local sqlLog = "CREATE TABLE IF NOT EXISTS `phoenix_admin_log` (`id` INT NOT NULL AUTO_INCREMENT PRIMARY KEY,`adminId` INT NULL,`adminName` VARCHAR(64) DEFAULT '',`action` VARCHAR(48) NOT NULL,`targetType` VARCHAR(24) DEFAULT '',`targetId` INT NULL,`targetName` VARCHAR(64) DEFAULT '',`details` TEXT NULL,`createdAt` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,KEY `idx_log_admin` (`adminId`),KEY `idx_log_action` (`action`),KEY `idx_log_created` (`createdAt`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
-		local sqlItems = "CREATE TABLE IF NOT EXISTS `phoenix_custom_items` (`id` INT NOT NULL AUTO_INCREMENT PRIMARY KEY,`instance` VARCHAR(64) NOT NULL UNIQUE,`category` TINYINT NOT NULL DEFAULT 0,`slot` TINYINT NOT NULL DEFAULT 0,`name` VARCHAR(96) DEFAULT '',`description` VARCHAR(512) DEFAULT '',`visual` VARCHAR(96) DEFAULT '',`value` INT DEFAULT 0,`weight` FLOAT DEFAULT 0,`stackMax` INT DEFAULT 1,`damage` INT DEFAULT 0,`damageType` TINYINT DEFAULT 0,`protEdge` INT DEFAULT 0,`protBlunt` INT DEFAULT 0,`protPoint` INT DEFAULT 0,`protFire` INT DEFAULT 0,`protMagic` INT DEFAULT 0,`flags` INT DEFAULT 0,`createdBy` INT NULL,`createdAt` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,KEY `idx_custom_category` (`category`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
-		try {
-			ORM.engine.executeAsync(sqlLog, function (_) {
-				ORM.engine.executeAsync(sqlItems, function (_) {
-					if (callback != null) callback()
-				})
-			})
-		} catch (e) {}
+		local sqlItems = "CREATE TABLE IF NOT EXISTS `phoenix_custom_items` (`id` INT NOT NULL AUTO_INCREMENT PRIMARY KEY,`instance` VARCHAR(64) NOT NULL UNIQUE,`category` TINYINT NOT NULL DEFAULT 0,`slot` TINYINT NOT NULL DEFAULT 0,`name` VARCHAR(96) DEFAULT '',`description` VARCHAR(512) DEFAULT '',`visual` VARCHAR(96) DEFAULT '',`value` INT DEFAULT 0,`weight` FLOAT DEFAULT 0,`stackMax` INT DEFAULT 1,`damage` INT DEFAULT 0,`damageType` TINYINT DEFAULT 0,`protEdge` INT DEFAULT 0,`protBlunt` INT DEFAULT 0,`protPoint` INT DEFAULT 0,`protFire` INT DEFAULT 0,`protMagic` INT DEFAULT 0,`flags` INT DEFAULT 0,`onUse` VARCHAR(24) NOT NULL DEFAULT '',`effectJson` MEDIUMTEXT NULL,`labelsJson` MEDIUMTEXT NULL,`descriptionsJson` MEDIUMTEXT NULL,`contentJson` MEDIUMTEXT NULL,`createdBy` INT NULL,`createdAt` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,`updatedAt` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,KEY `idx_custom_category` (`category`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4"
+		try { ORM.engine.executeAsync(sqlLog, function (_) { ORM.engine.executeAsync(sqlItems, function (_) { if (callback != null) callback() }) }) } catch (e) { if (callback != null) callback() }
 	}
 
 	function dispatchNpcCatalog(playerId, _payload) {
@@ -918,11 +995,12 @@ phoenix.admin.Server <- {
 			phoenix.admin.Server.reply(playerId, "npcRoutineSave", false, "badPayload", null); return
 		}
 		try {
+			local session = phoenix.account.Structure.get(playerId)
 			local input = {
 				enabled = ("enabled" in payload) ? payload.enabled : 1,
 				loop = ("loop" in payload) ? payload.loop : 1,
 				nodes = ("nodes" in payload) ? payload.nodes : [],
-				createdBy = playerId
+				createdBy = session != null ? session.id() : 0
 			}
 			phoenix.npc.Routines.save(payload.spawnId, input, function (ok) {
 				phoenix.admin.Server.audit(playerId, "npcRoutineSave", "npcRoutine", null, "spawn=" + payload.spawnId, "nodes=" + input.nodes.len())
@@ -1347,6 +1425,7 @@ phoenix.admin.Server <- {
 
 phoenix.admin.Server.dispatchers = {
 	players = phoenix.admin.Server.dispatchListPlayers,
+	setPlayerStats = phoenix.admin.Server.dispatchSetPlayerStats,
 	schemes = phoenix.admin.Server.dispatchListSchemes,
 	schemeDetails = phoenix.admin.Server.dispatchSchemeDetails,
 	giveItem = phoenix.admin.Server.dispatchGiveItem,
@@ -1419,7 +1498,9 @@ phoenix.admin.Server.dispatchers = {
 
 phoenix.admin.Message.Request.bind(phoenix.admin.Server.onRequest)
 
-try { phoenix.admin.Server.loadCustomItems() } catch (e) {}
+addEventHandler("phoenix.database.OnReady", function () {
+	try { phoenix.admin.Server.loadCustomItems() } catch (e) {}
+})
 
 try {
 	ORM.engine.executeAsync("CREATE TABLE IF NOT EXISTS `phoenix_npc_catalog_overrides` (`instance` VARCHAR(64) NOT NULL,`label` VARCHAR(128) NOT NULL DEFAULT '',`category` VARCHAR(32) NOT NULL DEFAULT 'monster',`tier` INT NOT NULL DEFAULT 1,`defaultHostile` TINYINT NOT NULL DEFAULT 1,`baseExperience` INT NOT NULL DEFAULT 0,`updatedAt` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,PRIMARY KEY (`instance`)) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4", function (_) {

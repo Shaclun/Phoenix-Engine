@@ -1233,12 +1233,15 @@ phoenix.npc.AI <- {
 			}
 		}
 
+		local hasRoutine = false
+		try {
+			hasRoutine = ("routine" in entry.ai) && entry.ai.routine != null && entry.ai.routine.enabled == 1 && entry.ai.routine.nodes.len() > 0
+			if (hasRoutine && !("postCombatReturn" in entry.ai && entry.ai.postCombatReturn == true)) entry.ai.returning <- false
+			if (hasRoutine && phoenix.npc.Routines.tick(entry, now)) return
+		} catch (eR) {}
 		local wasReturning = ("returning" in entry.ai) && entry.ai.returning == true
 		if (phoenix.npc.AI._softReturn(entry, pos, now)) return
 		if (wasReturning) return
-		local hasRoutine = false
-		try { hasRoutine = phoenix.npc.Routines.tick(entry, now) } catch (eR) {}
-		if (hasRoutine) return
 		local isMonster = !phoenix.npc.AI._isHuman(row)
 		if (now >= entry.ai.nextWander) {
 			local radius = isMonster ? 1000 : 800

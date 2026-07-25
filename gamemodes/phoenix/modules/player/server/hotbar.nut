@@ -189,6 +189,7 @@ phoenix.player.Hotbar <- {
 		} else {
 			local useMsg = phoenix.item.Message.UseRequest()
 			useMsg.id = target.id
+			useMsg.source = "hotbar"
 			phoenix.item.Handlers.onUseRequest(playerId, useMsg)
 		}
 	}

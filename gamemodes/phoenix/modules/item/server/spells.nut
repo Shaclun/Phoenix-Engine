@@ -48,9 +48,8 @@ phoenix.item.Spells <- {
 			local previousManaMax = record.manaMax
 			try { phoenix.player.Progression.normalizeRecordStats(record) } catch (eN) {}
 			if (record.manaMax > previousManaMax) {
-				record.mana = record.manaMax
-				try { setPlayerMaxMana(playerId, record.manaMax) } catch (e) {}
-				try { setPlayerMana(playerId, record.manaMax) } catch (e) {}
+				phoenix.player.Resources.syncMaximums(playerId, record)
+				phoenix.player.Resources.set(playerId, record, "mana", phoenix.player.Resources.max(record, "mana", playerId), true)
 			}
 			try {
 				local sql2 = "UPDATE `phoenix_characters` SET `manaMax` = " + record.manaMax + ", `mana` = " + record.mana + " WHERE `id` = " + record.id

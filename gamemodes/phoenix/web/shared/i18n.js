@@ -3226,6 +3226,18 @@
 	dictionaries.ru["settings.other.orbitalCamera.enabled"] = "Включить орбитальную камеру";
 	dictionaries.ru["settings.other.orbitalCamera.hint"] = "Если отключено, используется стандартная камера игры.";
 
+	const craftingErrors = {
+		pl: { busy: "Trwa już inne wytwarzanie", tooFar: "Podejdź bliżej stanowiska", noOutputScheme: "Nieznana instancja dodatkowego produktu", badIngredient: "Nieprawidłowy składnik receptury", outputFailed: "Nie udało się wydać produktów — składniki zwrócono", rollbackFailed: "Nie udało się bezpiecznie wycofać craftingu — składniki nie zostały zwrócone" },
+		en: { busy: "Another crafting operation is already in progress", tooFar: "Move closer to the crafting station", noOutputScheme: "Unknown additional output instance", badIngredient: "Invalid recipe ingredient", outputFailed: "Failed to grant outputs — ingredients were restored", rollbackFailed: "Crafting could not be rolled back safely — ingredients were not restored" },
+		de: { busy: "Ein anderer Herstellungsvorgang läuft bereits", tooFar: "Gehe näher an die Werkbank", noOutputScheme: "Unbekannte zusätzliche Ausgabeinstanz", badIngredient: "Ungültige Rezeptzutat", outputFailed: "Produkte konnten nicht ausgegeben werden — Zutaten wurden zurückgegeben", rollbackFailed: "Herstellung konnte nicht sicher zurückgesetzt werden — Zutaten wurden nicht zurückgegeben" },
+		ru: { busy: "Уже выполняется другое создание предмета", tooFar: "Подойдите ближе к верстаку", noOutputScheme: "Неизвестный дополнительный предмет", badIngredient: "Некорректный ингредиент рецепта", outputFailed: "Не удалось выдать предметы — ингредиенты возвращены", rollbackFailed: "Не удалось безопасно отменить создание — ингредиенты не возвращены" }
+	};
+	Object.keys(craftingErrors).forEach(function (lang) {
+		Object.keys(craftingErrors[lang]).forEach(function (code) {
+			dictionaries[lang]["crafting.error." + code] = craftingErrors[lang][code];
+		});
+	});
+
 	const listeners = [];
 	let current = FALLBACK;
 	let loadedFromLocal = false;

@@ -241,10 +241,11 @@ phoenix.item.Structure.giveItem <- function(ownerType, ownerId, instanceId, opti
 	}
 
 	local opts = options != null ? options : {}
-	local amount  = ("amount"  in opts) ? opts.amount  : 1
+	local amount  = ("amount"  in opts) ? opts.amount.tointeger() : 1
 	local quality = ("quality" in opts) ? opts.quality : phoenix.item.Quality.roll()
 	local upgrade = ("upgrade" in opts) ? opts.upgrade : 0
 	local source  = ("source"  in opts) ? opts.source  : "system"
+	if (amount <= 0) { if (callback != null) callback(null); return }
 
 	if (!phoenix.item.Quality.isValid(quality)) quality = PhoenixItemQuality.Common
 	if (!phoenix.item.Upgrade.canUpgrade(scheme.category)) upgrade = 0
@@ -254,8 +255,10 @@ phoenix.item.Structure.giveItem <- function(ownerType, ownerId, instanceId, opti
 	local inv = phoenix.item.Structure.getInventory(ownerType, ownerId)
 
 	if (inv != null && scheme.isStackable()) {
+		local wantedInstance = instanceId.toupper()
 		foreach (existing in inv.items) {
-			if (existing.instanceId == instanceId &&
+			local existingInstance = existing.instanceId != null ? existing.instanceId.toupper() : ""
+			if (existingInstance == wantedInstance &&
 			    existing.quality == quality &&
 			    existing.upgrade == upgrade &&
 			    existing.equipped == 0) {
@@ -417,6 +420,8 @@ phoenix.item.Structure._packetEntry <- function(rec) {
 			}
 		}
 	} catch (eEff) {}
+	local effectJson = (effect != null) ? phoenix.web.Json.encode(effect) : "{}"
+	try { if (scheme != null && scheme.effects != null && scheme.effects.len() > 0) effectJson = phoenix.web.Json.encode(scheme.effects) } catch (eEffects) {}
 	local onUseKind = ""
 	try {
 		if (scheme != null && scheme.onUse != null) onUseKind = scheme.onUse.tostring()
@@ -436,9 +441,12 @@ phoenix.item.Structure._packetEntry <- function(rec) {
 		category    = (scheme != null) ? scheme.category    : 0,
 		value       = (scheme != null) ? scheme.value       : 0,
 		weight      = (scheme != null) ? scheme.weight      : 0,
-		visual      = (scheme != null && ("visual" in scheme)) ? scheme.visual : null,
+		visual      = (scheme != null && scheme.visual != null) ? scheme.visual.tostring() : "",
 		onUse       = (scheme != null && scheme.onUse != null),
 		onUseKind   = onUseKind,
+		effectJson  = effectJson,
+		labelsJson  = (scheme != null && scheme.labels != null) ? phoenix.web.Json.encode(scheme.labels) : "{}",
+		descriptionsJson = (scheme != null && scheme.descriptions != null) ? phoenix.web.Json.encode(scheme.descriptions) : "{}",
 		stats       = stats,
 		requirements = requirements,
 		effect      = effect

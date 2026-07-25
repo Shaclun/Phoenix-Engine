@@ -27,6 +27,8 @@ class phoenix.item.Scheme {
 
 	onUse        = null
 	effect       = null
+	effects      = null
+	content      = null
 
 	slot         = 0
 
@@ -48,6 +50,8 @@ class phoenix.item.Scheme {
 		flags       = 0
 		onUse       = null
 		effect      = null
+		effects     = []
+		content     = { pl = "", en = "", de = "", ru = "" }
 		slot        = PhoenixItemSlot.None
 
 		if (data != null) merge(data)

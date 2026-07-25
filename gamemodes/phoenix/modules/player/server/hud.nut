@@ -7,14 +7,10 @@ phoenix.player.Hud <- {
 		local record = phoenix.character.Structure.getActive(playerId)
 		if (record == null) return
 		phoenix.player.Progression.normalizeRecordStats(record)
-		local hp = 0
-		local hpMax = record.hpMax > 0 ? record.hpMax : 100
-		try { hp = getPlayerHealth(playerId) } catch (e) { hp = record.hp }
-		if (hp < 0) hp = 0
-		local mana = 0
-		local manaMax = record.manaMax
-		try { mana = getPlayerMana(playerId) } catch (e) { mana = record.mana }
-		if (mana < 0) mana = 0
+		local hpMax = phoenix.player.Resources.max(record, "hp", playerId)
+		local hp = phoenix.player.Resources.current(playerId, record, "hp")
+		local manaMax = phoenix.player.Resources.max(record, "mana", playerId)
+		local mana = phoenix.player.Resources.current(playerId, record, "mana")
 
 		local stamina = phoenix.player.Hud._getStamina(playerId, record)
 		local staminaMax = record.staminaMax > 0 ? record.staminaMax : 100
@@ -164,15 +160,11 @@ phoenix.player.Hud <- {
 				if (trustedMana) { try { mana = getPlayerMana(pid) } catch (em) {} }
 				if (trustedHp && hp > 0 && hp < hpMax) {
 					hp += hpRate * dt
-					if (hp > hpMax) hp = hpMax
-					try { setPlayerHealth(pid, hp.tointeger()) } catch (esh) {}
-					record.hp = hp.tointeger()
+					phoenix.player.Resources.set(pid, record, "hp", hp, true)
 				}
 				if (trustedMana && manaMax > 0 && mana >= 0 && mana < manaMax) {
 					mana += manaRate * dt
-					if (mana > manaMax) mana = manaMax
-					try { setPlayerMana(pid, mana.tointeger()) } catch (esm) {}
-					record.mana = mana.tointeger()
+					phoenix.player.Resources.set(pid, record, "mana", mana, true)
 				}
 			}
 			phoenix.player.Hud.pushSnapshot(pid)

@@ -13,11 +13,17 @@
 			? window.PhoenixI18n.tItem(instance, suffix, fallback) : (fallback || ""); }
 		catch (e) { return fallback || ""; }
 	}
+	function localized(values, fallback) {
+		if (!values || typeof values !== "object") return fallback || "";
+		var lang = "pl";
+		try { lang = window.PhoenixI18n.getLang() || "pl"; } catch (e) {}
+		return values[lang] || values.pl || values.en || fallback || "";
+	}
 	function itemName(item) {
-		return tItem(item.instance, "name", item.name || item.instance || "?");
+		return localized(item.labels, tItem(item.instance, "name", item.name || item.instance || "?"));
 	}
 	function itemDesc(item) {
-		return tItem(item.instance, "desc", item.description || "");
+		return localized(item.descriptions, tItem(item.instance, "desc", item.description || ""));
 	}
 
 	const QUALITY = [
@@ -79,6 +85,7 @@
 	let actionsNode = null;
 	let tooltipNode = null;
 	let tip_name, tip_quality, tip_desc, tip_stats, tip_hint;
+	let pendingDocument = null;
 
 	function buildLayout() {
 		root.innerHTML = "";
@@ -670,11 +677,21 @@
 			const sign = value > 0 ? "+" : "";
 			rows.push([attrLabel(attr), sign + value]);
 		};
-		if (eff.attribute && eff.value) pushAttr(eff.attribute, eff.value | 0);
-		["strength", "dexterity", "hpMax", "manaMax", "hp", "mana"].forEach(function (k) {
-			if (k in eff && (eff.attribute !== k)) pushAttr(k, eff[k] | 0);
-		});
-		if (eff.durationMs) rows.push([t("inv.effect.duration", "Czas"), Math.round((eff.durationMs | 0) / 1000) + "s"]);
+		if (Array.isArray(eff)) {
+			eff.forEach(function (entry) {
+				if (!entry) return;
+				var label = attrLabel(entry.target || "effect");
+				if (entry.kind === "regen") label += " / s";
+				pushAttr(label, +entry.amount || 0);
+				if (entry.durationMs) rows.push([t("inv.effect.duration", "Czas"), Math.round((+entry.durationMs || 0) / 1000) + "s"]);
+			});
+		} else {
+			if (eff.attribute && eff.value) pushAttr(eff.attribute, eff.value | 0);
+			["strength", "dexterity", "hpMax", "manaMax", "hp", "mana"].forEach(function (k) {
+				if (k in eff && (eff.attribute !== k)) pushAttr(k, eff[k] | 0);
+			});
+			if (eff.durationMs) rows.push([t("inv.effect.duration", "Czas"), Math.round((eff.durationMs | 0) / 1000) + "s"]);
+		}
 		if (!rows.length) return;
 		const header = document.createElement("div");
 		header.className = "invui-tooltip__section";
@@ -851,6 +868,36 @@
 		}
 	});
 
+	function showDocument(payload) {
+		var existing = document.querySelector(".invui-document");
+		if (existing) existing.remove();
+		var modal = document.createElement("div");
+		modal.className = "invui-document";
+		var panel = document.createElement("article");
+		panel.className = "invui-document__panel";
+		var title = document.createElement("h2");
+		title.textContent = localized(payload.titles, t("inv.document.title", "Dokument"));
+		var content = document.createElement("div");
+		content.className = "invui-document__content";
+		content.textContent = localized(payload.contents, "");
+		var close = document.createElement("button");
+		close.className = "invui-action";
+		close.textContent = t("inv.close", "Zamknij");
+		close.addEventListener("click", function () { modal.remove(); });
+		panel.appendChild(title); panel.appendChild(content); panel.appendChild(close); modal.appendChild(panel);
+		modal.addEventListener("click", function (event) { if (event.target === modal) modal.remove(); });
+		document.body.appendChild(modal);
+	}
+
+	PhoenixBridge.on("phoenix:item:document", function (payload) {
+		if (!payload) return;
+		if (!document.body.classList.contains("phoenix-inventory-open")) {
+			if (payload.source === "hotbar") pendingDocument = payload;
+			return;
+		}
+		showDocument(payload);
+	});
+
 	PhoenixBridge.on("phoenix:item:renderConfig", function (payload) {
 		if (!payload) return;
 		Object.keys(itemRenderConfig).forEach(function (k) { delete itemRenderConfig[k]; });
@@ -884,9 +931,16 @@
 			PhoenixBridge.send("phoenix:item:requestRefresh", {});
 			try { PhoenixBridge.send("phoenix:stats:request", null); } catch (e) {}
 			startMeshRetrySweeps();
+			if (pendingDocument) {
+				var documentPayload = pendingDocument;
+				pendingDocument = null;
+				showDocument(documentPayload);
+			}
 		},
 		onHide: function () {
 			document.body.classList.remove("phoenix-inventory-open");
+			document.querySelectorAll(".invui-document").forEach(function (node) { node.remove(); });
+			pendingDocument = null;
 			if (window.PhoenixHud && typeof window.PhoenixHud.setBlocked === "function") PhoenixHud.setBlocked(false);
 			stopMeshRetrySweeps();
 			meshQueue.reset();

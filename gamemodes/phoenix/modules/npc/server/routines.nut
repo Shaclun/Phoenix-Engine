@@ -242,8 +242,9 @@ phoenix.npc.Routines <- {
 		local out = []
 		if (raw == null) return out
 		foreach (n in raw) {
-			if (n == null) continue
+			if (n == null || out.len() >= 128) continue
 			local type = ("type" in n && n.type != null) ? n.type.tostring() : "waypoint"
+			if (type != "waypoint" && type != "wait") type = "waypoint"
 			local nx = 0.0; local ny = 0.0; local nz = 0.0
 			local angle = 0.0; local waitMs = 0
 			local animation = ""; local walkMode = "walk"; local label = ""
@@ -255,6 +256,11 @@ phoenix.npc.Routines <- {
 			try { if ("animation" in n && n.animation != null) animation = n.animation.tostring() } catch (e) {}
 			try { if ("walkMode" in n && n.walkMode != null) walkMode = n.walkMode.tostring() } catch (e) {}
 			try { if ("label" in n && n.label != null) label = n.label.tostring() } catch (e) {}
+			if (waitMs < 0) waitMs = 0
+			if (waitMs > 86400000) waitMs = 86400000
+			if (walkMode != "walk" && walkMode != "run" && walkMode != "sneak") walkMode = "walk"
+			if (animation.len() > 64) animation = animation.slice(0, 64)
+			if (label.len() > 128) label = label.slice(0, 128)
 			out.append({
 				type = type, x = nx, y = ny, z = nz, angle = angle,
 				waitMs = waitMs, animation = animation, walkMode = walkMode, label = label
@@ -407,7 +413,11 @@ phoenix.npc.Routines <- {
 		local idx = ("routineIndex" in entry.ai) ? entry.ai.routineIndex : 0
 		if (idx >= r.nodes.len()) {
 			if (r.loop == 1) { entry.ai.routineIndex = 0; idx = 0 }
-			else return false
+			else {
+				entry.ai.state = "routine-complete"
+				phoenix.npc.AI._ensureIdle(entry, true)
+				return true
+			}
 		}
 		local node = r.nodes[idx]
 		local pos = null

@@ -595,3 +595,24 @@
 		grid-template-columns: repeat(5, 1fr);
 	}
 }
+
+.invui-document {
+	position: fixed;
+	inset: 0;
+	z-index: 12000;
+	display: grid;
+	place-items: center;
+	background: rgba(0, 0, 0, 0.58);
+}
+.invui-document__panel {
+	width: min(680px, 78vw);
+	max-height: 76vh;
+	padding: 34px 42px 28px;
+	color: #2c2114;
+	background: linear-gradient(135deg, #e4d2aa, #cdb785);
+	clip-path: polygon(14px 0, 100% 0, 100% calc(100% - 14px), calc(100% - 14px) 100%, 0 100%, 0 14px);
+	box-shadow: 0 24px 70px rgba(0,0,0,.72), inset 0 0 40px rgba(83,52,19,.22);
+}
+.invui-document__panel h2 { margin: 0 0 18px; text-align: center; letter-spacing: .08em; }
+.invui-document__content { min-height: 180px; max-height: 50vh; overflow-y: auto; white-space: pre-wrap; line-height: 1.6; font-family: Georgia, serif; margin-bottom: 22px; }
+.invui-document__panel .invui-action { display: block; margin-left: auto; color: #2c2114; border-color: rgba(44,33,20,.45); }

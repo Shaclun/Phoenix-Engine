@@ -117,12 +117,9 @@ phoenix.player.Progression <- {
 		if (record.klass == 1) record.manaMax += 8
 		else record.manaMax += 2
 		record.learnPoints += 10
-		try { setPlayerMaxHealth(playerId, record.hpMax) } catch (e) {}
-		try { setPlayerHealth(playerId, record.hpMax) } catch (e) {}
-		try { setPlayerMaxMana(playerId, record.manaMax) } catch (e) {}
-		try { setPlayerMana(playerId, record.manaMax) } catch (e) {}
-		record.hp = record.hpMax
-		record.mana = record.manaMax
+		phoenix.player.Resources.syncMaximums(playerId, record)
+		phoenix.player.Resources.set(playerId, record, "hp", record.hpMax, true)
+		phoenix.player.Resources.set(playerId, record, "mana", record.manaMax, true)
 		record.stamina = record.staminaMax
 		try { phoenix.player.Combat.emitText(playerId, 0, "levelup") } catch (e) {}
 	}

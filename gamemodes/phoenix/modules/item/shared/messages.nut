@@ -8,6 +8,17 @@ phoenix.item.InstanceScheme <- {
 	upgrade      = phoenix.net.type.UInt8
 	durability   = phoenix.net.type.UInt16
 	equipped     = phoenix.net.type.Bool
+	visual       = phoenix.net.type.String
+	onUse       = phoenix.net.type.Bool
+	onUseKind   = phoenix.net.type.String
+	effectJson  = phoenix.net.type.String
+	labelsJson  = phoenix.net.type.String
+	descriptionsJson = phoenix.net.type.String
+	name         = phoenix.net.type.String
+	description  = phoenix.net.type.String
+	category     = phoenix.net.type.UInt8
+	value        = phoenix.net.type.Int32
+	weight       = phoenix.net.type.Float
 	slot         = phoenix.net.type.UInt8
 }
 
@@ -39,6 +50,7 @@ class phoenix.item.Message.UpgradeResult extends phoenix.net.Message {
 
 class phoenix.item.Message.UseRequest extends phoenix.net.Message {
 	</ type = phoenix.net.type.UInt32 /> id = 0
+	</ type = phoenix.net.type.String /> source = "inventory"
 }
 
 class phoenix.item.Message.EquipRequest extends phoenix.net.Message {
@@ -55,6 +67,12 @@ class phoenix.item.Message.DropRequest extends phoenix.net.Message {
 	</ type = phoenix.net.type.UInt32 /> amount = 1
 	</ type = phoenix.net.type.String /> name = ""
 	</ type = phoenix.net.type.String /> visual = ""
+}
+
+class phoenix.item.Message.DocumentOpen extends phoenix.net.Message {
+	</ type = phoenix.net.type.String /> titleJson = "{}"
+	</ type = phoenix.net.type.String /> contentJson = "{}"
+	</ type = phoenix.net.type.String /> source = "inventory"
 }
 
 class phoenix.item.Message.RenderConfig extends phoenix.net.Message {

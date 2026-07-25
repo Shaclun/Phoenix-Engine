@@ -25,27 +25,13 @@ phoenix.item.Handlers.onUseRequest <- function(playerId, message) {
 	local s = phoenix.item.Structure.schemeOf(rec)
 	if (s == null || s.onUse == null) return
 
-	local consume = true
-
-	if (s.onUse == "heal" && s.effect != null && "hp" in s.effect) {
-		local healMult = phoenix.item.Quality.getMultiplier(rec.quality)
-		local amount = (s.effect.hp * healMult).tointeger()
-		try { setPlayerHealth(playerId, getPlayerHealth(playerId) + amount) } catch (e) {}
-	}
-	else if (s.onUse == "mana" && s.effect != null && "mana" in s.effect) {
-		local manaMult = phoenix.item.Quality.getMultiplier(rec.quality)
-		local amount = (s.effect.mana * manaMult).tointeger()
-		try { setPlayerMana(playerId, getPlayerMana(playerId) + amount) } catch (e) {}
-	}
-	else if (s.onUse == "spell") {
+	if (s.onUse == "spell") {
 		phoenix.item.Spells.castFromInventory(playerId, active.id, rec, s)
-		consume = false
+		return
 	}
-	else {
-		consume = false
-	}
-
-	if (consume) phoenix.item.Structure.takeItem(PhoenixInventoryOwner.Player, active.id, rec.id, 1)
+	local source = "inventory"
+	try { if ("source" in message && message.source != null) source = message.source.tostring() } catch (e) {}
+	phoenix.item.Effects.use(playerId, active, rec, s, source)
 }
 
 phoenix.item.Handlers.onEquipRequest <- function(playerId, message) {

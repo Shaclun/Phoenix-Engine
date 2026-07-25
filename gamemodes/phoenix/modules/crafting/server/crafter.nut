@@ -1,6 +1,7 @@
 phoenix.crafting.Crafter <- {
 
 	activeByPlayer = {}
+	locks = {}
 
 	function playerInventoryString(playerId) {
 		local active = phoenix.character.Structure.getActive(playerId)
@@ -80,6 +81,38 @@ phoenix.crafting.Crafter <- {
 		return { visual = visual, label = label }
 	}
 
+	function _normalizeWorld(value) {
+		try { return phoenix.vob.Structure.normalizeWorld(value) } catch (e) {}
+		if (value == null || value == "") return "NEWWORLD"
+		local world = value.tostring()
+		local separator = -1
+		for (local i = world.len() - 1; i >= 0; i -= 1) {
+			local ch = world[i]
+			if (ch == '\\' || ch == '/') { separator = i; break }
+		}
+		if (separator >= 0) world = world.slice(separator + 1)
+		world = world.toupper()
+		local zenAt = world.find(".ZEN")
+		if (zenAt != null) world = world.slice(0, zenAt)
+		return world
+	}
+
+	function _stationValid(playerId, vobId) {
+		try {
+			local station = null
+			foreach (vid, entry in phoenix.vob.Structure.entries) if (vid == vobId) { station = entry; break }
+			if (station == null) return false
+			local playerWorld = getPlayerWorld(playerId)
+			if ("world" in station && station.world != null && station.world != "" && phoenix.crafting.Crafter._normalizeWorld(playerWorld) != phoenix.crafting.Crafter._normalizeWorld(station.world)) return false
+			if (!("x" in station) || !("y" in station) || !("z" in station)) return true
+			local pos = getPlayerPosition(playerId)
+			if (pos == null) return false
+			local dx = pos.x - station.x; local dy = pos.y - station.y; local dz = pos.z - station.z
+			return sqrt(dx * dx + dy * dy + dz * dz) <= 550.0
+		} catch (e) {}
+		return false
+	}
+
 	function open(playerId, vobId) {
 		if (vobId == null || vobId == "") return
 		local info = phoenix.crafting.Crafter._vobVisualAndLabel(vobId)
@@ -120,6 +153,10 @@ phoenix.crafting.Crafter <- {
 
 	function onCraftRequest(playerId, message) {
 		if (message == null) return
+		if (playerId in phoenix.crafting.Crafter.locks) {
+			phoenix.crafting.Crafter._reply(playerId, false, "busy", "", 0)
+			return
+		}
 		local vobId = message.vobId != null ? message.vobId.tostring() : ""
 		local recipeId = message.recipeId.tointeger()
 		if (vobId == "" || recipeId <= 0) {
@@ -129,6 +166,11 @@ phoenix.crafting.Crafter <- {
 		local active = (playerId in phoenix.crafting.Crafter.activeByPlayer) ? phoenix.crafting.Crafter.activeByPlayer[playerId] : null
 		if (active == null || active.vobId != vobId) {
 			phoenix.crafting.Crafter._reply(playerId, false, "notActive", "", 0)
+			return
+		}
+		if (!phoenix.crafting.Crafter._stationValid(playerId, vobId)) {
+			phoenix.crafting.Crafter.close(playerId)
+			phoenix.crafting.Crafter._reply(playerId, false, "tooFar", "", 0)
 			return
 		}
 		if (!phoenix.crafting.Structure.loaded) {
@@ -163,38 +205,84 @@ phoenix.crafting.Crafter <- {
 			phoenix.crafting.Crafter._reply(playerId, false, "noCharacter", "", 0)
 			return
 		}
-		foreach (ing in recipe.ingredients) {
-			local have = phoenix.item.Structure.countInstance(PhoenixInventoryOwner.Player, character.id, ing.instance)
-			if (ing.role == "tool") {
-				if (have < ing.amount) {
-					phoenix.crafting.Crafter._reply(playerId, false, "missingTool:" + ing.instance, "", 0)
-					return
-				}
-			} else {
-				if (have < ing.amount) {
-					phoenix.crafting.Crafter._reply(playerId, false, "missing:" + ing.instance, "", 0)
-					return
-				}
+		if (recipe.resultAmount <= 0) {
+			phoenix.crafting.Crafter._reply(playerId, false, "outputFailed", "", 0)
+			return
+		}
+		if (phoenix.item.find(recipe.resultInstance) == null) {
+			phoenix.crafting.Crafter._reply(playerId, false, "noResultScheme", recipe.resultInstance, 0)
+			return
+		}
+		local extras = ("outputs" in recipe) ? recipe.outputs : []
+		foreach (output in extras) {
+			if (output.amount <= 0 || phoenix.item.find(output.instance) == null) {
+				phoenix.crafting.Crafter._reply(playerId, false, "noOutputScheme:" + output.instance, "", 0)
+				return
 			}
 		}
-		local consumeQueue = []
+		local required = {}; local consume = {}
 		foreach (ing in recipe.ingredients) {
-			if (ing.role == "consume") consumeQueue.append({ instance = ing.instance, amount = ing.amount })
+			local instance = ing.instance != null ? ing.instance.tostring().toupper() : ""
+			if (instance == "" || ing.amount <= 0 || phoenix.item.find(instance) == null) {
+				phoenix.crafting.Crafter._reply(playerId, false, "badIngredient:" + instance, "", 0)
+				return
+			}
+			if (!(instance in required)) required[instance] <- 0
+			required[instance] += ing.amount
+			if (ing.role == "consume") {
+				if (!(instance in consume)) consume[instance] <- 0
+				consume[instance] += ing.amount
+			}
 		}
-		phoenix.crafting.Crafter._consumeAll(character.id, playerId, consumeQueue, function (okAll) {
+		foreach (instance, amount in required) {
+			local have = phoenix.item.Structure.countInstance(PhoenixInventoryOwner.Player, character.id, instance)
+			if (have < amount) {
+				phoenix.crafting.Crafter._reply(playerId, false, "missing:" + instance, "", 0)
+				return
+			}
+		}
+		local consumeQueue = phoenix.crafting.Crafter._buildConsumePlan(character.id, consume)
+		if (consumeQueue == null) {
+			phoenix.crafting.Crafter._reply(playerId, false, "consumeFailed", "", 0)
+			return
+		}
+		phoenix.crafting.Crafter.locks[playerId] <- true
+		phoenix.crafting.Crafter._consumeAll(character.id, playerId, consumeQueue, function (okAll, consumeRollbackOk) {
 			if (!okAll) {
-				phoenix.crafting.Crafter._reply(playerId, false, "consumeFailed", "", 0)
+				if (playerId in phoenix.crafting.Crafter.locks) phoenix.crafting.Crafter.locks.rawdelete(playerId)
+				phoenix.crafting.Crafter._reply(playerId, false, consumeRollbackOk == false ? "rollbackFailed" : "consumeFailed", "", 0)
 				return
 			}
 			phoenix.item.Structure.giveItem(PhoenixInventoryOwner.Player, character.id, recipe.resultInstance, {
 				amount = recipe.resultAmount, quality = PhoenixItemQuality.Common, upgrade = 0, source = "craft"
 			}, function (rec) {
 				if (rec == null) {
-					phoenix.crafting.Crafter._reply(playerId, false, "noResultScheme", recipe.resultInstance, 0)
+					phoenix.crafting.Crafter._restoreConsumed(character.id, consumeQueue, function(restored) {
+						if (playerId in phoenix.crafting.Crafter.locks) phoenix.crafting.Crafter.locks.rawdelete(playerId)
+						try { phoenix.item.Structure.sendInventorySnapshot(playerId, character.id) } catch (eSn) {}
+						phoenix.crafting.Crafter._reply(playerId, false, restored ? "noResultScheme" : "rollbackFailed", recipe.resultInstance, 0)
+					})
 					return
 				}
-				local extras = ("outputs" in recipe) ? recipe.outputs : []
-				phoenix.crafting.Crafter._giveExtras(character.id, extras, function () {
+				local granted = [{ itemId = rec.id, amount = recipe.resultAmount }]
+				phoenix.crafting.Crafter._giveExtras(character.id, extras, granted, function (extrasOk, allGranted) {
+					if (!extrasOk) {
+						phoenix.crafting.Crafter._rollbackGranted(character.id, allGranted, function(outputsRolledBack) {
+							if (!outputsRolledBack) {
+								if (playerId in phoenix.crafting.Crafter.locks) phoenix.crafting.Crafter.locks.rawdelete(playerId)
+								try { phoenix.item.Structure.sendInventorySnapshot(playerId, character.id) } catch (eSn) {}
+								phoenix.crafting.Crafter._reply(playerId, false, "rollbackFailed", "", 0)
+								return
+							}
+							phoenix.crafting.Crafter._restoreConsumed(character.id, consumeQueue, function(restored) {
+								if (playerId in phoenix.crafting.Crafter.locks) phoenix.crafting.Crafter.locks.rawdelete(playerId)
+								try { phoenix.item.Structure.sendInventorySnapshot(playerId, character.id) } catch (eSn) {}
+								phoenix.crafting.Crafter._reply(playerId, false, restored ? "outputFailed" : "rollbackFailed", "", 0)
+							})
+						})
+						return
+					}
+					if (playerId in phoenix.crafting.Crafter.locks) phoenix.crafting.Crafter.locks.rawdelete(playerId)
 					try {
 						phoenix.item.Structure.sendInventorySnapshot(playerId, character.id)
 					} catch (eSn) {}
@@ -209,29 +297,73 @@ phoenix.crafting.Crafter <- {
 		})
 	}
 
-	function _giveExtras(characterId, extras, callback) {
-		if (extras == null || extras.len() == 0) { if (callback != null) callback(); return }
+	function _giveExtras(characterId, extras, granted, callback) {
+		if (granted == null) granted = []
+		if (extras == null || extras.len() == 0) { if (callback != null) callback(true, granted); return }
 		local first = extras[0]
 		local rest = extras.slice(1)
 		phoenix.item.Structure.giveItem(PhoenixInventoryOwner.Player, characterId, first.instance, {
 			amount = first.amount, quality = PhoenixItemQuality.Common, upgrade = 0, source = "craft"
-		}, function (_) {
-			phoenix.crafting.Crafter._giveExtras(characterId, rest, callback)
+		}, function (record) {
+			if (record == null) { if (callback != null) callback(false, granted); return }
+			granted.append({ itemId = record.id, amount = first.amount })
+			phoenix.crafting.Crafter._giveExtras(characterId, rest, granted, callback)
 		})
 	}
 
-	function _consumeAll(characterId, playerId, queue, callback) {
-		if (queue.len() == 0) { if (callback != null) callback(true); return }
+	function _buildConsumePlan(characterId, consume) {
+		local inventory = phoenix.item.Structure.getInventory(PhoenixInventoryOwner.Player, characterId)
+		if (inventory == null) return null
+		local queue = []
+		foreach (instance, amount in consume) {
+			local remaining = amount
+			foreach (record in inventory.items) {
+				if (remaining <= 0) break
+				local recordInstance = record.instanceId != null ? record.instanceId.toupper() : ""
+				if (recordInstance != instance || record.equipped != 0) continue
+				local take = remaining < record.amount ? remaining : record.amount
+				queue.append({ itemId = record.id, instance = recordInstance, amount = take, quality = record.quality, upgrade = record.upgrade })
+				remaining -= take
+			}
+			if (remaining > 0) return null
+		}
+		return queue
+	}
+
+	function _rollbackGranted(characterId, granted, callback, success = true) {
+		if (granted == null || granted.len() == 0) { if (callback != null) callback(success); return }
+		local lastIndex = granted.len() - 1
+		local issued = granted[lastIndex]
+		local rest = granted.slice(0, lastIndex)
+		phoenix.item.Structure.takeItem(PhoenixInventoryOwner.Player, characterId, issued.itemId, issued.amount, function(ok) {
+			phoenix.crafting.Crafter._rollbackGranted(characterId, rest, callback, success && ok)
+		})
+	}
+
+	function _restoreConsumed(characterId, queue, callback, success = true) {
+		if (queue == null || queue.len() == 0) { if (callback != null) callback(success); return }
 		local first = queue[0]
 		local rest = queue.slice(1)
-		local instUp = first.instance != null ? first.instance.tostring().toupper() : ""
-		local have = phoenix.item.Structure.countInstance(PhoenixInventoryOwner.Player, characterId, instUp)
-		phoenix.item.Structure.takeInstance(PhoenixInventoryOwner.Player, characterId, instUp, first.amount, function (ok) {
-			print("[craft] takeInstance ok=" + (ok ? 1 : 0) + "\n")
-			if (!ok) { if (callback != null) callback(false); return }
-			try { ::removeItem(playerId, instUp, first.amount) } catch (e) {}
+		phoenix.item.Structure.giveItem(PhoenixInventoryOwner.Player, characterId, first.instance, {
+			amount = first.amount, quality = first.quality, upgrade = first.upgrade, source = "craft-rollback"
+		}, function(record) {
+			phoenix.crafting.Crafter._restoreConsumed(characterId, rest, callback, success && record != null)
+		})
+	}
+
+	function _consumeAll(characterId, playerId, queue, callback, consumed = null) {
+		if (consumed == null) consumed = []
+		if (queue.len() == 0) { if (callback != null) callback(true, true); return }
+		local first = queue[0]
+		local rest = queue.slice(1)
+		phoenix.item.Structure.takeItem(PhoenixInventoryOwner.Player, characterId, first.itemId, first.amount, function (ok) {
+			if (!ok) {
+				phoenix.crafting.Crafter._restoreConsumed(characterId, consumed, function(restored) { if (callback != null) callback(false, restored) })
+				return
+			}
+			consumed.append(first)
 			try { phoenix.item.Structure.sendInventorySnapshot(playerId, characterId) } catch (eSn) {}
-			phoenix.crafting.Crafter._consumeAll(characterId, playerId, rest, callback)
+			phoenix.crafting.Crafter._consumeAll(characterId, playerId, rest, callback, consumed)
 		})
 	}
 
@@ -249,3 +381,8 @@ phoenix.crafting.Crafter <- {
 phoenix.crafting.Message.RequestOpen.bind(phoenix.crafting.Crafter.onRequestOpen)
 phoenix.crafting.Message.Close.bind(phoenix.crafting.Crafter.onClose)
 phoenix.crafting.Message.Craft.bind(phoenix.crafting.Crafter.onCraftRequest)
+
+addEventHandler("onPlayerDisconnect", function(playerId, _reason) {
+	if (playerId in phoenix.crafting.Crafter.locks) phoenix.crafting.Crafter.locks.rawdelete(playerId)
+	phoenix.crafting.Crafter.close(playerId)
+})

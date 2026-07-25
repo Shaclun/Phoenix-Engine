@@ -453,9 +453,13 @@ phoenix.player.Gate <- {
 		local recordManaMax = record.manaMax
 		local runtimeHpMax = 0
 		local runtimeManaMax = 0
+		local hasTemporaryHpMax = false
+		local hasTemporaryManaMax = false
+		try { hasTemporaryHpMax = phoenix.item.Effects.hasModifier(playerId, "hpMax") } catch (eBuffHp) {}
+		try { hasTemporaryManaMax = phoenix.item.Effects.hasModifier(playerId, "manaMax") } catch (eBuffMana) {}
 		if (!recentlyApplied) {
-			try { runtimeHpMax = getPlayerMaxHealth(playerId) } catch (eMax) { runtimeHpMax = 0 }
-			try { runtimeManaMax = getPlayerMaxMana(playerId) } catch (eManaMax) { runtimeManaMax = 0 }
+			try { if (!hasTemporaryHpMax) runtimeHpMax = getPlayerMaxHealth(playerId) } catch (eMax) { runtimeHpMax = 0 }
+			try { if (!hasTemporaryManaMax) runtimeManaMax = getPlayerMaxMana(playerId) } catch (eManaMax) { runtimeManaMax = 0 }
 		}
 		try { phoenix.character.Structure.bumpPlayTime(playerId, record) } catch (e0) {}
 		try {
@@ -486,8 +490,11 @@ phoenix.player.Gate <- {
 			if (runtimeManaMax > 0 && runtimeManaMax > record.manaMax) record.manaMax = runtimeManaMax
 		}
 		phoenix.player.Progression.normalizeRecordStats(record)
-		try { record.strength = getPlayerStrength(playerId) } catch (e) {}
-		try { record.dexterity = getPlayerDexterity(playerId) } catch (e) {}
+		local hasStrengthBuff = false; local hasDexterityBuff = false
+		try { hasStrengthBuff = phoenix.item.Effects.hasModifier(playerId, "strength") } catch (eBuffStr) {}
+		try { hasDexterityBuff = phoenix.item.Effects.hasModifier(playerId, "dexterity") } catch (eBuffDex) {}
+		if (!hasStrengthBuff) { try { record.strength = getPlayerStrength(playerId) } catch (e) {} }
+		if (!hasDexterityBuff) { try { record.dexterity = getPlayerDexterity(playerId) } catch (e) {} }
 		try {
 			if (playerId in phoenix.player.WeaponProgression.byPlayer) {
 				local wp = phoenix.player.WeaponProgression.byPlayer[playerId]

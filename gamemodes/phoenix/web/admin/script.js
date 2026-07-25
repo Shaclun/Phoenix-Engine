@@ -419,8 +419,13 @@
     function defaultCustom() {
         return {
             instance: "PHX_CUSTOM_",
-            name: "",
-            description: "",
+            name: "", description: "",
+            labelPl: "", labelEn: "", labelDe: "", labelRu: "",
+            descriptionPl: "", descriptionEn: "", descriptionDe: "", descriptionRu: "",
+            contentPl: "", contentEn: "", contentDe: "", contentRu: "",
+            onUse: "", instantHp: 0, instantMana: 0, regenHp: 0, regenMana: 0,
+            durationSec: 0, buffStrength: 0, buffDexterity: 0, buffHpMax: 0, buffManaMax: 0,
+            stackPolicy: "refresh",
             visual: "",
             category: 19,
             slot: 0,
@@ -1736,6 +1741,14 @@
         html += field(t("admin.players.world"), short(p.world, 18));
         html += field("Pos", Math.round(p.posX) + " " + Math.round(p.posY) + " " + Math.round(p.posZ));
         html += "</div>";
+
+        if (p.characterId) {
+            html += '<div class="adm-player-card__col adm-player-stats" data-player-stats="' + p.playerId + '"><h4>' + escapeHtml(t("admin.players.stats")) + '</h4>';
+            [["level",p.level],["experience",p.experience],["learnPoints",p.learnPoints],["hp",p.hp],["hpMax",p.hpMax],["mana",p.mana],["manaMax",p.manaMax],["stamina",p.stamina],["staminaMax",p.staminaMax],["strength",p.strength],["dexterity",p.dexterity],["oneHand",p.oneHand],["twoHand",p.twoHand],["bow",p.bow],["crossbow",p.crossbow],["magicLevel",p.magicLevel],["magicXp",p.magicXp]].forEach(function (row) {
+                html += '<label class="adm-player-card__field"><span>' + escapeHtml(t("admin.stat." + row[0], row[0])) + '</span><input type="number" data-pstat="' + row[0] + '" value="' + (+row[1] || 0) + '"></label>';
+            });
+            html += '<button class="adm-btn adm-btn--primary" data-action="save-player-stats" data-pid="' + p.playerId + '">' + escapeHtml(t("admin.players.saveStats")) + '</button></div>';
+        }
         html += "</div>";
         return html;
     }
@@ -1951,10 +1964,28 @@
         var html = '<div class="adm-section"><h3>' + escapeHtml(t("admin.custom.title")) + '</h3>';
         html += '<p style="color:#8a7c5a;font-size:11px;margin-bottom:10px">' + escapeHtml(t("admin.custom.description")) + '</p>';
         html += '<div class="adm-form">';
-        html += '<label>' + escapeHtml(t("admin.custom.field.instance")) + '</label><input type="text" data-cbind="instance" value="' + escapeHtml(c.instance) + '" placeholder="PHX_CUSTOM_SWORD_01" maxlength="64">';
-        html += '<label>' + escapeHtml(t("admin.custom.field.name")) + '</label><input type="text" data-cbind="name" value="' + escapeHtml(c.name) + '" placeholder="' + escapeHtml(t("admin.custom.placeholder.name")) + '">';
-        html += '<label>' + escapeHtml(t("admin.custom.field.description")) + '</label><textarea data-cbind="description" placeholder="' + escapeHtml(t("admin.custom.placeholder.description")) + '">' + escapeHtml(c.description) + "</textarea>";
-        html += '<label>Visual (.MRM/.MMB)</label><input type="text" data-cbind="visual" value="' + escapeHtml(c.visual) + '" placeholder="ITMW_035_1H_SWORD_04.MRM">';
+        html += '<label>' + escapeHtml(t("admin.custom.field.instance")) + '</label><input type="text" data-cbind="instance" value="' + escapeHtml(c.instance) + '" placeholder="PHX_CUSTOM_POTION_01" maxlength="64">';
+        ["Pl", "En", "De", "Ru"].forEach(function (suffix) {
+            html += '<label>' + escapeHtml(t("admin.custom.field.name")) + ' ' + suffix.toUpperCase() + '</label><input type="text" data-cbind="label' + suffix + '" value="' + escapeHtml(c["label" + suffix]) + '">';
+            html += '<label>' + escapeHtml(t("admin.custom.field.description")) + ' ' + suffix.toUpperCase() + '</label><textarea data-cbind="description' + suffix + '">' + escapeHtml(c["description" + suffix]) + '</textarea>';
+        });
+        html += '<label>' + escapeHtml(t("admin.custom.field.useType")) + '</label><select data-cbind="onUse"><option value="">' + escapeHtml(t("admin.custom.type.equipment")) + '</option><option value="consumable"' + (c.onUse === "consumable" ? " selected" : "") + '>' + escapeHtml(t("admin.custom.type.consumable")) + '</option><option value="document"' + (c.onUse === "document" ? " selected" : "") + '>' + escapeHtml(t("admin.custom.type.document")) + '</option></select>';
+        if (c.onUse === "document") {
+            ["Pl", "En", "De", "Ru"].forEach(function (suffix) { html += '<label>' + escapeHtml(t("admin.custom.field.content")) + ' ' + suffix.toUpperCase() + '</label><textarea data-cbind="content' + suffix + '" rows="5">' + escapeHtml(c["content" + suffix]) + '</textarea>'; });
+        }
+        if (c.onUse === "consumable") {
+            html += '<label>' + escapeHtml(t("admin.custom.effect.instantHp")) + '</label><input type="number" data-cbind="instantHp" value="' + c.instantHp + '">';
+            html += '<label>' + escapeHtml(t("admin.custom.effect.instantMana")) + '</label><input type="number" data-cbind="instantMana" value="' + c.instantMana + '">';
+            html += '<label>' + escapeHtml(t("admin.custom.effect.regenHp")) + '</label><input type="number" data-cbind="regenHp" value="' + c.regenHp + '" step="0.1">';
+            html += '<label>' + escapeHtml(t("admin.custom.effect.regenMana")) + '</label><input type="number" data-cbind="regenMana" value="' + c.regenMana + '" step="0.1">';
+            html += '<label>' + escapeHtml(t("admin.custom.effect.duration")) + '</label><input type="number" data-cbind="durationSec" value="' + c.durationSec + '" min="0" max="86400">';
+            html += '<label>' + escapeHtml(t("admin.custom.effect.strength")) + '</label><input type="number" data-cbind="buffStrength" value="' + c.buffStrength + '">';
+            html += '<label>' + escapeHtml(t("admin.custom.effect.dexterity")) + '</label><input type="number" data-cbind="buffDexterity" value="' + c.buffDexterity + '">';
+            html += '<label>' + escapeHtml(t("admin.custom.effect.hpMax")) + '</label><input type="number" data-cbind="buffHpMax" value="' + c.buffHpMax + '">';
+            html += '<label>' + escapeHtml(t("admin.custom.effect.manaMax")) + '</label><input type="number" data-cbind="buffManaMax" value="' + c.buffManaMax + '">';
+            html += '<label>' + escapeHtml(t("admin.custom.effect.stack")) + '</label><select data-cbind="stackPolicy"><option value="refresh">refresh</option><option value="replace"' + (c.stackPolicy === "replace" ? " selected" : "") + '>replace</option></select>';
+        }
+        html += '<label>Visual (.MRM/.MMB)</label><input type="text" data-cbind="visual" value="' + escapeHtml(c.visual) + '">';
         html += '<label>' + escapeHtml(t("admin.npc.col.category")) + '</label>' + categorySelect("category", c.category);
         html += '<label>Slot</label>' + slotSelect("slot", c.slot);
         html += '<label>' + escapeHtml(t("admin.custom.field.value")) + '</label><input type="number" data-cbind="value" value="' + c.value + '" min="0">';
@@ -1962,16 +1993,9 @@
         html += '<label>' + escapeHtml(t("admin.custom.field.stackMax")) + '</label><input type="number" data-cbind="stackMax" value="' + c.stackMax + '" min="1">';
         html += '<label>' + escapeHtml(t("inv.stat.damage")) + '</label><input type="number" data-cbind="damage" value="' + c.damage + '" min="0">';
         html += '<label>' + escapeHtml(t("admin.custom.field.damageType")) + '</label>' + damageTypeSelect("damageType", c.damageType);
-        html += '<label>' + escapeHtml(t("inv.stat.prot.edge")) + '</label><input type="number" data-cbind="protEdge" value="' + c.protEdge + '" min="0">';
-        html += '<label>' + escapeHtml(t("inv.stat.prot.blunt")) + '</label><input type="number" data-cbind="protBlunt" value="' + c.protBlunt + '" min="0">';
-        html += '<label>' + escapeHtml(t("inv.stat.prot.point")) + '</label><input type="number" data-cbind="protPoint" value="' + c.protPoint + '" min="0">';
-        html += '<label>' + escapeHtml(t("inv.stat.prot.fire")) + '</label><input type="number" data-cbind="protFire" value="' + c.protFire + '" min="0">';
-        html += '<label>' + escapeHtml(t("inv.stat.prot.magic")) + '</label><input type="number" data-cbind="protMagic" value="' + c.protMagic + '" min="0">';
-        html += '<div class="adm-form__row">';
-        html += '<button class="adm-btn" data-action="custom-reset">' + escapeHtml(t("admin.common.reset")) + '</button>';
-        html += '<button class="adm-btn adm-btn--primary" data-action="custom-save">' + escapeHtml(t("admin.custom.btn.save")) + '</button>';
-        html += "</div></div></div>";
-        return html;
+        ["Edge", "Blunt", "Point", "Fire", "Magic"].forEach(function (suffix) { html += '<label>' + escapeHtml(t("inv.stat.prot." + suffix.toLowerCase())) + '</label><input type="number" data-cbind="prot' + suffix + '" value="' + c["prot" + suffix] + '" min="0">'; });
+        html += '<div class="adm-form__row"><button class="adm-btn" data-action="custom-reset">' + escapeHtml(t("admin.common.reset")) + '</button><button class="adm-btn adm-btn--primary" data-action="custom-save">' + escapeHtml(t("admin.custom.btn.save")) + '</button></div>';
+        return html + '</div></div>';
     }
 
     function categorySelect(bind, current) {
@@ -3120,6 +3144,7 @@
             el.addEventListener("input", function () {
                 var k = el.dataset.cbind;
                 state.custom[k] = el.type === "number" ? +el.value : el.value;
+                if (k === "onUse") render(true);
             });
         });
         body.querySelectorAll("[data-spawn-ghost]").forEach(function (el) {
@@ -3571,6 +3596,14 @@
             return render();
         }
         if (a === "refresh-players") return send("players");
+        if (a === "save-player-stats") {
+            var statsRoot = body.querySelector('[data-player-stats="' + (+el.dataset.pid) + '"]');
+            if (!statsRoot) return;
+            var statsPayload = {};
+            statsRoot.querySelectorAll("[data-pstat]").forEach(function (input) { statsPayload[input.dataset.pstat] = Math.trunc(+input.value || 0); });
+            send("setPlayerStats", { playerId: +el.dataset.pid, stats: statsPayload });
+            return setStatus(t("admin.players.savingStats"), "");
+        }
         if (a === "spawn-test-player-npc") { send("spawnTestPlayerNpc", {}); return setStatus(t("admin.debug.playerNpc.status"), ""); }
         if (a === "refresh-bans") return send("bans");
         if (a === "refresh-log") return send("log", { limit: 100 });
@@ -4311,8 +4344,19 @@
         if (a === "custom-save") {
             var c = state.custom;
             if (!c.instance || c.instance.length < 3) return setStatus(t("admin.status.instanceTooShort"), "error");
+            var durationMs = Math.max(0, +c.durationSec || 0) * 1000;
+            var effects = [];
+            function addEffect(kind, target, amount, duration) { amount = +amount || 0; if (amount) effects.push({ kind: kind, target: target, amount: amount, durationMs: duration || 0, intervalMs: 1000, stacking: c.stackPolicy || "refresh" }); }
+            addEffect("instant", "hp", c.instantHp, 0); addEffect("instant", "mana", c.instantMana, 0);
+            addEffect("regen", "hp", c.regenHp, durationMs); addEffect("regen", "mana", c.regenMana, durationMs);
+            addEffect("buff", "strength", c.buffStrength, durationMs); addEffect("buff", "dexterity", c.buffDexterity, durationMs);
+            addEffect("buff", "hpMax", c.buffHpMax, durationMs); addEffect("buff", "manaMax", c.buffManaMax, durationMs);
+            var labels = { pl: c.labelPl || c.name || c.instance, en: c.labelEn || "", de: c.labelDe || "", ru: c.labelRu || "" };
+            var descriptions = { pl: c.descriptionPl || c.description || "", en: c.descriptionEn || "", de: c.descriptionDe || "", ru: c.descriptionRu || "" };
             send("saveCustom", {
-                instance: c.instance, name: c.name, description: c.description, visual: c.visual,
+                instance: c.instance, name: labels.pl, description: descriptions.pl, labels: labels, descriptions: descriptions,
+                content: { pl: c.contentPl || "", en: c.contentEn || "", de: c.contentDe || "", ru: c.contentRu || "" },
+                onUse: c.onUse || "", effects: effects, visual: c.visual,
                 category: +c.category, slot: +c.slot, value: +c.value, weight: +c.weight,
                 stackMax: +c.stackMax || 1, damage: +c.damage, damageType: +c.damageType,
                 protection: { edge: +c.protEdge, blunt: +c.protBlunt, point: +c.protPoint, fire: +c.protFire, magic: +c.protMagic },
@@ -4525,6 +4569,7 @@
             return render(true);
         }
         if (p.action === "players" && p.success) { state.players = pl.players || []; return render(); }
+        if (p.action === "setPlayerStats" && p.success) { send("players"); return setStatus(t("admin.players.statsSaved"), "ok"); }
         if (p.action === "schemes" && p.success) {
             var chunkCount = pl.chunkCount || 1;
             var chunkIndex = pl.chunkIndex || 0;

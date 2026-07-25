@@ -28,7 +28,8 @@ phoenix.database.Migrations <- {
 		"25-magic-progression.sql",
 		"26-advanced-quests.sql",
 		"27-hud-portrait-default.sql",
-		"28-hud-portrait-scale.sql"
+		"28-hud-portrait-scale.sql",
+		"29-custom-consumables-effects.sql"
 	]
 
 	function readStatements(path) {
