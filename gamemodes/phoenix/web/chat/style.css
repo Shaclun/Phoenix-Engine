@@ -355,3 +355,18 @@ body.phoenix-escmenu-open .phoenix-escmenu { display: flex; flex-direction: colu
 	background: rgba(255,50,50,0.1);
 	border-color: rgba(255,50,50,0.5);
 }
+
+.phoenix-chat__tab[data-channel="3"] { color: #c8cbd6; }
+.phoenix-chat__tab[data-channel="3"].is-active { color: #f0f2f8; text-shadow: 0 0 8px rgba(205,210,225,0.42); }
+.phoenix-chat__prefix--ooc, .phoenix-chat__tag--ooc, .phoenix-chat__name--ooc { color: #c8cbd6 !important; }
+.phoenix-chat__msg--ooc { color: #d8dae2; }
+.phoenix-chat__msg--me, .phoenix-chat__msg--ame { color: #d7a7ff; font-style: italic; }
+.phoenix-chat__msg--do { color: #8ddddd; font-style: italic; }
+.phoenix-chat__msg--try { color: #c9d8bc; font-weight: 600; }
+.phoenix-chat__msg--try.is-success { color: #9ee58e; }
+.phoenix-chat__msg--try.is-failure { color: #ef8d82; }
+.phoenix-chat__msg--todo { color: #ffc47f; }
+.phoenix-chat__tag--me, .phoenix-chat__tag--ame { background: rgba(195,120,255,0.16); border-color: rgba(195,120,255,0.38); color: #d7a7ff; }
+.phoenix-chat__tag--do { background: rgba(100,210,210,0.15); border-color: rgba(100,210,210,0.4); color: #8ddddd; }
+.phoenix-chat__tag--try { background: rgba(140,210,120,0.15); border-color: rgba(140,210,120,0.38); color: #b9e6ad; }
+.phoenix-chat__tag--todo { background: rgba(255,170,75,0.15); border-color: rgba(255,170,75,0.4); color: #ffc47f; }

@@ -1,9 +1,15 @@
 
 (function (global) {
 	const CHANNELS = [
-		{ id: 0, key: "local",  short: "L", labelKey: "chat.tab.local",  defaultLabel: "LOKALNY"  },
-		{ id: 1, key: "global", short: "G", labelKey: "chat.tab.global", defaultLabel: "GLOBALNY" },
-		{ id: 2, key: "admin",  short: "A", labelKey: "chat.tab.admin",  defaultLabel: "ADMIN",   adminOnly: true }
+		{ id: 0, key: "local", short: "L", labelKey: "chat.tab.local", defaultLabel: "LOKALNY", tab: true },
+		{ id: 1, key: "global", short: "G", labelKey: "chat.tab.global", defaultLabel: "GLOBALNY", tab: true },
+		{ id: 2, key: "admin", short: "A", labelKey: "chat.tab.admin", defaultLabel: "ADMIN", adminOnly: true, tab: true },
+		{ id: 3, key: "ooc", short: "OOC", labelKey: "chat.tab.ooc", defaultLabel: "OOC", rpOnly: true, tab: true },
+		{ id: 4, key: "me", short: "ME", defaultLabel: "ME", tab: false },
+		{ id: 5, key: "do", short: "DO", defaultLabel: "DO", tab: false },
+		{ id: 6, key: "try", short: "TRY", defaultLabel: "TRY", tab: false },
+		{ id: 7, key: "todo", short: "TODO", defaultLabel: "TODO", tab: false },
+		{ id: 8, key: "ame", short: "AME", defaultLabel: "AME", tab: false }
 	];
 	const HISTORY_MAX = 200;
 	const MAX_LEN = 240;
@@ -15,17 +21,38 @@
 	let escMenuOpen = false;
 	let isAdmin = false;
 	let vanished = false;
-	let unread = [0, 0, 0];
+	let featureFlags = {};
+	const featureDefaults = { "chat.local": true, "chat.global": true, "chat.ooc": false, "chat.rpActions": false, "social.directMessages": true };
+	let unread = [0, 0, 0, 0, 0, 0, 0, 0, 0];
+
+	function featureEnabled(path) {
+		const parts = path.split(".");
+		let value = featureFlags;
+		for (let i = 0; i < parts.length; i += 1) {
+			if (!value || typeof value !== "object" || !Object.prototype.hasOwnProperty.call(value, parts[i])) return featureDefaults[path] !== false;
+			value = value[parts[i]];
+		}
+		return value !== false;
+	}
+	function channelFeatureEnabled(ch) {
+		if (!ch) return false;
+		if (ch.dm) return featureEnabled("social.directMessages");
+		if (ch.id === 0) return featureEnabled("chat.local");
+		if (ch.id === 1) return featureEnabled("chat.global");
+		if (ch.id === 3) return featureEnabled("chat.ooc");
+		if (ch.id >= 4 && ch.id <= 8) return featureEnabled("chat.rpActions");
+		return true;
+	}
 	let dmTabs = {};
 	let history = [];
 	let historyIdx = -1;
 
 	function ensureI18n() {
 		const labels = {
-			pl: { local: "LOKALNY", global: "GLOBALNY", admin: "ADMIN",    hint: "ENTER wyślij • TAB zmień kanał • ESC anuluj • /g globalny • /a admin" },
-			en: { local: "LOCAL",   global: "GLOBAL",   admin: "ADMIN",    hint: "ENTER send • TAB switch channel • ESC cancel • /g global • /a admin" },
-			de: { local: "LOKAL",   global: "GLOBAL",   admin: "ADMIN",    hint: "ENTER senden • TAB Kanal • ESC abbrechen • /g global • /a admin" },
-			ru: { local: "ЛОКАЛЬН", global: "ГЛОБАЛЬН", admin: "АДМИН", hint: "ENTER отправить • TAB канал • ESC отмена • /g глобальный • /a админ" }
+			pl: { local: "LOKALNY", ic: "IC", global: "GLOBALNY", admin: "ADMIN", ooc: "OOC", hint: "ENTER wyślij • TAB kanał • ESC anuluj • /b OOC • /me /do /try /todo /ame" },
+			en: { local: "LOCAL", ic: "IC", global: "GLOBAL", admin: "ADMIN", ooc: "OOC", hint: "ENTER send • TAB channel • ESC cancel • /b OOC • /me /do /try /todo /ame" },
+			de: { local: "LOKAL", ic: "IC", global: "GLOBAL", admin: "ADMIN", ooc: "OOC", hint: "ENTER senden • TAB Kanal • ESC abbrechen • /b OOC • /me /do /try /todo /ame" },
+			ru: { local: "ЛОКАЛЬН", ic: "IC", global: "ГЛОБАЛЬН", admin: "АДМИН", ooc: "OOC", hint: "ENTER отправить • TAB канал • ESC отмена • /b OOC • /me /do /try /todo /ame" }
 		};
 		global.__phxChatT = function (key) {
 			const lang = (global.PhoenixI18n && global.PhoenixI18n.getLang()) || "pl";
@@ -60,14 +87,25 @@
 		refreshHint();
 	}
 
+	function isChannelAvailable(ch) {
+		if (!ch || !channelFeatureEnabled(ch)) return false;
+		if (ch.adminOnly && !isAdmin) return false;
+		return ch.tab !== false;
+	}
+
 	function buildTabs() {
 		tabsHost.innerHTML = "";
 		CHANNELS.forEach(function (ch) {
-			if (ch.adminOnly && !isAdmin) return;
+			if (!isChannelAvailable(ch)) return;
 			appendTabButton(ch);
 		});
-		Object.keys(dmTabs).forEach(function (key) { appendTabButton(dmTabs[key]); });
+		Object.keys(dmTabs).forEach(function (key) { if (isChannelAvailable(dmTabs[key])) appendTabButton(dmTabs[key]); });
+		if (!isChannelAvailable(channelById(currentChannel))) {
+			const fallback = CHANNELS.find(isChannelAvailable);
+			currentChannel = fallback ? fallback.id : 0;
+		}
 		refreshTabs();
+		refreshPrefix();
 	}
 
 	function appendTabButton(ch) {
@@ -105,9 +143,7 @@
 				if (unread[id] > 0 && id !== currentChannel) {
 					badge.style.display = "";
 					badge.textContent = unread[id] > 99 ? "99+" : String(unread[id]);
-				} else {
-					badge.style.display = "none";
-				}
+				} else badge.style.display = "none";
 			}
 		});
 	}
@@ -115,9 +151,7 @@
 	function refreshPrefix() {
 		const ch = channelById(currentChannel);
 		prefix.textContent = "[" + ch.short + "] >";
-		prefix.classList.toggle("phoenix-chat__prefix--global", currentChannel === 1);
-		prefix.classList.toggle("phoenix-chat__prefix--admin", currentChannel === 2);
-		prefix.classList.toggle("phoenix-chat__prefix--dm", !!ch.dm);
+		prefix.className = "phoenix-chat__prefix phoenix-chat__prefix--" + ch.key;
 	}
 
 	function refreshHint() {
@@ -126,7 +160,8 @@
 	}
 
 	function setChannel(id) {
-		if (!channelById(id)) id = 0;
+		const channel = channelById(id);
+		if (!channel || (!channel.dm && (channel.id !== id || !isChannelAvailable(channel)))) id = 0;
 		currentChannel = id;
 		unread[id] = 0;
 		refreshTabs();
@@ -153,13 +188,10 @@
 				closeInput(false);
 			} else if (e.key === "Tab") {
 				e.preventDefault();
-				let next = currentChannel;
-				for (let step = 0; step < CHANNELS.length; step += 1) {
-					next = (next + 1) % CHANNELS.length;
-					const c = CHANNELS[next];
-					if (!c.adminOnly || isAdmin) break;
-				}
-				setChannel(next);
+				const available = CHANNELS.filter(isChannelAvailable);
+				let index = available.findIndex(function (channel) { return channel.id === currentChannel; });
+				index = (index + 1) % available.length;
+				setChannel(available[index].id);
 			} else if (e.key === "ArrowUp") {
 				e.preventDefault();
 				if (history.length === 0) return;
@@ -183,15 +215,21 @@
 			closeInput(false);
 			return;
 		}
+		const command = (text.split(/\s+/, 1)[0] || "").toLowerCase();
+		if (command === "/g" && !featureEnabled("chat.global")) return;
+		if (command === "/l" && !featureEnabled("chat.local")) return;
+		if (command === "/b" && !featureEnabled("chat.ooc")) return;
+		if (["/me", "/do", "/try", "/todo", "/ame"].indexOf(command) !== -1 && !featureEnabled("chat.rpActions")) return;
 		let channel = currentChannel;
 		let body = text;
-		if (text.indexOf("/g ") === 0) { channel = 1; body = text.slice(3).trim(); }
-		else if (text === "/g") { setChannel(1); input.value = ""; return; }
-		else if (text.indexOf("/l ") === 0) { channel = 0; body = text.slice(3).trim(); }
+		if (text.indexOf("/g ") === 0 && featureEnabled("chat.global")) { channel = 1; body = text.slice(3).trim(); }
+		else if (text === "/g" && featureEnabled("chat.global")) { setChannel(1); input.value = ""; return; }
+		else if (text.indexOf("/l ") === 0 && featureEnabled("chat.local")) { channel = 0; body = text.slice(3).trim(); }
 		else if (isAdmin && text.indexOf("/a ") === 0) { channel = 2; body = text.slice(3).trim(); }
 		else if (isAdmin && text === "/a") { setChannel(2); input.value = ""; return; }
 		if (body.length === 0) { closeInput(false); return; }
 		const active = channelById(channel);
+		if (!channelFeatureEnabled(active)) return;
 		if (active && active.dm) {
 			PhoenixBridge.send("phoenix:social:dm", { targetId: active.playerId, text: body });
 			history.push(text);
@@ -240,20 +278,41 @@
 		const channel = (typeof payload.channel === "number") ? payload.channel : 0;
 		const ch = channelById(channel);
 		const isSystem = !!payload.system;
+		if (!isSystem && !channelFeatureEnabled(ch)) return;
 		const textKey = payload.textKey ? String(payload.textKey) : "";
+		const text = textKey && global.PhoenixI18n ? global.PhoenixI18n.t(textKey) : (payload.text || "");
 		wrap.className = "phoenix-chat__msg " + (isSystem ? "phoenix-chat__msg--system" : ("phoenix-chat__msg--" + ch.key));
-		const tag = "<span class='phoenix-chat__tag" + (channel === 1 ? " phoenix-chat__tag--global" : (channel === 2 ? " phoenix-chat__tag--admin" : (ch.dm ? " phoenix-chat__tag--dm" : ""))) + "'>[" + ch.short + "]</span>";
-		const name = isSystem
-			? "<span class='phoenix-chat__name phoenix-chat__name--system'>*</span>"
-			: ("<span class='phoenix-chat__name" + (channel === 1 ? " phoenix-chat__name--global" : (channel === 2 ? " phoenix-chat__name--admin" : (ch.dm ? " phoenix-chat__name--dm" : ""))) + "'>" + escapeHtml(payload.name || "?") + ":</span>");
-		wrap.innerHTML = tag + " " + name + " ";
-		const message = document.createElement("span");
-		if (textKey) message.setAttribute("data-t", textKey);
-		message.textContent = textKey && global.PhoenixI18n ? global.PhoenixI18n.t(textKey) : (payload.text || "");
-		wrap.appendChild(message);
+		if (channel === 6) wrap.classList.add(String(text).indexOf("SUCCESS") >= 0 ? "is-success" : "is-failure");
+		const tag = document.createElement("span");
+		tag.className = "phoenix-chat__tag phoenix-chat__tag--" + ch.key;
+		tag.textContent = "[" + ch.short + "]";
+		wrap.appendChild(tag);
+		wrap.appendChild(document.createTextNode(" "));
+		const name = String(payload.name || "?");
+		if (isSystem) {
+			const node = document.createElement("span");
+			node.className = "phoenix-chat__name phoenix-chat__name--system";
+			node.textContent = "* ";
+			wrap.appendChild(node);
+			wrap.appendChild(document.createTextNode(text));
+		} else if (channel === 4 || channel === 8) {
+			wrap.appendChild(document.createTextNode("* " + name + " " + text));
+		} else if (channel === 5) {
+			wrap.appendChild(document.createTextNode("* " + text + " ((" + name + "))"));
+		} else if (channel === 6) {
+			wrap.appendChild(document.createTextNode("* " + name + " " + text));
+		} else if (channel === 7) {
+			wrap.appendChild(document.createTextNode(name + ": " + text));
+		} else {
+			const nameNode = document.createElement("span");
+			nameNode.className = "phoenix-chat__name phoenix-chat__name--" + ch.key;
+			nameNode.textContent = name + ":";
+			wrap.appendChild(nameNode);
+			wrap.appendChild(document.createTextNode(" " + text));
+		}
 		list.insertBefore(wrap, list.firstChild);
 		while (list.children.length > HISTORY_MAX) list.removeChild(list.lastChild);
-		if (!isSystem && channel !== currentChannel) {
+		if (!isSystem && channel !== currentChannel && isChannelAvailable(ch)) {
 			unread[channel] = Math.min(99, (unread[channel] || 0) + 1);
 			refreshTabs();
 		}
@@ -262,7 +321,7 @@
 	function dmChannelId(playerId) { return 1000 + parseInt(playerId, 10); }
 
 	function openDmTab(player) {
-		if (!player || typeof player.playerId === "undefined") return;
+		if (!featureEnabled("social.directMessages") || !player || typeof player.playerId === "undefined") return;
 		const id = dmChannelId(player.playerId);
 		if (!dmTabs[String(id)]) dmTabs[String(id)] = { id: id, key: "dm", short: "P", labelKey: "", defaultLabel: player.name || "DM", name: player.name || "DM", playerId: parseInt(player.playerId, 10), dm: true };
 		else dmTabs[String(id)].name = player.name || dmTabs[String(id)].name;
@@ -278,7 +337,7 @@
 	}
 
 	function appendDm(payload) {
-		if (!payload || !payload.from || !payload.to) return;
+		if (!featureEnabled("social.directMessages") || !payload || !payload.from || !payload.to) return;
 		const selfId = parseInt(payload.selfId, 10);
 		const fromId = parseInt(payload.from.playerId, 10);
 		const other = fromId === selfId ? payload.to : payload.from;
@@ -474,6 +533,16 @@
 		});
 		PhoenixBridge.on("phoenix:menu:openRequest", function () { openEscMenu(); });
 		PhoenixBridge.on("phoenix:menu:closeRequest", function () { closeEscMenu(); });
+		PhoenixBridge.on("phoenix:features:snapshot", function (p) {
+			featureFlags = p && p.settings && p.settings.flags && typeof p.settings.flags === "object" ? p.settings.flags : {};
+			if (!featureEnabled("social.directMessages")) {
+				dmTabs = {};
+				if (currentChannel >= 1000) currentChannel = 0;
+			}
+			buildTabs();
+			if (inputOpen && !isChannelAvailable(channelById(currentChannel))) closeInput(false);
+			refreshHint();
+		});
 		PhoenixBridge.on("phoenix:account:identity", function (p) {
 			isAdmin = !!(p && p.isAdmin);
 			buildTabs();

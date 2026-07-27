@@ -58,18 +58,36 @@ phoenix.quest.Handlers <- {
 	}
 
 	function sendSnapshot(playerId, characterId, resetVersion = false) {
+		if (!phoenix.features.Settings.isEnabled("quests.enabled")) return
 		phoenix.quest.State.loadFor(playerId, characterId, function(states) {
-			phoenix.quest.State.sendSnapshot(playerId, characterId, resetVersion)
-			phoenix.quest.Rewards.recoverCharacter(playerId, characterId)
+			if (!phoenix.features.Settings.isEnabled("quests.enabled")) return
+			if (phoenix.features.Settings.isEnabled("quests.markers")) phoenix.quest.State.sendSnapshot(playerId, characterId, resetVersion)
+			else {
+				local snapshot = phoenix.quest.Message.Snapshot()
+				snapshot.characterId = characterId
+				snapshot.stateVersion = phoenix.quest.State.nextSyncVersion(characterId, resetVersion)
+				snapshot.payload = { entries = phoenix.quest.State.snapshotEntries(characterId) }
+				snapshot.serialize().send(playerId, RELIABLE_ORDERED)
+			}
+			if (phoenix.features.Settings.isEnabled("quests.rewards")) phoenix.quest.Rewards.recoverCharacter(playerId, characterId)
 		})
 	}
 
 	function onRequest(playerId, message) {
+		if (!phoenix.features.Settings.isEnabled("quests.enabled")) return
 		local action = message.action != null ? message.action.tostring() : ""
 		local requestId = phoenix.quest.Schema.string(message.requestId, phoenix.quest.Schema.Limits.RequestId)
 		local actionKnown = action == "snapshot" || action == "track" || action == "dialogChoose" || action == "dialogClose"
 		if (message.protocolVersion != phoenix.quest.ProtocolVersion || action.len() < 1 || action.len() > 48 || requestId == "" || !actionKnown || !phoenix.quest.Handlers.payloadAllowed(message.payload)) {
 			phoenix.quest.Handlers.reply(playerId, action, requestId, false, phoenix.quest.Error.InvalidRequest, 0, null)
+			return
+		}
+		if ((action == "dialogChoose" || action == "dialogClose") && !phoenix.features.Settings.isEnabled("quests.dialogs")) {
+			phoenix.quest.Handlers.reply(playerId, action, requestId, false, phoenix.quest.Error.NotAvailable, 0, null)
+			return
+		}
+		if (action == "track" && !phoenix.features.Settings.isEnabled("quests.markers")) {
+			phoenix.quest.Handlers.reply(playerId, action, requestId, false, phoenix.quest.Error.NotAvailable, 0, null)
 			return
 		}
 		if (!phoenix.quest.Handlers.allowed(playerId, action) || !phoenix.quest.Handlers.claimRequest(playerId, action, requestId)) {
@@ -87,7 +105,7 @@ phoenix.quest.Handlers <- {
 		}
 		if (action != "dialogClose" && !phoenix.quest.Handlers.stateVersionMatches(record.id, message.stateVersion)) {
 			phoenix.quest.Handlers.reply(playerId, action, requestId, false, phoenix.quest.Error.StaleVersion, phoenix.quest.Handlers.currentSyncVersion(record.id), null)
-			phoenix.quest.State.sendSnapshot(playerId, record.id, false)
+			phoenix.quest.Handlers.sendSnapshot(playerId, record.id, false)
 			return
 		}
 		if (action == "track") {

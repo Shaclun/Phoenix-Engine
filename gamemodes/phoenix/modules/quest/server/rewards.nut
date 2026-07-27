@@ -66,7 +66,7 @@ phoenix.quest.Rewards <- {
 			hpMax += 10
 			staminaMax += 5
 			manaMax += klass == 1 ? 8 : 2
-			learnPoints += 10
+			if (phoenix.features.Settings.isEnabled("progression.learnPoints")) learnPoints += 10
 			hp = hpMax
 			mana = manaMax
 			stamina = staminaMax
@@ -105,6 +105,7 @@ phoenix.quest.Rewards <- {
 		local allowed = { strength = true, dexterity = true, learnPoints = true, hpMax = true, manaMax = true }
 		local amount = reward.amount.tointeger()
 		if (!(stat in allowed) || amount <= 0) throw "INVALID_REWARD"
+		if (stat == "learnPoints" && !phoenix.features.Settings.isEnabled("progression.learnPoints")) throw "FEATURE_DISABLED"
 		ORM.engine.execute("UPDATE `phoenix_characters` SET `" + stat + "`=`" + stat + "`+" + amount + " WHERE `id`=" + record.id)
 		return { result = { stat = stat, amount = amount }, character = true, inventory = false }
 	}
@@ -179,6 +180,7 @@ phoenix.quest.Rewards <- {
 	}
 
 	function complete(playerId, stateId) {
+		if (!phoenix.features.Settings.isEnabled("quests.rewards")) return false
 		local record = phoenix.character.Structure.getActive(playerId)
 		if (record == null || !(record.id in phoenix.quest.State.byCharacter) || !(stateId in phoenix.quest.State.byCharacter[record.id])) return false
 		local state = phoenix.quest.State.byCharacter[record.id][stateId]

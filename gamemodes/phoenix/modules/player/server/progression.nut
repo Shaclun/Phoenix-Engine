@@ -80,8 +80,9 @@ phoenix.player.Progression <- {
 
 	function awardExperience(playerId, amount) {
 		if (amount <= 0) return
+		if (!phoenix.features.Settings.isEnabled("progression.leveling")) return
 		try {
-			if ("social" in phoenix && phoenix.social != null && "Party" in phoenix.social && phoenix.social.Party != null) {
+			if (phoenix.features.Settings.isEnabled("progression.partyExperience") && phoenix.features.Settings.isEnabled("social.party") && "social" in phoenix && phoenix.social != null && "Party" in phoenix.social && phoenix.social.Party != null) {
 				if (phoenix.social.Party.distributeExperience(playerId, amount)) return
 			}
 		} catch (eParty) {}
@@ -90,6 +91,7 @@ phoenix.player.Progression <- {
 
 	function awardExperienceDirect(playerId, amount) {
 		if (amount <= 0) return
+		if (!phoenix.features.Settings.isEnabled("progression.leveling")) return
 		local record = phoenix.character.Structure.getActive(playerId)
 		if (record == null) return
 		phoenix.player.Progression.normalizeRecordStats(record)
@@ -116,7 +118,7 @@ phoenix.player.Progression <- {
 		record.staminaMax += 5
 		if (record.klass == 1) record.manaMax += 8
 		else record.manaMax += 2
-		record.learnPoints += 10
+		if (phoenix.features.Settings.isEnabled("progression.learnPoints")) record.learnPoints += 10
 		phoenix.player.Resources.syncMaximums(playerId, record)
 		phoenix.player.Resources.set(playerId, record, "hp", record.hpMax, true)
 		phoenix.player.Resources.set(playerId, record, "mana", record.manaMax, true)

@@ -40,6 +40,27 @@
 	let dragging = null;
 	let resizing = null;
 	let root = null;
+	let featureFlags = {};
+	const featureDefaults = { "minimap.enabled": true, "worldclock.enabled": true, "weather.enabled": true, "progression.leveling": true, "progression.magicExperience": true, "hud.levelExperience": true, "hud.magicExperience": true, "player.hotbar": true, "player.stamina": true, "camera.orbital": true, "chat.local": true, "chat.global": true, "chat.ooc": false, "chat.rpActions": false };
+
+	function featureEnabled(path) {
+		const parts = path.split(".");
+		let value = featureFlags;
+		for (let i = 0; i < parts.length; i += 1) {
+			if (!value || typeof value !== "object" || !Object.prototype.hasOwnProperty.call(value, parts[i])) return featureDefaults[path] !== false;
+			value = value[parts[i]];
+		}
+		return value !== false;
+	}
+	function hudElementEnabled(id) {
+		if (id === "level" || id === "exp") return featureEnabled("progression.leveling") && featureEnabled("hud.levelExperience");
+		if (id === "magicxp") return featureEnabled("progression.magicExperience") && featureEnabled("hud.magicExperience");
+		if (id === "hotbar") return featureEnabled("player.hotbar");
+		if (id === "stamina") return featureEnabled("player.stamina");
+		if (id === "minimap") return featureEnabled("minimap.enabled") || featureEnabled("worldclock.enabled");
+		if (id === "chat") return featureEnabled("chat.local") || featureEnabled("chat.global") || featureEnabled("chat.ooc") || featureEnabled("chat.rpActions");
+		return featureEnabled("hud." + id);
+	}
 
 	function deepMerge(target, src) {
 		if (!src || typeof src !== "object") return target;
@@ -63,7 +84,7 @@
 	}
 
 	function applyCameraSetting() {
-		const enabled = !state.camera || state.camera.orbitalEnabled !== false;
+		const enabled = featureEnabled("camera.orbital") && (!state.camera || state.camera.orbitalEnabled !== false);
 		try { PhoenixBridge.send("phoenix:camera:orbital:set", { enabled: enabled }); } catch (e) {}
 	}
 
@@ -99,6 +120,7 @@
 		ELEMENTS.forEach(function (el) {
 			const node = getElementNode(el.id);
 			if (!node) return;
+			if (!hudElementEnabled(el.id)) { detachEditOverlay(node); return; }
 			if (editMode) {
 				attachEditOverlay(node, el);
 			} else {
@@ -326,6 +348,7 @@
 		content.appendChild(editBar);
 
 		ELEMENTS.forEach(function (el) {
+			if (!hudElementEnabled(el.id)) return;
 			const cfg = state.hud[el.id] || { x: 0, y: 0, scale: 1, visible: true };
 			const section = document.createElement("div");
 			section.className = "settings-section";
@@ -377,6 +400,7 @@
 	}
 
 	function renderOtherTab(content) {
+		if (!featureEnabled("camera.orbital")) return;
 		const section = document.createElement("div");
 		section.className = "settings-section";
 
@@ -472,6 +496,12 @@
 		PhoenixBridge.on("phoenix:uisettings:snapshot", function (payload) {
 			if (!payload) return;
 			loadFromString(payload.data || "");
+		});
+		PhoenixBridge.on("phoenix:features:snapshot", function (payload) {
+			featureFlags = payload && payload.settings && payload.settings.flags && typeof payload.settings.flags === "object" ? payload.settings.flags : {};
+			applyCameraSetting();
+			if (editMode) setEditMode(true);
+			if (root && window.app && app.current() === "settings") renderContent();
 		});
 	}
 

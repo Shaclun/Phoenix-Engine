@@ -3,6 +3,7 @@ phoenix.player.Hotbar <- {
 	lastActivate = {}
 
 	function pushSnapshot(playerId) {
+		if (!phoenix.features.Settings.isEnabled("player.hotbar")) return
 		local record = phoenix.character.Structure.getActive(playerId)
 		if (record == null) return
 		local raw = (record.hotbar != null) ? record.hotbar.tostring() : ""
@@ -69,6 +70,7 @@ phoenix.player.Hotbar <- {
 	}
 
 	function onUpdate(playerId, message) {
+		if (!phoenix.features.Settings.isEnabled("player.hotbar")) return
 		local record = phoenix.character.Structure.getActive(playerId)
 		if (record == null) return
 		local raw = (message.data != null) ? message.data.tostring() : ""
@@ -131,6 +133,7 @@ phoenix.player.Hotbar <- {
 	}
 
 	function onActivate(playerId, message) {
+		if (!phoenix.features.Settings.isEnabled("player.hotbar")) return
 		local slotIdx = message.slot.tointeger()
 		if (slotIdx < 0 || slotIdx > 7) return
 		local now = getTickCount()
@@ -169,6 +172,7 @@ phoenix.player.Hotbar <- {
 		local mode = phoenix.player.Hotbar._modeForCategory(category)
 		local isWeapon = mode != WEAPONMODE_NONE
 		local isEquipment = category >= PhoenixItemCategory.Weapon1H && category <= PhoenixItemCategory.Belt
+		if ((isWeapon || isEquipment) && !phoenix.features.Settings.isEnabled("items.equipment")) return
 
 		if (isWeapon) {
 			phoenix.player.Hotbar._useWeapon(playerId, active.id, target, scheme, mode)
@@ -177,6 +181,7 @@ phoenix.player.Hotbar <- {
 			if (want && !phoenix.player.Hotbar._checkRequirements(playerId, scheme)) return
 			local capturedInst = target.instanceId
 			phoenix.item.Structure.setEquipped(PhoenixInventoryOwner.Player, active.id, target.id, want, function(ok) {
+				if (!phoenix.features.Settings.isEnabled("player.hotbar") || !phoenix.features.Settings.isEnabled("items.equipment")) return
 				if (!ok) return
 				if (want) {
 					try { ::giveItem(playerId, capturedInst, 1) } catch (e) {}
@@ -195,6 +200,8 @@ phoenix.player.Hotbar <- {
 	}
 
 	function _useWeapon(playerId, characterId, target, scheme, mode) {
+		if (!phoenix.features.Settings.isEnabled("player.hotbar")) return
+		if (!phoenix.features.Settings.isEnabled("items.equipment")) return
 		local current = WEAPONMODE_NONE
 		try { current = getPlayerWeaponMode(playerId) } catch (e) {}
 		if (target.equipped == 1) {
@@ -203,6 +210,7 @@ phoenix.player.Hotbar <- {
 			} else if (current != WEAPONMODE_NONE) {
 				try { setPlayerWeaponMode(playerId, 0) } catch (e) {}
 				setTimer(function() {
+					if (!phoenix.features.Settings.isEnabled("player.hotbar") || !phoenix.features.Settings.isEnabled("items.equipment")) return
 					try { drawWeapon(playerId, mode) } catch (e) {}
 				}, 400, 1)
 			} else {
@@ -226,10 +234,13 @@ phoenix.player.Hotbar <- {
 		}
 
 		setTimer(function() {
+			if (!phoenix.features.Settings.isEnabled("player.hotbar") || !phoenix.features.Settings.isEnabled("items.equipment")) return
 			try { setPlayerWeaponMode(capturedPid, 0) } catch (e) {}
 			phoenix.player.Hotbar._swapEquippedWeapon(capturedPid, capturedCid, capturedTargetId, capturedInst, capturedScheme, function(ok) {
+				if (!phoenix.features.Settings.isEnabled("player.hotbar") || !phoenix.features.Settings.isEnabled("items.equipment")) return
 				if (!ok) return
 				setTimer(function() {
+					if (!phoenix.features.Settings.isEnabled("player.hotbar") || !phoenix.features.Settings.isEnabled("items.equipment")) return
 					try { drawWeapon(capturedPid, capturedMode) } catch (e) {}
 				}, 250, 1)
 			})
@@ -237,6 +248,7 @@ phoenix.player.Hotbar <- {
 	}
 
 	function _swapEquippedWeapon(playerId, characterId, targetId, targetInst, scheme, callback) {
+		if (!phoenix.features.Settings.isEnabled("player.hotbar") || !phoenix.features.Settings.isEnabled("items.equipment")) { callback(false); return }
 		local inv = phoenix.item.Structure.getInventory(PhoenixInventoryOwner.Player, characterId)
 		if (inv == null) { callback(false); return }
 
@@ -250,8 +262,11 @@ phoenix.player.Hotbar <- {
 
 		local unequipNext = null
 		unequipNext = function(i) {
+			if (!phoenix.features.Settings.isEnabled("player.hotbar") || !phoenix.features.Settings.isEnabled("items.equipment")) { callback(false); return }
 			if (i >= toUnequip.len()) {
+				if (!phoenix.features.Settings.isEnabled("player.hotbar") || !phoenix.features.Settings.isEnabled("items.equipment")) { callback(false); return }
 				phoenix.item.Structure.setEquipped(PhoenixInventoryOwner.Player, characterId, targetId, true, function(ok) {
+					if (!phoenix.features.Settings.isEnabled("player.hotbar") || !phoenix.features.Settings.isEnabled("items.equipment")) { callback(false); return }
 					if (ok) {
 						try { ::giveItem(playerId, targetInst, 1) } catch (e) {}
 						try { ::equipItem(playerId, targetInst) } catch (e) {}
@@ -263,6 +278,7 @@ phoenix.player.Hotbar <- {
 			local entry = toUnequip[i]
 			local prevInst = entry.instance
 			phoenix.item.Structure.setEquipped(PhoenixInventoryOwner.Player, characterId, entry.id, false, function(_) {
+				if (!phoenix.features.Settings.isEnabled("player.hotbar") || !phoenix.features.Settings.isEnabled("items.equipment")) { callback(false); return }
 				try { ::unequipItem(playerId, prevInst) } catch (e) {}
 				try { ::removeItem(playerId, prevInst, 1) } catch (e) {}
 				unequipNext(i + 1)
@@ -273,6 +289,7 @@ phoenix.player.Hotbar <- {
 }
 
 phoenix.player.Hotbar.onDrawWeapon <- function(playerId, message) {
+	if (!phoenix.features.Settings.isEnabled("player.hotbar")) return
 	local mode = message.mode.tointeger()
 	local current = 0
 	try { current = getPlayerWeaponMode(playerId) } catch (e) {}
@@ -296,4 +313,10 @@ addEventHandler("phoenix.character.OnSelected", function(playerId, _characterId)
 addEventHandler("onPlayerDisconnect", function(playerId, _reason) {
 	if (playerId in phoenix.player.Hotbar.bySession) phoenix.player.Hotbar.bySession.rawdelete(playerId)
 	if (playerId in phoenix.player.Hotbar.lastActivate) phoenix.player.Hotbar.lastActivate.rawdelete(playerId)
+})
+
+addEventHandler("phoenix.features.OnChanged", function(key, enabled) {
+	if (key != "player.hotbar" || enabled) return
+	phoenix.player.Hotbar.bySession = {}
+	phoenix.player.Hotbar.lastActivate = {}
 })

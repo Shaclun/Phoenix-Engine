@@ -1,8 +1,10 @@
 
 
 phoenix.item.Handlers.onCharacterSelected <- function(playerId, characterId) {
+	if (!phoenix.features.Settings.isEnabled("items.inventory")) return
 	phoenix.item.Structure.loadOwner(PhoenixInventoryOwner.Player, characterId, function(items) {
-		phoenix.item.Structure.applyToPlayer(playerId, characterId)
+		if (!phoenix.features.Settings.isEnabled("items.inventory")) return
+		if (phoenix.features.Settings.isEnabled("items.equipment")) phoenix.item.Structure.applyToPlayer(playerId, characterId)
 		phoenix.item.Structure.sendInventorySnapshot(playerId, characterId)
 	})
 }
@@ -14,6 +16,7 @@ phoenix.item.Handlers.onPlayerDisconnect <- function(playerId, _reason) {
 }
 
 phoenix.item.Handlers.onUseRequest <- function(playerId, message) {
+	if (!phoenix.features.Settings.isEnabled("items.use")) return
 	local active = phoenix.character.Structure.getActive(playerId)
 	if (active == null) return
 	local inv = phoenix.item.Structure.getInventory(PhoenixInventoryOwner.Player, active.id)
@@ -35,6 +38,7 @@ phoenix.item.Handlers.onUseRequest <- function(playerId, message) {
 }
 
 phoenix.item.Handlers.onEquipRequest <- function(playerId, message) {
+	if (!phoenix.features.Settings.isEnabled("items.equipment")) return
 	local active = phoenix.character.Structure.getActive(playerId)
 	if (active == null) return
 	local inv = phoenix.item.Structure.getInventory(PhoenixInventoryOwner.Player, active.id)
@@ -86,10 +90,12 @@ phoenix.item.Handlers.onEquipRequest <- function(playerId, message) {
 }
 
 phoenix.item.Handlers.onUpgradeRequest <- function(playerId, message) {
+	if (!phoenix.features.Settings.isEnabled("items.upgrades")) return
 	phoenix.item.Upgrader.tryUpgrade(playerId, message.id)
 }
 
 phoenix.item.Handlers.onDropRequest <- function(playerId, message) {
+	if (!phoenix.features.Settings.isEnabled("items.inventory")) return
 	local active = phoenix.character.Structure.getActive(playerId)
 	if (active == null) return
 	local inv = phoenix.item.Structure.getInventory(PhoenixInventoryOwner.Player, active.id)
@@ -116,8 +122,16 @@ phoenix.item.Handlers.onDropRequest <- function(playerId, message) {
 	try { playAni(playerId, "T_IDROP_2_STAND") } catch (ea) {}
 	phoenix.item.Structure.takeItem(PhoenixInventoryOwner.Player, active.id, rec.id, amount, function(ok) {
 		if (!ok) return
+		if (!phoenix.features.Settings.isEnabled("items.inventory")) {
+			phoenix.item.Structure.giveItem(PhoenixInventoryOwner.Player, active.id, dropData.instanceId, { amount = dropData.amount, quality = dropData.quality, upgrade = dropData.upgrade, source = "drop-rollback" }, null)
+			return
+		}
 		try { ::removeItem(playerId, dropData.instanceId, dropData.amount) } catch (er) {}
 		phoenix.item.Structure.addGroundDroppedItem(playerId, dropData, function(spawned, _error) {
+			if (!phoenix.features.Settings.isEnabled("items.inventory") && !spawned) {
+				phoenix.item.Structure.giveItem(PhoenixInventoryOwner.Player, active.id, dropData.instanceId, { amount = dropData.amount, quality = dropData.quality, upgrade = dropData.upgrade, source = "drop-rollback" }, null)
+				return
+			}
 			if (!spawned) {
 				try {
 					if ("vob" in phoenix && phoenix.vob != null && "Structure" in phoenix.vob)

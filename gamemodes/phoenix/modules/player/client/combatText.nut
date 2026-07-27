@@ -6,6 +6,15 @@ phoenix.player.CombatText <- {
 	maxDistance = 1600.0
 	lang = "pl"
 
+	function enabled() {
+		return phoenix.features.Client.effectiveEnabled("player.combatText")
+	}
+
+	function clear() {
+		phoenix.player.CombatText.floats.clear()
+		phoenix.player.CombatText.clearBucket()
+	}
+
 	function clearBucket() {
 		foreach (draw in phoenix.player.CombatText.bucket) {
 			try { draw.visible = false } catch (e) {}
@@ -53,6 +62,10 @@ phoenix.player.CombatText <- {
 	}
 
 	function push(message) {
+		if (!phoenix.player.CombatText.enabled()) {
+			phoenix.player.CombatText.clear()
+			return
+		}
 		local targetId = 0
 		local amount = 0
 		local kind = "damage"
@@ -100,6 +113,10 @@ phoenix.player.CombatText <- {
 	}
 
 	function onRender() {
+		if (!phoenix.player.CombatText.enabled()) {
+			phoenix.player.CombatText.clear()
+			return
+		}
 		phoenix.player.CombatText.clearBucket()
 		local now = getTickCount()
 		local heroPos = null
@@ -126,6 +143,10 @@ try {
 		if (payload.key == "phoenix:lang") phoenix.player.CombatText.setLang(("value" in payload) ? payload.value : null)
 	})
 } catch (e) {}
+
+addEventHandler("phoenix.features.ClientChanged", function(key, enabled) {
+	if (key == "player.combatText" && !enabled) phoenix.player.CombatText.clear()
+})
 
 phoenix.player.Message.CombatText.bind(phoenix.player.CombatText.push)
 addEventHandler("onRender", function () { phoenix.player.CombatText.onRender() })

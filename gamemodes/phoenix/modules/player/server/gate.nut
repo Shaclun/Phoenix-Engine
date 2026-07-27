@@ -88,6 +88,7 @@ phoenix.player.Gate <- {
 	}
 
 	function restoreRevivingIdentity(playerId) {
+		if (!phoenix.features.Settings.isEnabled("player.knockdown")) return
 		if (!(playerId in phoenix.player.Gate.reviving)) return
 		local state = phoenix.player.Gate.reviving[playerId]
 		local instance = ("instance" in state) ? state.instance : "PC_HERO"
@@ -95,6 +96,7 @@ phoenix.player.Gate <- {
 	}
 
 	function restoreIdentityIfCurrent(playerId, instance, characterId) {
+		if (!phoenix.features.Settings.isEnabled("player.knockdown")) return false
 		try { if (!isPlayerConnected(playerId)) return false } catch (e) { return false }
 		if (characterId > 0) {
 			local record = null
@@ -139,6 +141,11 @@ phoenix.player.Gate <- {
 	}
 
 	function onPlayerRespawn(playerId) {
+		if (!phoenix.features.Settings.isEnabled("player.knockdown")) {
+			if (playerId in phoenix.player.Gate.reviving) phoenix.player.Gate.reviving.rawdelete(playerId)
+			if (playerId in phoenix.player.Gate.applying) phoenix.player.Gate.applying.rawdelete(playerId)
+			if (!(playerId in phoenix.player.Gate.pending)) return
+		}
 		try { cancelEvent() } catch (e) {}
 		try { phoenix.admin.Server.disableFly(playerId) } catch (e) { try { setPlayerCollision(playerId, true) } catch (ec) {} }
 		if (playerId in phoenix.player.Gate.pending) {
@@ -173,6 +180,7 @@ phoenix.player.Gate <- {
 	}
 
 	function onPlayerDead(playerId, killerId) {
+		if (!phoenix.features.Settings.isEnabled("player.knockdown")) return
 		try { cancelEvent() } catch (e) {}
 		if (playerId in phoenix.player.Gate.pending) return
 		if (playerId in phoenix.player.Gate.reviving) return
@@ -208,6 +216,7 @@ phoenix.player.Gate <- {
 		} catch (e) {}
 		setTimer(function () {
 			try {
+				if (!phoenix.features.Settings.isEnabled("player.knockdown")) return
 				if (playerId in phoenix.player.Gate.reviving) phoenix.player.Gate.reviving[playerId].ready = true
 			} catch (e) {}
 		}, delay, 1)
@@ -254,6 +263,7 @@ phoenix.player.Gate <- {
 	}
 
 	function onRespawnChoice(playerId, message) {
+		if (!phoenix.features.Settings.isEnabled("player.knockdown")) return
 		if (!(playerId in phoenix.player.Gate.reviving)) return
 		local state = phoenix.player.Gate.reviving[playerId]
 		if (!("ready" in state) || !state.ready) return
@@ -264,6 +274,7 @@ phoenix.player.Gate <- {
 	}
 
 	function onFallDamage(playerId, message) {
+		if (!phoenix.features.Settings.isEnabled("player.fallDamage")) return
 		try { if (!isPlayerConnected(playerId)) return } catch (e) { return }
 		try { if (phoenix.character.Structure.getActive(playerId) == null) return } catch (e) { return }
 		if (phoenix.player.Gate.hasGodmode(playerId)) return
@@ -297,8 +308,14 @@ phoenix.player.Gate <- {
 		try { if (!isPlayerConnected(playerId)) return false } catch (e) { return false }
 		if (phoenix.player.Gate.hasGodmode(playerId)) return false
 		if (playerId in phoenix.player.Gate.pending) return false
-		if (playerId in phoenix.player.Gate.reviving) return false
-		if (playerId in phoenix.player.Gate.applying) return false
+		if (playerId in phoenix.player.Gate.reviving) {
+			if (phoenix.features.Settings.isEnabled("player.knockdown")) return false
+			phoenix.player.Gate.reviving.rawdelete(playerId)
+		}
+		if (playerId in phoenix.player.Gate.applying) {
+			if (phoenix.features.Settings.isEnabled("player.knockdown")) return false
+			phoenix.player.Gate.applying.rawdelete(playerId)
+		}
 		local hp = 0
 		try { hp = getPlayerHealth(playerId) } catch (e) { return false }
 		local damage = amount == null ? 0 : amount.tointeger()
@@ -313,6 +330,10 @@ phoenix.player.Gate <- {
 			try { phoenix.player.Combat.emitText(playerId, damage, summary.critical ? "crit" : "damage") } catch (ect2) {}
 		}
 		if (hp <= 0) {
+			if (!phoenix.features.Settings.isEnabled("player.knockdown")) {
+				try { setPlayerHealth(playerId, 0) } catch (e) {}
+				return true
+			}
 			try { setPlayerHealth(playerId, 1) } catch (e) {}
 			phoenix.player.Gate.onPlayerDead(playerId, attackerId)
 			return true
@@ -320,6 +341,10 @@ phoenix.player.Gate <- {
 		if (damage < 1) damage = 1
 		local newHp = hp - damage
 		if (newHp <= 0) {
+			if (!phoenix.features.Settings.isEnabled("player.knockdown")) {
+				try { setPlayerHealth(playerId, 0) } catch (e) {}
+				return true
+			}
 			try { setPlayerHealth(playerId, 1) } catch (e) {}
 			phoenix.player.Gate.onPlayerDead(playerId, attackerId)
 			return true
@@ -347,6 +372,10 @@ phoenix.player.Gate <- {
 	}
 
 	function finishKnockdownRevive(playerId, reviveInstance, reviveCharacterId, hpMax, reviveHp, tx, ty, tz, tAngle) {
+		if (!phoenix.features.Settings.isEnabled("player.knockdown")) {
+			if (playerId in phoenix.player.Gate.applying) phoenix.player.Gate.applying.rawdelete(playerId)
+			return
+		}
 		try { if (!isPlayerConnected(playerId)) return } catch (e) { return }
 		local record = null
 		try { record = phoenix.character.Structure.getActive(playerId) } catch (e) {}
@@ -382,6 +411,7 @@ phoenix.player.Gate <- {
 	}
 
 	function applyKnockdownRevive(playerId, mode = "here") {
+		if (!phoenix.features.Settings.isEnabled("player.knockdown")) return
 		local state = null
 		if (playerId in phoenix.player.Gate.reviving) state = phoenix.player.Gate.reviving[playerId]
 		if (playerId in phoenix.player.Gate.reviving) phoenix.player.Gate.reviving.rawdelete(playerId)
@@ -503,6 +533,7 @@ phoenix.player.Gate <- {
 	}
 
 	function applyEquipment(playerId, record) {
+		if (!phoenix.features.Settings.isEnabled("items.equipment")) return
 		if (!("equipment" in record)) return
 		local raw = record.equipment
 		if (raw == null || raw == "") return
@@ -522,12 +553,16 @@ phoenix.player.Gate <- {
 	}
 
 	function restoreEquipment(playerId, record) {
+		if (!phoenix.features.Settings.isEnabled("items.inventory")) return
 		if (record == null) return
 		local characterId = 0
 		try { characterId = record.id } catch (e) { characterId = 0 }
 		if (characterId <= 0) return
 		local apply = function(_) {
-			try { phoenix.item.Structure.applyToPlayer(playerId, characterId) } catch (ea) {}
+			if (!phoenix.features.Settings.isEnabled("items.inventory")) return
+			if (phoenix.features.Settings.isEnabled("items.equipment")) {
+				try { phoenix.item.Structure.applyToPlayer(playerId, characterId) } catch (ea) {}
+			}
 			try { phoenix.item.Structure.sendInventorySnapshot(playerId, characterId) } catch (eb) {}
 		}
 		local cacheKey = phoenix.item.Structure.key(PhoenixInventoryOwner.Player, characterId)
@@ -536,14 +571,16 @@ phoenix.player.Gate <- {
 	}
 
 	function reequipSavedItems(playerId, record) {
+		if (!phoenix.features.Settings.isEnabled("items.inventory")) return
 		if (record == null) return
 		local characterId = 0
 		try { characterId = record.id } catch (e) { characterId = 0 }
 		if (characterId <= 0) return
 		local apply = function(_) {
+			if (!phoenix.features.Settings.isEnabled("items.inventory")) return
 			local inventory = null
 			try { inventory = phoenix.item.Structure.getInventory(PhoenixInventoryOwner.Player, characterId) } catch (e) {}
-			if (inventory != null) {
+			if (inventory != null && phoenix.features.Settings.isEnabled("items.equipment")) {
 				foreach (item in inventory.items) {
 					if (item.equipped != 1) continue
 					try { ::equipItem(playerId, item.instanceId) } catch (e) {}
@@ -723,7 +760,10 @@ addEventHandler("onPlayerDamage", function (victimId, attackerId, desc) {
 		try { if (phoenix.npc.Spawn._liveByNpcId(victimId) != null) return } catch (enpc) {}
 		if (phoenix.player.Gate.hasGodmode(victimId)) { cancelEvent(); eventValue(0); return }
 		if (victimId in phoenix.player.Gate.pending) { cancelEvent(); eventValue(0); return }
-		if (victimId in phoenix.player.Gate.reviving) { cancelEvent(); eventValue(0); return }
+		if (victimId in phoenix.player.Gate.reviving) {
+			if (phoenix.features.Settings.isEnabled("player.knockdown")) { cancelEvent(); eventValue(0); return }
+			phoenix.player.Gate.reviving.rawdelete(victimId)
+		}
 		if (attackerId == null || attackerId < 0 || attackerId == victimId) {
 			cancelEvent()
 			eventValue(0)

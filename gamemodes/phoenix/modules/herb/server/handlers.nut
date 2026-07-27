@@ -2,13 +2,19 @@ phoenix.herb.Handlers <- {}
 
 phoenix.herb.Handlers.lateSnapshotPid <- -1
 
+phoenix.herb.Handlers.enabled <- function() {
+	return phoenix.features.Settings.isEnabled("herbs.enabled")
+}
+
 phoenix.herb.Handlers.lateSnapshot <- function() {
+	if (!phoenix.herb.Handlers.enabled()) return
 	local pid = phoenix.herb.Handlers.lateSnapshotPid
 	if (pid < 0) return
 	try { phoenix.herb.Structure.sendSnapshot(pid) } catch (e) {}
 }
 
 phoenix.herb.Handlers.onCharacterSelected <- function(playerId, _characterId) {
+	if (!phoenix.herb.Handlers.enabled()) return
 	try { phoenix.herb.Structure.bootLoad() } catch (e) {}
 	phoenix.herb.Structure.sendSnapshot(playerId)
 	phoenix.herb.Handlers.lateSnapshotPid = playerId
@@ -16,6 +22,7 @@ phoenix.herb.Handlers.onCharacterSelected <- function(playerId, _characterId) {
 }
 
 phoenix.herb.Handlers.onStartRequest <- function(playerId, message) {
+	if (!phoenix.herb.Handlers.enabled()) return
 	if (message == null || message.plantId == null || message.plantId == "") return
 	phoenix.herb.Structure.start(playerId, message.plantId.tostring())
 }

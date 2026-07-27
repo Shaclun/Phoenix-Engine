@@ -172,6 +172,7 @@ phoenix.player.Combat <- {
 	},
 
 	function emitText(targetId, amount, kind) {
+		if (!phoenix.features.Settings.isEnabled("player.combatText")) return
 		if (targetId == null || targetId < 0) return
 		local value = 0
 		try { value = amount.tointeger() } catch (e) { value = 0 }

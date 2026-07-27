@@ -192,6 +192,7 @@ phoenix.quest.State <- {
 	}
 
 	function turnIn(playerId, stateId, npcId, rewardChoiceKey, callback) {
+		if (!phoenix.features.Settings.isEnabled("quests.rewards")) { callback(false, phoenix.quest.Error.NotAvailable, null); return }
 		local record = phoenix.character.Structure.getActive(playerId)
 		if (record == null || !(record.id in phoenix.quest.State.byCharacter) || !(stateId in phoenix.quest.State.byCharacter[record.id])) { callback(false, phoenix.quest.Error.NotAvailable, null); return }
 		local cached = phoenix.quest.State.byCharacter[record.id][stateId]

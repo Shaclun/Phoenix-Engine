@@ -42,6 +42,7 @@ phoenix.account.Handlers <- {
 	}
 
 	function onRegister(playerId, message) {
+		if (!phoenix.features.Settings.effectiveEnabled("account.registration")) return phoenix.account.Handlers.reject(playerId, "register", "featureDisabled")
 		if (phoenix.account.Structure.isLogged(playerId)) return
 
 		local err = phoenix.account.Validator.username(message.username)
@@ -50,6 +51,7 @@ phoenix.account.Handlers <- {
 		if (err != null) return phoenix.account.Handlers.reject(playerId, "register", err)
 
 		AccountModel.findByUsername(message.username, function(existing) {
+			if (!phoenix.features.Settings.effectiveEnabled("account.registration")) return phoenix.account.Handlers.reject(playerId, "register", "featureDisabled")
 			if (existing != null)
 				return phoenix.account.Handlers.reject(playerId, "register", "phoenix.account.error.usernameTaken")
 

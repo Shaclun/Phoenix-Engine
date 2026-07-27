@@ -4,7 +4,8 @@ phoenix.worldclock.Clock <- {
 	autoSaveIntervalMs = 30000
 	dirty = false
 
-	function applyDayLength(minutes) {
+	function applyDayLength(minutes, force = false) {
+		if (!force && !phoenix.features.Settings.isEnabled("worldclock.enabled")) return
 		if (minutes == null) return
 		local v = minutes.tointeger()
 		if (v < 1) v = 1
@@ -25,7 +26,8 @@ phoenix.worldclock.Clock <- {
 		return phoenix.worldclock.Clock.defaultDayLength
 	}
 
-	function applyTime(hour, min, requesterPid = -1) {
+	function applyTime(hour, min, requesterPid = -1, force = false) {
+		if (!force && !phoenix.features.Settings.isEnabled("worldclock.enabled")) return
 		local h = hour == null ? 0 : hour.tointeger()
 		local m = min == null ? 0 : min.tointeger()
 		if (h < 0) h = 0

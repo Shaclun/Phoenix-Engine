@@ -1,13 +1,19 @@
 phoenix.vob.Handlers <- {}
 phoenix.vob.Handlers.lateSnapshotPid <- -1
 
+phoenix.vob.Handlers.enabled <- function() {
+	return phoenix.features.Settings.isEnabled("worldVobs.enabled")
+}
+
 phoenix.vob.Handlers.lateSnapshot <- function() {
+	if (!phoenix.vob.Handlers.enabled()) return
 	local pid = phoenix.vob.Handlers.lateSnapshotPid
 	if (pid < 0) return
 	try { phoenix.vob.Structure.sendSnapshot(pid) } catch (e) {}
 }
 
 phoenix.vob.Handlers.onCharacterSelected <- function(playerId, _characterId) {
+	if (!phoenix.vob.Handlers.enabled()) return
 	try { phoenix.vob.Structure.bootLoad() } catch (e) {}
 	phoenix.vob.Structure.sendSnapshot(playerId)
 	phoenix.vob.Handlers.lateSnapshotPid = playerId
@@ -15,6 +21,7 @@ phoenix.vob.Handlers.onCharacterSelected <- function(playerId, _characterId) {
 }
 
 phoenix.vob.Handlers.onPlayerJoin <- function(playerId) {
+	if (!phoenix.vob.Handlers.enabled()) return
 	try { phoenix.vob.Structure.bootLoad() } catch (e) {}
 	phoenix.vob.Structure.sendSnapshot(playerId)
 	phoenix.vob.Handlers.lateSnapshotPid = playerId
@@ -37,6 +44,7 @@ phoenix.vob.Handlers.isInRange <- function(playerId, entry, maxDistance = 450.0)
 }
 
 phoenix.vob.Handlers.onInteractRequest <- function(playerId, message) {
+	if (!phoenix.vob.Handlers.enabled()) return
 	if (message == null || message.vobId == null || message.vobId == "") return
 	local id = message.vobId.tostring()
 	if (!(id in phoenix.vob.Structure.entries)) return
@@ -86,6 +94,7 @@ phoenix.vob.GroundLabel <- function(entry) {
 
 phoenix.vob.Message.InteractRequest.bind(phoenix.vob.Handlers.onInteractRequest)
 local phoenixVobSelectedEvent = "phoenix.character." + "OnSelected"
-try { addEventHandler("onInit", function() { phoenix.vob.Structure.bootLoad() }) } catch (e) {}
+try { addEventHandler("onInit", function() { if (phoenix.vob.Handlers.enabled()) phoenix.vob.Structure.bootLoad() }) } catch (e) {}
 try { addEventHandler("onPlayerJoin", function(playerId) { phoenix.vob.Handlers.onPlayerJoin(playerId) }) } catch (e) {}
 try { addEventHandler(phoenixVobSelectedEvent, phoenix.vob.Handlers.onCharacterSelected) } catch (e) {}
+try { addEventHandler("phoenix.features.OnChanged", function(key, enabled) { if (key == "worldVobs.enabled" && enabled) phoenix.vob.Structure.bootLoad() }) } catch (e) {}

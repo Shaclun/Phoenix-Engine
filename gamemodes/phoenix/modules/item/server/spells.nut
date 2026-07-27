@@ -28,6 +28,7 @@ phoenix.item.Spells <- {
 	}
 
 	function _addXp(playerId, amount) {
+		if (!phoenix.features.Settings.isEnabled("progression.magicExperience")) return
 		if (amount == null || amount <= 0) return
 		local record = phoenix.character.Structure.getActive(playerId)
 		if (record == null) return
@@ -133,6 +134,7 @@ phoenix.item.Spells <- {
 
 
 	function tryCast(casterId, spellKey, scheme) {
+		if (!phoenix.features.Settings.isEnabled("items.spells")) return { ok = false, reason = "featureDisabled" }
 		if (spellKey == null || spellKey == "") return { ok = false, reason = "noSpell" }
 		local spell = phoenix.item.Spells.find(spellKey)
 		if (spell == null) {
@@ -201,6 +203,7 @@ phoenix.item.Spells <- {
 	}
 
 	function castFromInventory(playerId, characterId, rec, scheme) {
+		if (!phoenix.features.Settings.isEnabled("items.spells")) return
 		if (rec == null || scheme == null) return
 		local instance = rec.instanceId
 		if (instance == null || instance == "") return
@@ -262,11 +265,13 @@ phoenix.item.Spells <- {
 				instance = capturedInst,
 				recordId = capturedRecId,
 				charId   = capturedCharId,
+				temporary = !alreadyEquipped,
 				expires  = phoenix.item.Spells._now() + 12000
 			}
 		}
 
 		setTimer(function() {
+			if (!phoenix.features.Settings.isEnabled("items.spells")) return
 			try { setPlayerWeaponMode(capturedPid, WEAPONMODE_MAG) } catch (e) {}
 			local slotIdx = phoenix.item.Spells._findSlotIndex(capturedPid, capturedInst)
 			if (slotIdx < 0) slotIdx = 0
@@ -321,6 +326,11 @@ phoenix.item.Spells.register("ARMYOFDARKNESS",   { circle = 6, manaCost = 150, c
 
 
 addEventHandler("onPlayerSpellSetup", function (playerid, instance) {
+	if (!phoenix.features.Settings.isEnabled("items.spells")) {
+		try { unreadySpell(playerid) } catch (e) {}
+		try { cancelEvent() } catch (e2) {}
+		return
+	}
 	if (instance == null) return
 	try {
 		local spell = phoenix.item.Spells.findByInstance(instance)
@@ -343,6 +353,10 @@ addEventHandler("onPlayerSpellSetup", function (playerid, instance) {
 
 
 addEventHandler("onPlayerSpellCast", function (playerid, instance, spellLevel) {
+	if (!phoenix.features.Settings.isEnabled("items.spells")) {
+		try { cancelEvent() } catch (e) {}
+		return
+	}
 	if (instance == null) return
 	try {
 		local spell = phoenix.item.Spells.findByInstance(instance)
@@ -424,4 +438,16 @@ addEventHandler("onPlayerDisconnect", function (playerId, _reason) {
 	if (playerId in phoenix.item.Spells.cooldown) phoenix.item.Spells.cooldown.rawdelete(playerId)
 	if (playerId in phoenix.item.Spells.pendingCast) phoenix.item.Spells.pendingCast.rawdelete(playerId)
 	if (playerId in phoenix.item.Spells.pendingScroll) phoenix.item.Spells.pendingScroll.rawdelete(playerId)
+})
+
+addEventHandler("phoenix.features.OnChanged", function(key, enabled) {
+	if (key != "items.spells" || enabled) return
+	foreach (playerId, entry in phoenix.item.Spells.pendingScroll) {
+		if (!("temporary" in entry) || !entry.temporary) continue
+		try { ::removeItem(playerId, entry.instance, 1) } catch (e) {}
+		try { unreadySpell(playerId) } catch (e2) {}
+	}
+	phoenix.item.Spells.cooldown = {}
+	phoenix.item.Spells.pendingCast = {}
+	phoenix.item.Spells.pendingScroll = {}
 })

@@ -3,6 +3,7 @@
 
 	let stackEl = null;
 	const stack = [];
+	let enabled = true;
 
 	function buildStack() {
 		if (stackEl) return stackEl;
@@ -22,7 +23,7 @@
 	}
 
 	function show(payload) {
-		if (!payload) return;
+		if (!enabled || !payload) return;
 		const root = buildStack();
 		const kind = payload.kind || "info";
 		const item = document.createElement("div");
@@ -50,6 +51,8 @@
 	function dismiss(entry, immediate) {
 		if (!entry || !entry.el) return;
 		clearTimeout(entry.timer);
+		const index = stack.indexOf(entry);
+		if (index !== -1) stack.splice(index, 1);
 		const el = entry.el;
 		entry.el = null;
 		const remove = function () { if (el && el.parentNode) el.parentNode.removeChild(el); };
@@ -59,13 +62,22 @@
 		setTimeout(remove, 350);
 	}
 
+	function clear() {
+		stack.slice().forEach(function (entry) { dismiss(entry, true); });
+	}
+
 	function notify(kind, title, text, durationMs) {
 		show({ kind: kind, title: title, text: text, durationMs: durationMs });
 	}
 
-	window.PhoenixNotify = { show: show, notify: notify };
+	window.PhoenixNotify = { show: show, notify: notify, clear: clear };
 
 	if (window.PhoenixBridge) {
 		PhoenixBridge.on("phoenix:notification:show", show);
+		PhoenixBridge.on("phoenix:features:snapshot", function (payload) {
+			const flags = payload && payload.settings && payload.settings.flags;
+			enabled = !flags || !flags.notifications || flags.notifications.enabled !== false;
+			if (!enabled) clear();
+		});
 	}
 })();

@@ -127,8 +127,11 @@
         render(true);
     });
 
+    var FEATURE_DOMAIN_ORDER = ["account", "progression", "items", "npc", "social", "world", "operations"];
+
     var TABS = [
         { id: "players", labelKey: "admin.tab.players", fallback: "Gracze" },
+        { id: "features", labelKey: "admin.tab.features", fallback: "Tryb serwera" },
         { id: "items",   labelKey: "admin.tab.items",   fallback: "Przedmioty" },
         { id: "custom",  labelKey: "admin.tab.custom",  fallback: "Custom" },
         { id: "inv",     labelKey: "admin.tab.inv",     fallback: "Ekwipunek" },
@@ -146,6 +149,11 @@
         { id: "debug",   labelKey: "admin.tab.debug",   fallback: "Debug" },
         { id: "log",     labelKey: "admin.tab.log",     fallback: "Historia" }
     ];
+
+    var CONTENT_EDITOR_TABS = {
+        custom: true, npc: true, herbs: true, vobs: true, houses: true, craft: true,
+        professions: true, spawns: true, bestiary: true, quests: true, db: true
+    };
 
     var CATEGORY_LABELS = {
         0: "—", 1: "1H", 2: "2H", 3: "Łuk", 4: "Kusza", 5: "Tarcza",
@@ -205,6 +213,10 @@
 
     var state = {
         players: [],
+        featureSettings: null,
+        featureDraft: null,
+        featureFilter: "",
+        featureSaving: false,
         schemes: [],
         schemesById: {},
         bans: [],
@@ -904,6 +916,7 @@
         try { bridge.send("phoenix:admin:request", { action: "adminPanelOpen", payload: null }); } catch (e) {}
         try { if (global.app && global.app.renderLangSwitcher) global.app.renderLangSwitcher(); } catch (e) {}
         send("players");
+        send("serverFeaturesGet");
         send("schemes");
         send("bans");
         send("log", { limit: 100 });
@@ -932,6 +945,7 @@
         if (!tabsEl) return;
         tabsEl.innerHTML = "";
         TABS.forEach(function (tab) {
+            if (!contentEditorsEnabled() && CONTENT_EDITOR_TABS[tab.id]) return;
             var b = document.createElement("button");
             b.type = "button";
             b.className = "phoenix-adminpanel__tab" + (tab.id === activeTab ? " is-active" : "");
@@ -953,6 +967,7 @@
                 activeTab = tab.id;
                 buildTabs();
                 if (tab.id === "log") send("log", { limit: 100 });
+                if (tab.id === "features") send("serverFeaturesGet");
                 if (tab.id === "bans") send("bans");
                 if (tab.id === "items") { send("players"); send("schemes"); send("itemRenderList"); }
                 if (tab.id === "inv") send("players");
@@ -1024,6 +1039,7 @@
         renderPending = false;
         var html = "";
         if (activeTab === "players") html = renderPlayers();
+        else if (activeTab === "features") html = renderServerFeatures();
         else if (activeTab === "items") html = renderItems();
         else if (activeTab === "custom") html = renderCustom();
         else if (activeTab === "bans") html = renderBans();
@@ -1148,6 +1164,158 @@
                 }
             });
         }
+    }
+
+    function readFeatureFlag(source, key) {
+        if (!source || typeof source !== "object") return false;
+        if (Object.prototype.hasOwnProperty.call(source, key)) return source[key] === true;
+        var value = source;
+        var parts = key.split(".");
+        for (var i = 0; i < parts.length; i += 1) {
+            if (!value || typeof value !== "object" || !Object.prototype.hasOwnProperty.call(value, parts[i])) return false;
+            value = value[parts[i]];
+        }
+        return value === true;
+    }
+
+    function contentEditorsEnabled() {
+        if (!state.featureSettings || !state.featureSettings.flags) return true;
+        return readFeatureFlag(state.featureSettings.flags, "admin.contentEditors");
+    }
+
+    function applyContentEditorAvailability() {
+        if (!contentEditorsEnabled() && CONTENT_EDITOR_TABS[activeTab]) {
+            send("adminNpcPreviewStop", {});
+            send("adminHerbPreviewStop", {});
+            send("adminVobPreviewStop", {});
+            state.humanCreator.preview = 0;
+            state.npcForm.preview = 0;
+            state.houseGhostActive = false;
+            state.houseBoundaryActive = false;
+            state.spawnGhost.active = false;
+            activeTab = "features";
+        }
+        buildTabs();
+    }
+
+    function featureDraftFromSnapshot(snapshot) {
+        if (!snapshot) return null;
+        var registry = Array.isArray(snapshot.registry) ? snapshot.registry.slice() : [];
+        var flags = {};
+        registry.forEach(function (meta) { flags[meta.key] = readFeatureFlag(snapshot.flags, meta.key); });
+        var draft = {
+            profile: snapshot.profile || "custom",
+            revision: +snapshot.revision || 0,
+            schemaVersion: +snapshot.schemaVersion || 0,
+            flags: flags,
+            registry: registry,
+            profiles: snapshot.profiles || {}
+        };
+        normalizeFeatureFlags(draft, flags);
+        return draft;
+    }
+
+    function detectFeatureProfile(draft) {
+        var found = "custom";
+        Object.keys(draft.profiles || {}).some(function (profile) {
+            var preset = draft.profiles[profile] || {};
+            var matches = draft.registry.every(function (meta) { return !!draft.flags[meta.key] === readFeatureFlag(preset, meta.key); });
+            if (matches) found = profile;
+            return matches;
+        });
+        return found;
+    }
+
+    function setFeatureFlag(draft, key, enabled, visited) {
+        if (!draft || !Object.prototype.hasOwnProperty.call(draft.flags, key)) return;
+        visited = visited || {};
+        if (visited[key]) return;
+        visited[key] = true;
+        draft.flags[key] = !!enabled;
+        if (enabled) {
+            var meta = draft.registry.filter(function (entry) { return entry.key === key; })[0];
+            (meta && meta.dependencies || []).forEach(function (dependency) { setFeatureFlag(draft, dependency, true, visited); });
+        } else {
+            draft.registry.forEach(function (entry) {
+                if ((entry.dependencies || []).indexOf(key) !== -1) setFeatureFlag(draft, entry.key, false, visited);
+            });
+        }
+        delete visited[key];
+    }
+
+    function normalizeFeatureFlags(draft, source) {
+        if (!draft) return;
+        var requested = {};
+        draft.registry.forEach(function (meta) { requested[meta.key] = readFeatureFlag(source, meta.key); });
+        draft.registry.forEach(function (meta) { draft.flags[meta.key] = false; });
+        draft.registry.forEach(function (meta) { if (requested[meta.key]) setFeatureFlag(draft, meta.key, true); });
+        draft.registry.forEach(function (meta) { if (!requested[meta.key]) setFeatureFlag(draft, meta.key, false); });
+    }
+
+    function applyFeaturePreset(draft, profile) {
+        if (!draft) return [];
+        var before = Object.assign({}, draft.flags);
+        if (profile !== "custom" && draft.profiles[profile]) normalizeFeatureFlags(draft, draft.profiles[profile]);
+        draft.profile = profile;
+        return draft.registry.filter(function (meta) { return before[meta.key] !== draft.flags[meta.key]; }).map(function (meta) { return meta.key; });
+    }
+
+    function featureDisplayName(key) {
+        var raw = key.split(".").pop().replace(/([a-z])([A-Z])/g, "$1 $2").replace(/[_-]+/g, " ");
+        var fallback = raw.charAt(0).toUpperCase() + raw.slice(1);
+        return t("admin.features.flag." + key, fallback);
+    }
+
+    function renderServerFeatures() {
+        var draft = state.featureDraft;
+        if (!draft) return '<div class="adm-section adm-features"><div class="adm-empty">' + escapeHtml(t("admin.features.loading")) + '</div><button class="adm-btn" data-action="features-reload">' + escapeHtml(t("admin.a.refresh")) + '</button></div>';
+        var snapshot = state.featureSettings || {};
+        var query = String(state.featureFilter || "").trim().toLowerCase();
+        var activeCount = draft.registry.filter(function (meta) { return !!draft.flags[meta.key]; }).length;
+        var html = '<div class="adm-section adm-features">';
+        html += '<div class="adm-features__hero"><div><span class="adm-features__kicker">' + escapeHtml(t("admin.features.kicker")) + '</span><h3>' + escapeHtml(t("admin.features.title")) + '</h3><p>' + escapeHtml(t("admin.features.description")) + '</p></div><div class="adm-features__revision"><span>' + escapeHtml(t("admin.features.revision")) + '</span><strong>#' + (+draft.revision || 0) + '</strong><small>' + activeCount + ' / ' + draft.registry.length + '</small></div></div>';
+        html += '<div class="adm-feature-presets">';
+        ["mmorpg", "rp", "hybrid", "custom"].forEach(function (profile) {
+            var active = draft.profile === profile ? " is-active" : "";
+            html += '<button type="button" class="adm-feature-preset' + active + '" data-action="features-profile" data-profile="' + profile + '"><span>' + escapeHtml(t("admin.features.profile." + profile)) + '</span><small>' + escapeHtml(t("admin.features.profile." + profile + ".desc")) + '</small></button>';
+        });
+        html += '</div>';
+        html += '<div class="adm-feature-tools"><input type="search" class="adm-search" data-role="feature-filter" value="' + escapeHtml(state.featureFilter || "") + '" placeholder="' + escapeHtml(t("admin.features.search", "Szukaj funkcji lub klucza...")) + '"><span>' + escapeHtml(t("admin.features.active", "Aktywne")) + ': <b>' + activeCount + '</b></span></div>';
+        var grouped = {};
+        draft.registry.forEach(function (meta) {
+            var label = t("admin.features.flag." + meta.key, featureDisplayName(meta.key));
+            var haystack = (meta.key + " " + label + " " + meta.domain).toLowerCase();
+            if (query && haystack.indexOf(query) === -1) return;
+            if (!grouped[meta.domain]) grouped[meta.domain] = [];
+            grouped[meta.domain].push({ meta: meta, label: label });
+        });
+        html += '<div class="adm-feature-groups">';
+        FEATURE_DOMAIN_ORDER.forEach(function (domain) {
+            var entries = grouped[domain] || [];
+            if (!entries.length) return;
+            html += '<section><h4>' + escapeHtml(t("admin.features.domain." + domain, domain)) + '<small>' + entries.filter(function (entry) { return draft.flags[entry.meta.key]; }).length + ' / ' + entries.length + '</small></h4>';
+            entries.forEach(function (entry) {
+                var meta = entry.meta;
+                var deps = meta.dependencies || [];
+                var detail = deps.length ? t("admin.features.requires", "Wymaga") + ': ' + deps.map(featureDisplayName).join(", ") : t("admin.features.independent", "Niezależna");
+                var status = meta.restartRequired ? t("admin.features.restartRequired", "Restart") : t("admin.features.hot", "Hot");
+                html += '<label class="adm-feature-toggle"><span><b>' + escapeHtml(entry.label) + '</b><small>' + escapeHtml(detail) + '</small><em>' + escapeHtml(status) + '</em></span><input type="checkbox" data-feature="' + escapeHtml(meta.key) + '"' + (draft.flags[meta.key] ? ' checked' : '') + '><i></i></label>';
+            });
+            html += '</section>';
+        });
+        html += '</div>';
+        if (!Object.keys(grouped).some(function (domain) { return grouped[domain].length; })) html += '<div class="adm-empty">' + escapeHtml(t("admin.features.noResults", "Brak pasujących funkcji.")) + '</div>';
+        var warnings = [];
+        draft.registry.forEach(function (meta) {
+            if (!draft.flags[meta.key]) return;
+            (meta.dependencies || []).forEach(function (dependency) {
+                if (!draft.flags[dependency]) warnings.push(featureDisplayName(meta.key) + ' → ' + featureDisplayName(dependency));
+            });
+        });
+        if (warnings.length) html += '<div class="adm-feature-warning">' + escapeHtml(t("admin.features.dependencyWarning", "Niespełnione zależności")) + ': ' + escapeHtml(warnings.join(", ")) + '</div>';
+        html += '<div class="adm-features__foot"><div><b>' + escapeHtml(t("admin.features.hotUpdate")) + '</b><small>' + escapeHtml(t("admin.features.updatedBy")) + ': ' + (+snapshot.updatedBy || 0) + ' · schema ' + (+draft.schemaVersion || 0) + '</small></div><div class="adm-toolbar"><button class="adm-btn" data-action="features-reload">' + escapeHtml(t("admin.features.reload")) + '</button><button class="adm-btn adm-btn--primary" data-action="features-save"' + (state.featureSaving ? ' disabled' : '') + '>' + escapeHtml(state.featureSaving ? t("admin.features.saving") : t("admin.features.save")) + '</button></div></div>';
+        html += '</div>';
+        return html;
     }
 
     function renderPlayers() {
@@ -3158,6 +3326,27 @@
                 } else state[k] = el.type === "number" ? +el.value : el.value;
             });
         });
+        body.querySelectorAll("[data-feature]").forEach(function (el) {
+            el.addEventListener("change", function () {
+                if (!state.featureDraft) return;
+                var before = Object.assign({}, state.featureDraft.flags);
+                var changedKey = el.dataset.feature;
+                setFeatureFlag(state.featureDraft, changedKey, !!el.checked);
+                state.featureDraft.profile = detectFeatureProfile(state.featureDraft);
+                var adjusted = state.featureDraft.registry.filter(function (meta) {
+                    return meta.key !== changedKey && before[meta.key] !== state.featureDraft.flags[meta.key];
+                }).map(function (meta) { return featureDisplayName(meta.key); });
+                if (adjusted.length) state.status = { text: tAdminText(tFmt("admin.features.dependenciesAdjusted", adjusted.join(", "))), kind: "" };
+                render(true);
+            });
+        });
+        var featureFilter = body.querySelector("[data-role='feature-filter']");
+        if (featureFilter) featureFilter.addEventListener("input", debounce(function () {
+            state.featureFilter = featureFilter.value;
+            render(true);
+            var next = body.querySelector("[data-role='feature-filter']");
+            if (next) { next.focus(); next.setSelectionRange(next.value.length, next.value.length); }
+        }, 120));
         body.querySelectorAll("[data-cbind]").forEach(function (el) {
             el.addEventListener("input", function () {
                 var k = el.dataset.cbind;
@@ -3608,6 +3797,26 @@
         }
         if (a && a.indexOf("craft") === 0) {
             handleCraftAction(a, el);
+            return;
+        }
+        if (a === "features-reload") { state.featureDraft = null; send("serverFeaturesGet"); return render(true); }
+        if (a === "features-profile") {
+            var profile = el.dataset.profile || "custom";
+            if (!state.featureDraft) return;
+            var adjusted = applyFeaturePreset(state.featureDraft, profile).map(featureDisplayName);
+            if (adjusted.length) state.status = { text: tAdminText(tFmt("admin.features.dependenciesAdjusted", adjusted.join(", "))), kind: "" };
+            return render(true);
+        }
+        if (a === "features-save") {
+            if (!state.featureDraft || state.featureSaving) return;
+            var featurePayload = {
+                profile: state.featureDraft.profile,
+                expectedRevision: +state.featureDraft.revision || 0
+            };
+            if (state.featureDraft.profile === "custom") featurePayload.flags = Object.assign({}, state.featureDraft.flags);
+            state.featureSaving = true;
+            send("serverFeaturesUpdate", featurePayload);
+            setStatus(t("admin.features.saving"), "");
             return;
         }
         if (a === "profession-refresh") return send("professionList");
@@ -4558,6 +4767,27 @@
     function onResponse(p) {
         if (!p || !p.action) return;
         var pl = p.payload || {};
+        if (p.action === "serverFeaturesGet") {
+            if (!p.success) return setStatus(t("admin.features.loadError"), "error");
+            state.featureSettings = pl;
+            state.featureDraft = featureDraftFromSnapshot(pl);
+            state.featureSaving = false;
+            applyContentEditorAvailability();
+            return render(true);
+        }
+        if (p.action === "serverFeaturesUpdate") {
+            state.featureSaving = false;
+            var applyServerSnapshot = p.success || p.error === "conflict";
+            if (applyServerSnapshot && pl && typeof pl.revision !== "undefined") {
+                state.featureSettings = pl;
+                state.featureDraft = featureDraftFromSnapshot(pl);
+                applyContentEditorAvailability();
+                render(true);
+            }
+            if (p.success) return setStatus(t("admin.features.saved"), "ok");
+            var errorKey = p.error === "conflict" ? "admin.features.conflict" : (p.error === "dependencyGraph" || String(p.error || "").indexOf("dependency:") === 0 || p.error === "profileMismatch" ? "admin.features.dependencyError" : "admin.features.saveError");
+            return setStatus(t(errorKey), "error");
+        }
         if (p.action === "questList" && p.success) { state.questDefinitions = pl.entries || []; return render(true); }
         if (p.action === "questCatalog" && p.success) { state.questCatalog = pl; return render(true); }
         if (p.action === "questLegacyReport" && p.success) { state.questLegacyReport = pl.entries || []; setStatus("Raport legacy gotowy", "ok"); return render(true); }
@@ -6147,6 +6377,16 @@
     global.addEventListener("beforeunload", function (event) { if (!state.questUi.dirty) return; event.preventDefault(); event.returnValue = ""; });
 
     bridge.on("phoenix:admin:response", onResponse);
+    bridge.on("phoenix:features:snapshot", function (payload) {
+        if (!payload || !payload.settings) return;
+        var incoming = payload.settings;
+        if (state.featureSettings && (+incoming.revision || 0) < (+state.featureSettings.revision || 0)) return;
+        state.featureSettings = incoming;
+        state.featureDraft = featureDraftFromSnapshot(incoming);
+        state.featureSaving = false;
+        applyContentEditorAvailability();
+        if (isOpen) render(true);
+    });
     bridge.on("phoenix:account:identity", function (p) {
         isAdmin = !!(p && p.isAdmin);
         var btn = document.getElementById("escmenu-admin");

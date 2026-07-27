@@ -2,6 +2,11 @@ phoenix.social.Handlers <- {
 	function handle(playerId, message) {
 		if (message == null || message.action == null) return
 		local action = message.action.tostring()
+		local tradeAction = action == "tradeStart" || action == "tradeGold" || action == "tradeItem" || action == "tradeAccept" || action == "tradeCancel"
+		local partyAction = action == "partyInvite" || action == "partyAccept" || action == "partyDecline" || action == "partyLeave" || action == "partyKick" || action == "partyTransfer"
+		if (tradeAction && !phoenix.features.Settings.isEnabled("social.trade")) return
+		if (partyAction && !phoenix.features.Settings.isEnabled("social.party")) return
+		if (action == "dm" && !phoenix.features.Settings.isEnabled("social.directMessages")) return
 		if (action == "requestPanel") { phoenix.social.Structure.pushSocial(playerId); return }
 		if (action == "interact") { phoenix.social.Handlers.interact(playerId, message.targetId); return }
 		if (action == "tradeStart") { phoenix.social.Structure.startTrade(playerId, message.targetId); return }

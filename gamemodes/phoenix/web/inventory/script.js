@@ -3,6 +3,22 @@
 (function () {
 	"use strict";
 
+	let featureFlags = {};
+	const featureDefaults = { "items.inventory": true, "items.use": true, "items.equipment": true, "items.upgrades": true, "items.spells": true };
+
+	function featureEnabled(path) {
+		const parts = path.split(".");
+		let value = featureFlags;
+		for (let i = 0; i < parts.length; i += 1) {
+			if (!value || typeof value !== "object" || !Object.prototype.hasOwnProperty.call(value, parts[i])) return featureDefaults[path] !== false;
+			value = value[parts[i]];
+		}
+		return value !== false;
+	}
+	function isSpellItem(item) { return !!(item && (item.spell || item.category === 11 || item.category === 12 || item.slot === 10)); }
+	function canUseItem(item) { return featureEnabled("items.use") && (!isSpellItem(item) || featureEnabled("items.spells")); }
+	function canEquipItem(item) { return featureEnabled("items.equipment") && (!isSpellItem(item) || featureEnabled("items.spells")); }
+
 	function t(key, fallback) {
 		try { return (window.PhoenixI18n && window.PhoenixI18n.t)
 			? window.PhoenixI18n.t(key) : (fallback != null ? fallback : key); }
@@ -727,15 +743,15 @@
 		actionsNode.innerHTML = "";
 		if (!item) return;
 		const canEquip = item.slot >= 1 && item.slot <= 10;
-		if (item.onUse) actionsNode.appendChild(makeAction(t("inv.action.use"), function () {
-			PhoenixBridge.send("phoenix:item:requestUse", { id: item.id });
+		if (item.onUse && canUseItem(item)) actionsNode.appendChild(makeAction(t("inv.action.use"), function () {
+			if (canUseItem(item)) PhoenixBridge.send("phoenix:item:requestUse", { id: item.id });
 		}));
-		if (canEquip) actionsNode.appendChild(makeAction(t(item.equipped ? "inv.action.unequip" : "inv.action.equip"), function () {
-			PhoenixBridge.send("phoenix:item:requestEquip", { id: item.id, equip: !item.equipped });
+		if (canEquip && canEquipItem(item)) actionsNode.appendChild(makeAction(t(item.equipped ? "inv.action.unequip" : "inv.action.equip"), function () {
+			if (canEquipItem(item)) PhoenixBridge.send("phoenix:item:requestEquip", { id: item.id, equip: !item.equipped });
 		}));
-		if (item.upgrade !== undefined && item.upgrade < 9 && (item.slot >= 1 && item.slot <= 5)) {
+		if (featureEnabled("items.upgrades") && item.upgrade !== undefined && item.upgrade < 9 && (item.slot >= 1 && item.slot <= 5)) {
 			actionsNode.appendChild(makeAction(t("inv.action.upgrade") + " +" + (item.upgrade + 1), function () {
-				PhoenixBridge.send("phoenix:item:requestUpgrade", { id: item.id });
+				if (featureEnabled("items.upgrades")) PhoenixBridge.send("phoenix:item:requestUpgrade", { id: item.id });
 			}, "invui-action--upgrade"));
 		}
 		const hotbarSlot = window.PhoenixHud && typeof PhoenixHud.slotOf === "function" ? PhoenixHud.slotOf(item.instance || "") : -1;
@@ -793,9 +809,9 @@
 		return btn;
 	}
 	function quickUse(item) {
-		if (item.onUse) {
+		if (item.onUse && canUseItem(item)) {
 			PhoenixBridge.send("phoenix:item:requestUse", { id: item.id });
-		} else if (item.slot >= 1 && item.slot <= 10) {
+		} else if (item.slot >= 1 && item.slot <= 10 && canEquipItem(item)) {
 			PhoenixBridge.send("phoenix:item:requestEquip", { id: item.id, equip: !item.equipped });
 		}
 	}
@@ -890,7 +906,7 @@
 	}
 
 	PhoenixBridge.on("phoenix:item:document", function (payload) {
-		if (!payload) return;
+		if (!featureEnabled("items.inventory") || !featureEnabled("items.use") || !payload) return;
 		if (!document.body.classList.contains("phoenix-inventory-open")) {
 			if (payload.source === "hotbar") pendingDocument = payload;
 			return;
@@ -920,9 +936,20 @@
 		state.player.magicXpNext = payload.magicXpNext | 0;
 		try { rerender(); } catch (e) {}
 	});
+	PhoenixBridge.on("phoenix:features:snapshot", function (payload) {
+		featureFlags = payload && payload.settings && payload.settings.flags && typeof payload.settings.flags === "object" ? payload.settings.flags : {};
+		if (!featureEnabled("items.inventory") && window.app && app.current() === "inventory") {
+			PhoenixBridge.send("phoenix:item:closeRequest", {});
+			app.hide();
+			return;
+		}
+		if (!featureEnabled("items.use")) document.querySelectorAll(".invui-document").forEach(function (node) { node.remove(); });
+		try { rerender(); } catch (e) {}
+	});
 
 	app.register("inventory", {
 		onShow: function () {
+			if (!featureEnabled("items.inventory")) { PhoenixBridge.send("phoenix:item:closeRequest", {}); if (window.app) app.hide(); return; }
 			root = document.getElementById("page-inventory");
 			document.body.classList.add("phoenix-inventory-open");
 			if (window.PhoenixHud && typeof window.PhoenixHud.setBlocked === "function") PhoenixHud.setBlocked(true);

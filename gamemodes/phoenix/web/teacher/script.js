@@ -20,7 +20,56 @@
 	let dialogStage = { active: false, index: 0, stages: [], data: null };
 	let merchantModal = null;
 	let lastMerchantPick = { key: "", at: 0 };
+	let featureFlags = {};
+	const featureDefaults = { "npc.interaction": true, "npc.teachers": true, "npc.merchants": true, "progression.learnPoints": true, "progression.statsSpending": true, "progression.weaponExperience": true };
 	const ITEM_RENDER = { rotX: "1.584", rotY: "-1.662", rotZ: "-0.488", scale: "1.40", light: "2.85" };
+
+	function featureEnabled(path) {
+		const parts = path.split(".");
+		let value = featureFlags;
+		for (let i = 0; i < parts.length; i += 1) {
+			if (!value || typeof value !== "object" || !Object.prototype.hasOwnProperty.call(value, parts[i])) return featureDefaults[path] !== false;
+			value = value[parts[i]];
+		}
+		return value !== false;
+	}
+	function trainingAvailable() {
+		return featureEnabled("progression.learnPoints") && (featureEnabled("progression.statsSpending") || featureEnabled("progression.weaponExperience"));
+	}
+	function teacherAvailable() { return featureEnabled("npc.interaction") && featureEnabled("npc.teachers") && trainingAvailable(); }
+	function merchantAvailable() { return featureEnabled("npc.interaction") && featureEnabled("npc.merchants"); }
+	function trainingSkillAvailable(skill) {
+		if (!featureEnabled("progression.learnPoints")) return false;
+		return isWeaponSkill(skill) ? featureEnabled("progression.weaponExperience") : featureEnabled("progression.statsSpending");
+	}
+	function closeDisabledTeacher() {
+		if (!featureEnabled("npc.interaction")) {
+			PhoenixBridge.send("phoenix:teacher:close", null);
+			if (window.phoenixApp && phoenixApp.current() === "teacher") phoenixApp.hide();
+			return;
+		}
+		if (state.mode === "teacher" && !teacherAvailable()) {
+			if (merchantAvailable() && dialogStage.data) {
+				state.mode = "dialog";
+				dialogStage.active = true;
+				dialogStage.index = dialogStage.stages.length;
+				renderDialogStage();
+				PhoenixBridge.send("phoenix:npc:dialogAction", { action: "root" });
+			} else {
+				PhoenixBridge.send("phoenix:teacher:close", null);
+				if (window.phoenixApp && phoenixApp.current() === "teacher") phoenixApp.hide();
+			}
+		}
+		if (state.mode === "merchant" && !merchantAvailable()) {
+			PhoenixBridge.send("phoenix:teacher:close", null);
+			if (window.phoenixApp && phoenixApp.current() === "teacher") phoenixApp.hide();
+		}
+	}
+	function applyFeatureFlags(payload) {
+		featureFlags = payload && payload.settings && payload.settings.flags && typeof payload.settings.flags === "object" ? payload.settings.flags : {};
+		if (state.mode === "dialog" && dialogStage.active) renderDialogStage();
+		closeDisabledTeacher();
+	}
 	const MESH_QUEUE_CONCURRENCY = 1;
 	const MESH_QUEUE_TIMEOUT_MS = 1500;
 	const MESH_QUEUE_GAP_MS = 25;
@@ -176,8 +225,8 @@
 		html += '</section><section class="npc-cinematic-dialog__options' + (showOptions ? ' is-visible' : '') + '">';
 		if (showOptions) {
 			const data = dialogStage.data || {};
-			if (data.hasMerchant) html += '<button type="button" class="teacher-row" data-action="merchant"><span data-t="npc.dialog.trade"></span></button>';
-			if (data.hasTeacher) html += '<button type="button" class="teacher-row" data-action="teacher"><span data-t="npc.dialog.learn"></span></button>';
+			if (data.hasMerchant && merchantAvailable()) html += '<button type="button" class="teacher-row" data-action="merchant"><span data-t="npc.dialog.trade"></span></button>';
+			if (data.hasTeacher && teacherAvailable()) html += '<button type="button" class="teacher-row" data-action="teacher"><span data-t="npc.dialog.learn"></span></button>';
 			html += '<button type="button" class="teacher-row teacher-row--muted" data-action="close"><span data-t="npc.dialog.leave"></span></button>';
 		}
 		html += '</section></div>';
@@ -201,11 +250,12 @@
 		renderDialogStage();
 	}
 	function renderTeacher(d) {
+		if (!teacherAvailable()) { closeDisabledTeacher(); return; }
 		dialogStage.active = false;
 		state.mode = "teacher";
 		state.npcName = d.npcName || state.npcName;
 		shell("teacher.title");
-		const skills = (d.skills || "").split(",").map(s => s.trim()).filter(Boolean);
+		const skills = (d.skills || "").split(",").map(s => s.trim()).filter(function (skill) { return skill && trainingSkillAvailable(skill); });
 		const progress = parseWeaponProgress(d.weaponProgress || "");
 		let html = '<section class="teacher-panel__info"><span>' + esc(t("teacher.cost", "Koszt")) + ': <strong>' + d.cost + '</strong></span><span>' + esc(t("stats.gold", "Zloto")) + ': <strong>' + d.playerGold + '</strong></span><span>' + esc(t("stats.learnPoints", "PN")) + ': <strong>' + d.playerLearnPoints + '</strong></span></section><section class="teacher-panel__list">';
 		html += skills.map(function (skill) { return '<button type="button" class="teacher-row" data-action="train" data-skill="' + esc(skill) + '"><span>' + esc(t(skillLabels[skill] || skill, skill)) + '</span><span class="teacher-row__cost">' + esc(teacherCost(skill, d, progress)) + '</span></button>'; }).join("");
@@ -354,6 +404,10 @@
 		if (!target && advanceDialog()) return;
 		if (!target) return;
 		const action = target.dataset.action;
+		if (!featureEnabled("npc.interaction") && action !== "close") return;
+		if ((action === "teacher" || action === "train") && !teacherAvailable()) return;
+		if (action === "train" && !trainingSkillAvailable(target.dataset.skill)) return;
+		if ((action === "merchant" || action.indexOf("merchant-") === 0) && !merchantAvailable()) return;
 		if (action === "close") PhoenixBridge.send("phoenix:teacher:close", null);
 		else if (action === "teacher" || action === "merchant" || action === "back") PhoenixBridge.send("phoenix:npc:dialogAction", { action: action === "back" ? "root" : action });
 		else if (action === "train") PhoenixBridge.send("phoenix:teacher:train", { skill: target.dataset.skill });
@@ -385,13 +439,26 @@
 			event.stopPropagation();
 		}
 	});
-	PhoenixBridge.on("phoenix:npc:dialog", renderDialog);
-	PhoenixBridge.on("phoenix:teacher:dialog", renderTeacher);
-	PhoenixBridge.on("phoenix:teacher:result", function (payload) { result("teacher", payload); });
-	PhoenixBridge.on("phoenix:merchant:dialog", renderMerchant);
-	PhoenixBridge.on("phoenix:merchant:result", function (payload) { result("merchant", payload); });
+	PhoenixBridge.on("phoenix:npc:dialog", function (payload) {
+		if (!featureEnabled("npc.interaction")) { closeDisabledTeacher(); return; }
+		renderDialog(payload);
+	});
+	PhoenixBridge.on("phoenix:teacher:dialog", function (payload) {
+		if (!teacherAvailable()) { closeDisabledTeacher(); return; }
+		renderTeacher(payload);
+	});
+	PhoenixBridge.on("phoenix:teacher:result", function (payload) { if (teacherAvailable() && state.mode === "teacher") result("teacher", payload); });
+	PhoenixBridge.on("phoenix:merchant:dialog", function (payload) {
+		if (!merchantAvailable()) { closeDisabledTeacher(); return; }
+		renderMerchant(payload);
+	});
+	PhoenixBridge.on("phoenix:merchant:result", function (payload) { if (merchantAvailable() && state.mode === "merchant") result("merchant", payload); });
+	PhoenixBridge.on("phoenix:features:snapshot", applyFeatureFlags);
 	if (window.phoenixApp) window.phoenixApp.register("teacher", {
-		onShow: function () { if (window.PhoenixHud && window.PhoenixHud.setBlocked) window.PhoenixHud.setBlocked(true); },
+		onShow: function () {
+			if (!featureEnabled("npc.interaction")) { closeDisabledTeacher(); return; }
+			if (window.PhoenixHud && window.PhoenixHud.setBlocked) window.PhoenixHud.setBlocked(true);
+		},
 		onHide: function () { stopMerchantMeshRetrySweeps(); merchantMeshQueue.reset(); if (window.PhoenixHud && window.PhoenixHud.setBlocked) window.PhoenixHud.setBlocked(false); }
 	});
 })();

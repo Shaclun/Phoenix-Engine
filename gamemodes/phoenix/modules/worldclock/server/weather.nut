@@ -27,7 +27,8 @@ phoenix.worldclock.Weather <- {
 		} catch (e) {}
 	}
 
-	function set(kind) {
+	function set(kind, force = false) {
+		if (!force && !phoenix.features.Settings.isEnabled("weather.enabled")) return
 		if (kind == null) return
 		local k = kind.tostring().tolower()
 		if (k != "clear" && k != "rain" && k != "snow" && k != "storm" && k != "stop") k = "clear"
@@ -37,7 +38,8 @@ phoenix.worldclock.Weather <- {
 		phoenix.worldclock.Weather.dirty = true
 	}
 
-	function setWind(scale) {
+	function setWind(scale, force = false) {
+		if (!force && !phoenix.features.Settings.isEnabled("weather.enabled")) return
 		local v = scale == null ? 0.0 : scale.tofloat()
 		if (v < 0.0) v = 0.0
 		if (v > 5.0) v = 5.0
@@ -46,7 +48,8 @@ phoenix.worldclock.Weather <- {
 		phoenix.worldclock.Weather.dirty = true
 	}
 
-	function setRainWindow(startHour, startMin, stopHour, stopMin) {
+	function setRainWindow(startHour, startMin, stopHour, stopMin, force = false) {
+		if (!force && !phoenix.features.Settings.isEnabled("weather.enabled")) return
 		try { Sky.setRainStartTime(startHour, startMin) } catch (e) {}
 		try { Sky.setRainStopTime(stopHour, stopMin) } catch (e) {}
 		phoenix.worldclock.Weather.dirty = true

@@ -49,12 +49,15 @@ phoenix.character.Handlers <- {
 	}
 
 	function pushList(playerId, accountId) {
+		if (!phoenix.features.Settings.isEnabled("lobby.enabled")) return
 		phoenix.character.Structure.listForAccount(accountId, function(records) {
+			if (!phoenix.features.Settings.isEnabled("lobby.enabled")) return
 			local entries = phoenix.character.Handlers.asListEntries(records)
 			if (entries.len() == 0) return phoenix.character.Handlers.send(playerId, phoenix.character.Message.List(entries))
 
 			local pending = entries.len() * 3
 			local done = function() {
+				if (!phoenix.features.Settings.isEnabled("lobby.enabled")) return
 				pending -= 1
 				if (pending <= 0) phoenix.character.Handlers.send(playerId, phoenix.character.Message.List(entries))
 			}
@@ -94,6 +97,7 @@ phoenix.character.Handlers <- {
 	}
 
 	function onCreate(playerId, message) {
+		if (!phoenix.features.Settings.isEnabled("character.creation")) return
 		local session = phoenix.account.Structure.get(playerId)
 		if (session == null) return phoenix.character.Handlers.rejectCreate(playerId, "phoenix.character.error.notLogged")
 
@@ -128,12 +132,15 @@ phoenix.character.Handlers <- {
 	}
 
 	function onSelect(playerId, message) {
+		if (!phoenix.features.Settings.isEnabled("lobby.enabled")) return
 		local session = phoenix.account.Structure.get(playerId)
 		if (session == null) return
 
 		phoenix.character.Structure.findOwned(session.id(), message.characterId, function(record) {
+			if (!phoenix.features.Settings.isEnabled("lobby.enabled")) return
 			if (record == null) return
 			BanModel.findActiveForCharacter(record.id, function(bans) {
+				if (!phoenix.features.Settings.isEnabled("lobby.enabled")) return
 				if (bans != null && bans.len() > 0) return
 				phoenix.character.Structure.setActive(playerId, record)
 				phoenix.character.Structure.markPlayed(record.id)
@@ -146,6 +153,7 @@ phoenix.character.Handlers <- {
 	}
 
 	function onPreviewRestore(playerId, _message) {
+		if (!phoenix.features.Settings.isEnabled("character.preview")) return
 		local record = phoenix.character.Structure.getActive(playerId)
 		if (record == null) return
 		try { phoenix.player.Gate.restoreVisual(playerId) } catch (e) {}
@@ -153,6 +161,7 @@ phoenix.character.Handlers <- {
 	}
 
 	function onDelete(playerId, message) {
+		if (!phoenix.features.Settings.isEnabled("character.deletion")) return
 		local session = phoenix.account.Structure.get(playerId)
 		if (session == null) return
 

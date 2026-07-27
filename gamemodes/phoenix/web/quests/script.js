@@ -12,6 +12,8 @@
 		trackerRoot.className = "quest-tracker";
 	}
 
+	let featureFlags = {};
+	const featureDefaults = { "quests.enabled": true, "quests.dialogs": true, "quests.markers": true, "quests.rewards": true };
 	const state = {
 		entries: [],
 		selectedId: null,
@@ -23,6 +25,24 @@
 		trackerTimer: null,
 		trackerHideTimer: null
 	};
+
+	function featureEnabled(path) {
+		const parts = path.split(".");
+		let value = featureFlags;
+		for (let i = 0; i < parts.length; i += 1) {
+			if (!value || typeof value !== "object" || !Object.prototype.hasOwnProperty.call(value, parts[i])) return featureDefaults[path] !== false;
+			value = value[parts[i]];
+		}
+		return value !== false;
+	}
+	function questsEnabled() { return featureEnabled("quests.enabled"); }
+	function hideTracker() {
+		clearTimeout(state.trackerTimer);
+		clearTimeout(state.trackerHideTimer);
+		state.trackerFingerprint = "";
+		trackerRoot.classList.remove("is-visible", "is-updated", "is-turn-in", "is-reward");
+		trackerRoot.innerHTML = "";
+	}
 
 	function esc(value) {
 		return String(value == null ? "" : value)
@@ -56,6 +76,7 @@
 	}
 
 	function trackerPriority(entry) {
+		if (entry.status === "reward_pending" && !featureEnabled("quests.rewards")) return 0;
 		if (entry.tracked && entry.status === "active") return 5;
 		if (entry.status === "reward_pending") return 4;
 		if (entry.status === "ready_to_turn_in") return 3;
@@ -141,6 +162,7 @@
 	}
 
 	function renderTracker() {
+		if (!questsEnabled() || !featureEnabled("quests.markers")) { hideTracker(); return; }
 		const entry = trackerCandidate();
 		if (!entry) {
 			trackerRoot.classList.remove("is-updated", "is-turn-in", "is-reward");
@@ -286,7 +308,7 @@
 				'<section class="quest-progress-summary"><div class="quest-progress-summary__top"><span>' + esc(tr("quest.log.progress")) + '</span><b>' + questPercent + '%</b></div><div class="quest-progress-summary__bar"><i style="width:' + questPercent + '%"></i></div></section>' +
 				'<section class="quest-stage"><span>' + esc(tr("quest.log.activeStage")) + '</span><strong>' + esc(selected.stageTitle || selected.currentStageKey || tr("quest.tracker.noObjective")) + '</strong></section>' +
 				'<section class="quest-objectives"><h3>' + esc(tr("quest.log.objectives")) + '</h3>' + (objectiveRows || '<div class="quest-empty quest-empty--objectives">' + esc(tr("quest.log.objectivesEmpty")) + '</div>') + '</section>' +
-				(selected.status === "active" ? '<button class="quest-track' + (selected.tracked ? ' is-active' : '') + '" data-action="track" data-id="' + selected.id + '"><span>◆</span>' + esc(selected.tracked ? tr("quest.log.tracked") : tr("quest.log.track")) + '</button>' : '') +
+				(featureEnabled("quests.markers") && selected.status === "active" ? '<button class="quest-track' + (selected.tracked ? ' is-active' : '') + '" data-action="track" data-id="' + selected.id + '"><span>◆</span>' + esc(selected.tracked ? tr("quest.log.tracked") : tr("quest.log.track")) + '</button>' : '') +
 				'</article>';
 		}
 		root.innerHTML = '<div class="quest-shell">' +
@@ -309,6 +331,8 @@
 		const button = event.target.closest("[data-action]");
 		if (!button) return;
 		const action = button.dataset.action;
+		if (!questsEnabled() && action !== "close") return;
+		if ((action === "dialog-option" || state.dialog) && !featureEnabled("quests.dialogs") && action !== "close") return;
 		if (action === "close") {
 			if (state.dialog) PhoenixBridge.send("phoenix:quest:request", { action: "dialogClose", payload: { sessionId: state.dialog.sessionId } });
 			state.dialog = null;
@@ -326,6 +350,7 @@
 			return;
 		}
 		if (action === "track") {
+			if (!featureEnabled("quests.markers")) return;
 			PhoenixBridge.send("phoenix:quest:request", { action: "track", payload: { stateId: Number(button.dataset.id) } });
 			return;
 		}
@@ -335,6 +360,7 @@
 	});
 
 	PhoenixBridge.on("phoenix:quest:snapshot", function (payload) {
+		if (!questsEnabled()) { state.entries = []; hideTracker(); return; }
 		state.entries = payload && Array.isArray(payload.entries) ? payload.entries : [];
 		state.lastError = "";
 		renderTracker();
@@ -342,16 +368,37 @@
 	});
 
 	PhoenixBridge.on("phoenix:quest:response", function (payload) {
+		if (!questsEnabled()) return;
 		if (payload && !payload.success) state.lastError = payload.error || tr("quest.error.operation");
 		else state.lastError = "";
 		render();
 	});
 
 	PhoenixBridge.on("phoenix:quest:dialog", function (payload) {
+		if (!questsEnabled() || !featureEnabled("quests.dialogs")) {
+			state.dialog = null;
+			return;
+		}
 		if (!payload || payload.action === "close") state.dialog = null;
 		else state.dialog = payload;
 		if (payload && payload.payload && (payload.action === "open" || payload.action === "node")) PhoenixBridge.send("phoenix:npc:dialogStage", { speaker: payload.action === "node" ? (payload.payload.speaker || "npc") : "npc" });
 		render();
+	});
+	PhoenixBridge.on("phoenix:features:snapshot", function (payload) {
+		featureFlags = payload && payload.settings && payload.settings.flags && typeof payload.settings.flags === "object" ? payload.settings.flags : {};
+		if (!questsEnabled()) {
+			state.entries = [];
+			state.dialog = null;
+			hideTracker();
+			if (window.app && app.current() === "quests") { PhoenixBridge.send("phoenix:quest:close", {}); app.hide(); }
+			return;
+		}
+		if (state.dialog && !featureEnabled("quests.dialogs")) {
+			PhoenixBridge.send("phoenix:quest:request", { action: "dialogClose", payload: { sessionId: state.dialog.sessionId } });
+			state.dialog = null;
+		}
+		renderTracker();
+		if (window.app && app.current() === "quests") render();
 	});
 
 	if (window.PhoenixI18n && PhoenixI18n.onChange) {
@@ -365,7 +412,10 @@
 	setTimeout(function () { bindTrackerCollision(0); }, 0);
 
 	app.register("quests", {
-		onShow: function () { render(); },
+		onShow: function () {
+			if (!questsEnabled()) { PhoenixBridge.send("phoenix:quest:close", {}); if (window.app) app.hide(); return; }
+			render();
+		},
 		onHide: function () { renderTracker(); }
 	});
 })();

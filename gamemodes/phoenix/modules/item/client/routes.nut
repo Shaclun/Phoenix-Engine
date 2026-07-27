@@ -34,6 +34,7 @@ if ("Router" in phoenix.web && phoenix.web.Router != null) {
 	})
 
 	phoenix.web.Router.on("phoenix:hotbar:use", function(payload) {
+		if (!phoenix.features.Client.effectiveEnabled("player.hotbar")) return
 		if (payload == null) return
 		local slot = -1
 		if ("slot" in payload) slot = payload.slot.tointeger()

@@ -7,6 +7,8 @@
 
 	let mode = "login";
 	let busy = false;
+	let featureFlags = {};
+	const featureDefaults = { "account.registration": true };
 	const state = {
 		login: { username: "", password: "" },
 		register: { username: "", password: "", passwordRepeat: "", email: "" },
@@ -76,6 +78,36 @@
 		`;
 	}
 
+	function featureEnabled(path) {
+		const parts = path.split(".");
+		let value = featureFlags;
+		for (let i = 0; i < parts.length; i += 1) {
+			if (!value || typeof value !== "object" || !Object.prototype.hasOwnProperty.call(value, parts[i])) return featureDefaults[path] !== false;
+			value = value[parts[i]];
+		}
+		return value !== false;
+	}
+
+	function registrationEnabled() { return featureEnabled("account.registration"); }
+
+	function applyRegistrationFeature() {
+		const enabled = registrationEnabled();
+		root.querySelectorAll("[data-tab='register'], [data-form='register'], [data-role='switch-to-register']").forEach(function (node) { node.hidden = !enabled; });
+		if (!enabled && mode === "register") {
+			mode = "login";
+			state.status = { type: null, key: null, text: null };
+			applyMode();
+			applyStatus();
+			updateSubtitle();
+		}
+	}
+
+	function applyFeatureFlags(payload) {
+		featureFlags = payload && payload.settings && payload.settings.flags && typeof payload.settings.flags === "object" ? payload.settings.flags : {};
+		if (!registrationEnabled()) setBusy(false);
+		applyRegistrationFeature();
+	}
+
 	function render() {
 		root.innerHTML = template();
 
@@ -111,9 +143,11 @@
 		I18n.applyDom(root);
 		if (window.app && window.app.renderLangSwitcher) window.app.renderLangSwitcher();
 		updateSubtitle();
+		applyRegistrationFeature();
 	}
 
 	function setMode(next) {
+		if (next === "register" && !registrationEnabled()) next = "login";
 		if (mode === next) return;
 		mode = next;
 		state.status = { type: null, key: null, text: null };
@@ -245,7 +279,7 @@
 	}
 
 	function submitRegister() {
-		if (busy) return;
+		if (busy || !registrationEnabled()) return;
 		const data = readForm("register");
 		if (!data.username || !data.password || !data.passwordRepeat || !data.email) {
 			setStatus("error", "auth.error.empty");
@@ -265,6 +299,7 @@
 	}
 
 	function onResult(kind, payload) {
+		if (kind === "register" && !registrationEnabled()) return;
 		setBusy(false);
 		if (!payload) return;
 		if (payload.success) {
@@ -284,6 +319,7 @@
 
 	Bridge.on("phoenix:account:loginResult", function (payload) { onResult("login", payload); });
 	Bridge.on("phoenix:account:registerResult", function (payload) { onResult("register", payload); });
+	Bridge.on("phoenix:features:snapshot", applyFeatureFlags);
 
 	I18n.onChange(function () {
 		updateSubtitle();

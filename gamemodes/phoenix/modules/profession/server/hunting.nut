@@ -7,6 +7,19 @@ phoenix.profession.Hunting <- {
 	nextJobId = 1
 	loaded = false
 
+	function enabled() {
+		return phoenix.features.Settings.isEnabled("professions.enabled") && phoenix.features.Settings.isEnabled("professions.hunting")
+	}
+
+	function disableAll() {
+		local playerIds = []
+		foreach (playerId, _ in phoenix.profession.Hunting.jobs) playerIds.append(playerId)
+		foreach (playerId in playerIds) phoenix.profession.Hunting.cancel(playerId, "featureDisabled", true)
+		local carcassIds = []
+		foreach (vobId, _ in phoenix.profession.Hunting.carcasses) carcassIds.append(vobId)
+		foreach (vobId in carcassIds) phoenix.profession.Hunting.removeCarcass(vobId)
+	}
+
 	function _canonicalLootInstance(instance) {
 		if (instance == "ITMI_FUR") return "ITAT_WOLFFUR"
 		if (instance == "ITMI_CLAW") return "ITAT_CLAW"
@@ -61,6 +74,7 @@ phoenix.profession.Hunting <- {
 	}
 
 	function spawnCarcass(entry, killerId = -1) {
+		if (!phoenix.profession.Hunting.enabled()) return
 		if (entry == null || !phoenix.profession.Hunting.ensureLoaded()) return
 		local instance = ""; try { instance = entry.row.instance.tostring().toupper() } catch (e) {}
 		if (!(instance in phoenix.profession.Hunting.configs) || !(instance in phoenix.profession.Hunting.lootByInstance)) return
@@ -115,6 +129,7 @@ phoenix.profession.Hunting <- {
 	}
 
 	function interact(playerId, vobId) {
+		if (!phoenix.profession.Hunting.enabled()) { phoenix.profession.Hunting._result(playerId, vobId, false, "featureDisabled"); return true }
 		if (!(vobId in phoenix.profession.Hunting.carcasses) || playerId in phoenix.profession.Hunting.jobs) return true
 		local otherActivity = false
 		try { otherActivity = (playerId in phoenix.herb.Structure.active) } catch (eHerb) {}
@@ -169,6 +184,7 @@ phoenix.profession.Hunting <- {
 	}
 
 	function _giveDrops(characterId, queue, labels, granted, callback) {
+		if (!phoenix.profession.Hunting.enabled()) { callback(false, labels, granted); return }
 		if (queue.len() == 0) { callback(true, labels, granted); return }
 		local first = queue[0]; local rest = queue.slice(1)
 		phoenix.item.Structure.giveItem(PhoenixInventoryOwner.Player, characterId, first.instance, { amount = first.amount, source = "hunting", suppressQuest = true }, function(record) {
@@ -190,6 +206,7 @@ phoenix.profession.Hunting <- {
 	}
 
 	function finish(playerId, vobId, jobId) {
+		if (!phoenix.profession.Hunting.enabled()) { phoenix.profession.Hunting.cancel(playerId, "featureDisabled", true); return }
 		local job = phoenix.profession.Hunting._currentJob(playerId, vobId, jobId)
 		if (job == null || job.state != "gathering") return
 		if (!(vobId in phoenix.profession.Hunting.carcasses)) { phoenix.profession.Hunting.cancel(playerId, "cancelled", true); return }
@@ -206,11 +223,12 @@ phoenix.profession.Hunting <- {
 		local drops = phoenix.profession.Hunting._rollDrops(carcass.npcInstance, checked.tier)
 		phoenix.profession.Hunting._giveDrops(record.id, drops, [], [], function(ok, labels, granted) {
 			local current = phoenix.profession.Hunting._currentJob(playerId, vobId, jobId)
+			if (!phoenix.profession.Hunting.enabled() && current != null) phoenix.profession.Hunting.cancel(playerId, "featureDisabled", true)
 			local active = phoenix.character.Structure.getActive(playerId)
-			local valid = ok && current != null && !current.aborted && active != null && active.id == job.characterId
+			local valid = phoenix.profession.Hunting.enabled() && ok && current != null && !current.aborted && active != null && active.id == job.characterId
 			valid = valid && vobId in phoenix.profession.Hunting.carcasses && phoenix.profession.Hunting.carcasses[vobId].lockedBy == playerId
 			if (!valid) {
-				local reason = !ok ? "grantFailed" : (current != null ? current.abortError : "cancelled")
+				local reason = !phoenix.profession.Hunting.enabled() ? "featureDisabled" : (!ok ? "grantFailed" : (current != null ? current.abortError : "cancelled"))
 				local shouldNotify = !ok || (current != null && current.abortNotify)
 				phoenix.profession.Hunting._rollbackDrops(job.characterId, granted, function(rolledBack) {
 					if (rolledBack && job.staminaConsumed) {
@@ -256,5 +274,8 @@ phoenix.profession.Hunting <- {
 }
 
 addEventHandler("phoenix.database.OnReady", function() { try { phoenix.profession.Hunting.load() } catch (e) {} })
+addEventHandler("phoenix.features.OnChanged", function(key, enabled) {
+	if ((key == "professions.enabled" || key == "professions.hunting") && !enabled) phoenix.profession.Hunting.disableAll()
+})
 addEventHandler("onPlayerDisconnect", function(playerId, _reason) { phoenix.profession.Hunting.cancel(playerId, "disconnected", false) })
 addEventHandler("phoenix.character.OnSelected", function(playerId, _characterId) { phoenix.profession.Hunting.cancel(playerId, "characterChanged", false) })

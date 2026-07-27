@@ -36,6 +36,48 @@
 	let weaponHideTimer = null;
 	let blocked = false;
 	let layoutState = null;
+	let featureFlags = {};
+	const featureDefaults = {
+		"progression.leveling": true,
+		"progression.magicExperience": true,
+		"progression.weaponExperience": true,
+		"hud.levelExperience": true,
+		"hud.magicExperience": true,
+		"hud.weaponExperience": true,
+		"player.hotbar": true,
+		"player.stamina": true,
+		"player.targetHud": true,
+		"player.knockdown": true,
+		"herbs.enabled": true,
+		"minimap.enabled": true,
+		"worldclock.enabled": true,
+		"weather.enabled": true,
+		"social.party": true
+	};
+
+	function featureEnabled(path) {
+		const parts = path.split(".");
+		let value = featureFlags;
+		for (let i = 0; i < parts.length; i += 1) {
+			if (!value || typeof value !== "object" || !Object.prototype.hasOwnProperty.call(value, parts[i])) return featureDefaults[path] !== false;
+			value = value[parts[i]];
+		}
+		return value !== false;
+	}
+
+	function levelHudEnabled() { return featureEnabled("progression.leveling") && featureEnabled("hud.levelExperience"); }
+	function magicHudEnabled() { return featureEnabled("progression.magicExperience") && featureEnabled("hud.magicExperience"); }
+	function weaponHudEnabled() { return featureEnabled("progression.weaponExperience") && featureEnabled("hud.weaponExperience"); }
+	function featureAllowsHudId(id) {
+		if (id === "level" || id === "exp") return levelHudEnabled();
+		if (id === "magicxp") return magicHudEnabled();
+		if (id === "hotbar") return featureEnabled("player.hotbar");
+		if (id === "stamina") return featureEnabled("player.stamina");
+		if (id === "target") return featureEnabled("player.targetHud");
+		if (id === "minimap") return featureEnabled("minimap.enabled");
+		if (id === "worldclock") return featureEnabled("worldclock.enabled");
+		return true;
+	}
 
 	function t(key, fallback) {
 		if (!window.PhoenixI18n || typeof PhoenixI18n.t !== "function") return fallback || key;
@@ -241,9 +283,10 @@
 	}
 
 	function applyPartySnapshot(payload) {
+		state.partySnapshot = payload;
 		const nodes = buildPartyHud();
-		const members = payload && Array.isArray(payload.members) ? payload.members.slice(0, 3) : [];
-		const signature = JSON.stringify(members);
+		const members = featureEnabled("social.party") && payload && Array.isArray(payload.members) ? payload.members.slice(0, 3) : [];
+		const signature = JSON.stringify(members) + "|" + (levelHudEnabled() ? "1" : "0");
 		if (nodes.signature === signature) return;
 		nodes.signature = signature;
 		nodes.root.innerHTML = "";
@@ -261,7 +304,9 @@
 					'<div class="phoenix-party-member__bar phoenix-party-member__bar--mana"><i></i><span></span></div>' +
 				'</div>';
 			card.querySelector("strong").textContent = member.name || "—";
-			card.querySelector("em").textContent = (member.isLeader ? "◆ " : "") + t("stats.levelShort", "Lv") + " " + (member.level | 0);
+			const partyLevel = card.querySelector("em");
+			partyLevel.textContent = levelHudEnabled() ? (member.isLeader ? "◆ " : "") + t("stats.levelShort", "Lv") + " " + (member.level | 0) : "";
+			partyLevel.style.display = levelHudEnabled() ? "" : "none";
 			const bars = card.querySelectorAll(".phoenix-party-member__bar");
 			bars[0].querySelector("i").style.width = pct(member.hp, member.hpMax) + "%";
 			bars[0].querySelector("span").textContent = fmt(member.hp, member.hpMax);
@@ -407,6 +452,7 @@
 
 	function applyWeapon(payload) {
 		buildWeaponProgress();
+		if (!weaponHudEnabled()) payload = null;
 		if (!payload || !payload.active || blocked) {
 			weaponNodes.root.classList.remove("is-notify", "is-updated");
 			weaponNodes.root.classList.add("is-hiding");
@@ -481,13 +527,15 @@
 	}
 
 	function applyTarget(payload) {
+		state.targetSnapshot = payload;
 		buildTargetHud();
-		if (!payload || blocked) {
+		if (!payload || blocked || !featureEnabled("player.targetHud")) {
 			targetNodes.root.classList.remove("is-visible");
 			return;
 		}
 		targetNodes.name.textContent = payload.name || "?";
-		targetNodes.level.textContent = t("stats.levelShort", "Lv") + " " + (payload.level | 0);
+		targetNodes.level.textContent = levelHudEnabled() ? t("stats.levelShort", "Lv") + " " + (payload.level | 0) : "";
+		targetNodes.level.style.display = levelHudEnabled() ? "" : "none";
 		targetNodes.hpFill.style.width = pct(payload.hp, payload.hpMax) + "%";
 		const manaMax = payload.manaMax | 0;
 		if (manaMax > 0) {
@@ -499,17 +547,50 @@
 		targetNodes.root.classList.add("is-visible");
 	}
 
+	function applyFeatureVisibility() {
+		buildHud();
+		Object.keys(els).forEach(function (key) {
+			if (key === "refs") return;
+			const node = els[key];
+			if (!node || !node.classList) return;
+			const allowed = featureAllowsHudId(key);
+			node.classList.toggle("is-visible", state.visible && allowed);
+			if (!allowed) node.style.display = "none";
+			else if (!layoutState || !layoutState[key] || layoutState[key].visible !== false) node.style.display = "";
+		});
+		if (worldClockNodes) worldClockNodes.root.classList.toggle("is-visible", state.visible && featureEnabled("worldclock.enabled"));
+		if (targetNodes && !featureEnabled("player.targetHud")) targetNodes.root.classList.remove("is-visible");
+		if (partyNodes) partyNodes.root.classList.toggle("is-visible", state.visible && featureEnabled("social.party") && partyNodes.root.children.length > 0 && !blocked);
+		if (!weaponHudEnabled() && weaponNodes) weaponNodes.root.classList.remove("is-visible", "is-hiding", "is-notify", "is-updated");
+		if (!featureEnabled("player.knockdown") && knockdownNodes) knockdownNodes.root.classList.remove("is-visible");
+		if (!featureEnabled("herbs.enabled") && herbNodes) herbNodes.root.classList.remove("is-visible");
+		if (window.PhoenixMinimap) {
+			if (typeof window.PhoenixMinimap.setFeatureEnabled === "function") window.PhoenixMinimap.setFeatureEnabled(featureEnabled("minimap.enabled"));
+			window.PhoenixMinimap.setVisible(state.visible && featureEnabled("minimap.enabled"));
+		}
+		try { applyLayoutNow(); } catch (e) {}
+	}
+
+	function applyFeatureFlags(payload) {
+		featureFlags = payload && payload.settings && payload.settings.flags && typeof payload.settings.flags === "object" ? payload.settings.flags : {};
+		if (!featureEnabled("player.hotbar")) rootHotbarPickerClose();
+		if (!featureEnabled("herbs.enabled")) { herbRunId += 1; if (herbTimer) { clearInterval(herbTimer); herbTimer = null; } }
+		if (!featureEnabled("player.knockdown") && knockdownInterval) { clearInterval(knockdownInterval); knockdownInterval = null; }
+		if (state.partySnapshot) applyPartySnapshot(state.partySnapshot);
+		if (state.targetSnapshot) applyTarget(state.targetSnapshot);
+		applyFeatureVisibility();
+		if (worldClockNodes) renderWorldClock();
+	}
+
+	function rootHotbarPickerClose() {
+		document.querySelectorAll(".invui-hotbar-picker").forEach(function (node) { node.remove(); });
+	}
+
 	function show() {
 		buildHud();
 		state.visible = true;
-		Object.keys(els).forEach(function (k) {
-			if (k === "refs") return;
-			if (els[k] && els[k].classList) els[k].classList.add("is-visible");
-		});
-		if (worldClockNodes) worldClockNodes.root.classList.add("is-visible");
-		if (partyNodes && partyNodes.root.children.length > 0 && !blocked) partyNodes.root.classList.add("is-visible");
-		if (window.PhoenixMinimap) window.PhoenixMinimap.setVisible(true);
-		renderHotbar();
+		applyFeatureVisibility();
+		if (featureEnabled("player.hotbar")) renderHotbar();
 	}
 
 	function hide() {
@@ -558,6 +639,7 @@
 	}
 
 	function assignSlot(idx, data) {
+		if (!featureEnabled("player.hotbar")) return;
 		state.hotbar[idx] = { instance: data.instance || "", name: data.name || "", icon: data.icon || "", visual: data.visual || "", category: data.category || 0, onUse: !!data.onUse };
 		persistHotbar();
 		renderHotbar();
@@ -568,6 +650,7 @@
 		renderHotbar();
 	}
 	function useSlot(idx) {
+		if (!featureEnabled("player.hotbar")) return;
 		const entry = state.hotbar[idx];
 		if (!entry || !entry.instance) return;
 		PhoenixBridge.send("phoenix:hotbar:use", { slot: idx, instance: entry.instance });
@@ -653,6 +736,7 @@
 	}
 
 	function onKnockedDown(payload) {
+		if (!featureEnabled("player.knockdown")) return;
 		buildKnockdown();
 		const total = (payload && payload.secondsRemaining) ? payload.secondsRemaining | 0 : 10;
 		let left = total;
@@ -683,6 +767,7 @@
 	}
 
 	function onHerbStart(payload) {
+		if (!featureEnabled("herbs.enabled")) return;
 		buildHerbProgress();
 		herbRunId += 1;
 		const runId = herbRunId;
@@ -712,6 +797,7 @@
 	}
 
 	function onHerbResult(payload) {
+		if (!featureEnabled("herbs.enabled")) return;
 		buildHerbProgress();
 		herbRunId += 1;
 		const runId = herbRunId;
@@ -747,16 +833,17 @@
 		root.dataset.hudId = "worldclock";
 		root.innerHTML =
 			'<span class="phoenix-worldclock__time" data-role="time">00:00</span>' +
-			'<span class="phoenix-worldclock__sep">·</span>' +
-			'<span class="phoenix-worldclock__icon" data-role="icon">☀</span>' +
-			'<span class="phoenix-worldclock__label" data-role="label">Clear</span>';
+			'<span class="phoenix-worldclock__sep" data-role="weather">·</span>' +
+			'<span class="phoenix-worldclock__icon" data-role="weather">☀</span>' +
+			'<span class="phoenix-worldclock__label" data-role="weather">Clear</span>';
 		const host = document.getElementById("phoenix-minimap-meta");
 		(host || document.body).appendChild(root);
 		worldClockNodes = {
 			root: root,
 			time: root.querySelector('[data-role="time"]'),
-			icon: root.querySelector('[data-role="icon"]'),
-			label: root.querySelector('[data-role="label"]')
+			icon: root.querySelector(".phoenix-worldclock__icon"),
+			label: root.querySelector(".phoenix-worldclock__label"),
+			weather: root.querySelectorAll('[data-role="weather"]')
 		};
 		if (!worldClockTicker) worldClockTicker = setInterval(renderWorldClock, 1000);
 		return worldClockNodes;
@@ -774,6 +861,10 @@
 	}
 
 	function applyWorldClock(payload) {
+		if (!featureEnabled("worldclock.enabled")) {
+			if (worldClockNodes) worldClockNodes.root.classList.remove("is-visible");
+			return;
+		}
 		buildWorldClock();
 		if (payload && payload.weather) worldClockState.weather = String(payload.weather);
 		renderWorldClock();
@@ -787,14 +878,18 @@
 		const hh = hour < 10 ? "0" + hour : String(hour);
 		const mm = minute < 10 ? "0" + minute : String(minute);
 		worldClockNodes.time.textContent = hh + ":" + mm;
-		const meta = weatherMeta(worldClockState.weather);
-		worldClockNodes.icon.textContent = meta.icon;
-		worldClockNodes.label.textContent = meta.label;
+		const weatherEnabled = featureEnabled("weather.enabled");
+		worldClockNodes.weather.forEach(function (node) { node.style.display = weatherEnabled ? "" : "none"; });
 		worldClockNodes.root.classList.remove("is-clear", "is-rain", "is-snow", "is-storm");
-		worldClockNodes.root.classList.add(meta.cls);
+		if (weatherEnabled) {
+			const meta = weatherMeta(worldClockState.weather);
+			worldClockNodes.icon.textContent = meta.icon;
+			worldClockNodes.label.textContent = meta.label;
+			worldClockNodes.root.classList.add(meta.cls);
+		}
 		const night = hour >= 21 || hour < 6;
 		worldClockNodes.root.classList.toggle("is-night", night);
-		if (state.visible) worldClockNodes.root.classList.add("is-visible");
+		if (state.visible && featureEnabled("worldclock.enabled")) worldClockNodes.root.classList.add("is-visible");
 		else worldClockNodes.root.classList.remove("is-visible");
 	}
 
@@ -839,11 +934,15 @@
 			if (!cfg) return;
 			const node = getElementNodeById(id);
 			if (!node) return;
-			applyElementLayout(node, cfg);
+			applyElementLayout(node, cfg, id);
 		});
 	}
 
-	function applyElementLayout(node, cfg) {
+	function applyElementLayout(node, cfg, id) {
+		if (!featureAllowsHudId(id)) {
+			node.style.display = "none";
+			return;
+		}
 		if (cfg.visible === false) {
 			node.style.display = "none";
 			return;
@@ -917,6 +1016,7 @@
 			} catch (e) {}
 		});
 		PhoenixBridge.on("phoenix:worldclock:update", applyWorldClock);
+		PhoenixBridge.on("phoenix:features:snapshot", applyFeatureFlags);
 	}
 
 	function setBlocked(value) {

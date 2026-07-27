@@ -4,6 +4,19 @@
 
 	let state = { mode: "panel", houseId: 0, maxExtendWeeks: 12, weeklyRentGold: 0, rentPaidUntil: 0, playerGold: 0 };
 	let tickTimer = null;
+	let featureFlags = {};
+	const featureDefaults = { "housing.enabled": true };
+
+	function featureEnabled(path) {
+		const parts = path.split(".");
+		let value = featureFlags;
+		for (let i = 0; i < parts.length; i += 1) {
+			if (!value || typeof value !== "object" || !Object.prototype.hasOwnProperty.call(value, parts[i])) return featureDefaults[path] !== false;
+			value = value[parts[i]];
+		}
+		return value !== false;
+	}
+	function housingEnabled() { return featureEnabled("housing.enabled"); }
 
 	function esc(value) {
 		return String(value == null ? "" : value).replace(/[&<>"]/g, function (ch) {
@@ -33,6 +46,10 @@
 	}
 
 	function close() { PhoenixBridge.send("phoenix:house:close", null); }
+	function applyFeatureFlags(payload) {
+		featureFlags = payload && payload.settings && payload.settings.flags && typeof payload.settings.flags === "object" ? payload.settings.flags : {};
+		if (!housingEnabled() && window.phoenixApp && phoenixApp.current() === "house") { close(); phoenixApp.hide(); }
+	}
 
 	const successKeys = {
 		bought: "house.result.success.bought",
@@ -250,6 +267,7 @@
 		const target = ev.target.closest("[data-action]");
 		if (!target) return;
 		const action = target.dataset.action;
+		if (!housingEnabled() && action !== "close") return;
 		if (action === "close") close();
 		if (action === "rent") PhoenixBridge.send("phoenix:house:rent", { houseId: state.houseId });
 		if (action === "request-access") PhoenixBridge.send("phoenix:house:requestAccess", { houseId: state.houseId });
@@ -277,9 +295,10 @@
 		if (action === "leave") PhoenixBridge.send("phoenix:house:leave", { houseId: state.houseId });
 	});
 
-	PhoenixBridge.on("phoenix:house:entry", function (data) { state = Object.assign({}, state, data || {}, { mode: "entry" }); renderEntry(state); });
-	PhoenixBridge.on("phoenix:house:panel", function (data) { notifyResult(data); renderPanel(data); });
+	PhoenixBridge.on("phoenix:house:entry", function (data) { if (!housingEnabled()) { close(); return; } state = Object.assign({}, state, data || {}, { mode: "entry" }); renderEntry(state); });
+	PhoenixBridge.on("phoenix:house:panel", function (data) { if (!housingEnabled()) { close(); return; } notifyResult(data); renderPanel(data); });
 	PhoenixBridge.on("phoenix:house:result", applyResult);
+	PhoenixBridge.on("phoenix:features:snapshot", applyFeatureFlags);
 
 	if (window.PhoenixI18n && typeof PhoenixI18n.onChange === "function") {
 		PhoenixI18n.onChange(function () {
@@ -291,6 +310,7 @@
 
 	const page = {
 		onShow: function () {
+			if (!housingEnabled()) { close(); if (window.phoenixApp) phoenixApp.hide(); return; }
 			if (window.PhoenixHud && typeof window.PhoenixHud.setBlocked === "function") window.PhoenixHud.setBlocked(true);
 			if (!root.innerHTML) PhoenixBridge.send("phoenix:house:panelRequest", null);
 			clearInterval(tickTimer);

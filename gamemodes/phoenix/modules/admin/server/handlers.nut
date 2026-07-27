@@ -588,6 +588,35 @@ phoenix.admin.Server <- {
 		try { ORM.engine.executeAsync(sql, function(_){}) } catch (e) {}
 	}
 
+	function dispatchServerFeaturesGet(playerId, _payload) {
+		if (!phoenix.account.Auth.isAdmin(playerId)) {
+			phoenix.admin.Server.reply(playerId, "serverFeaturesGet", false, "denied", null)
+			return
+		}
+		phoenix.admin.Server.reply(playerId, "serverFeaturesGet", true, "", phoenix.features.Settings.snapshot())
+	}
+
+	function dispatchServerFeaturesUpdate(playerId, payload) {
+		if (!phoenix.account.Auth.isAdmin(playerId)) {
+			phoenix.admin.Server.reply(playerId, "serverFeaturesUpdate", false, "denied", null)
+			return
+		}
+		local session = phoenix.account.Structure.get(playerId)
+		local updatedBy = session != null ? session.id() : 0
+		phoenix.features.Settings.update(payload, updatedBy, function (success, error, snapshot, changed) {
+			if (success) {
+				local changedText = ""
+				for (local i = 0; i < changed.len(); i += 1) {
+					if (i > 0) changedText += ","
+					changedText += changed[i]
+				}
+				local details = "profile=" + snapshot.profile + ", revision=" + snapshot.revision + ", changed=" + changedText
+				phoenix.admin.Server.audit(playerId, "serverFeaturesUpdate", "server", null, snapshot.profile, details)
+			}
+			phoenix.admin.Server.reply(playerId, "serverFeaturesUpdate", success, error, snapshot)
+		})
+	}
+
 	function dispatchListLog(playerId, payload) {
 		local limit = 100
 		if (payload != null && "limit" in payload) limit = payload.limit
@@ -1499,6 +1528,24 @@ phoenix.admin.Server <- {
 
 	dispatchers = null
 
+	function contentEditorAction(action) {
+		local value = action != null ? action.tostring().tolower() : ""
+		local exact = {
+			schemes = true,
+			schemedetails = true,
+			savecustom = true,
+			adminhousecapture = true,
+			spawntestplayernpc = true,
+			dbrowupdate = true,
+			dbrowinsert = true,
+			dbrowdelete = true
+		}
+		if (value in exact) return true
+		local prefixes = ["item", "custom", "npc", "herb", "vob", "quest", "crafting", "profession", "house", "worldclock", "weather", "config", "spawnconfig", "bestiaryrender"]
+		foreach (prefix in prefixes) if (value.len() >= prefix.len() && value.slice(0, prefix.len()) == prefix) return true
+		return false
+	}
+
 	function onRequest(playerId, message) {
 		local action = message.action
 		local authorized = phoenix.account.Auth.isAdmin(playerId)
@@ -1513,6 +1560,10 @@ phoenix.admin.Server <- {
 			phoenix.admin.Server.reply(playerId, action, false, "unknownAction", null)
 			return
 		}
+		if (phoenix.admin.Server.contentEditorAction(action) && !phoenix.features.Settings.isEnabled("admin.contentEditors")) {
+			phoenix.admin.Server.reply(playerId, action, false, "featureDisabled", null)
+			return
+		}
 		try {
 			phoenix.admin.Server.dispatchers[action].call(phoenix.admin.Server, playerId, message.payload)
 		} catch (e) {
@@ -1523,6 +1574,8 @@ phoenix.admin.Server <- {
 
 phoenix.admin.Server.dispatchers = {
 	players = phoenix.admin.Server.dispatchListPlayers,
+	serverFeaturesGet = phoenix.admin.Server.dispatchServerFeaturesGet,
+	serverFeaturesUpdate = phoenix.admin.Server.dispatchServerFeaturesUpdate,
 	setPlayerStats = phoenix.admin.Server.dispatchSetPlayerStats,
 	schemes = phoenix.admin.Server.dispatchListSchemes,
 	schemeDetails = phoenix.admin.Server.dispatchSchemeDetails,

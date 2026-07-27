@@ -786,6 +786,7 @@ phoenix.npc.AI <- {
 	}
 
 	function _applyDamageToTarget(attackerNpcId, target, damage) {
+		if (!phoenix.features.Settings.isEnabled("npc.ai")) return false
 		if (target < 0 || damage <= 0) return false
 		local npcEntry = phoenix.npc.AI._liveNpcEntry(target)
 		if (npcEntry != null && npcEntry.alive) {
@@ -1368,6 +1369,7 @@ phoenix.npc.AI <- {
 	}
 
 	function tickAll() {
+		if (!phoenix.features.Settings.isEnabled("npc.ai")) return
 		local now = getTickCount()
 		foreach (sid, entry in phoenix.npc.Spawn.live) {
 			if (!entry.alive) continue
@@ -1381,11 +1383,50 @@ phoenix.npc.AI <- {
 		}
 	}
 
+	function stop() {
+		if (phoenix.npc.AI.timer != null) {
+			try { killTimer(phoenix.npc.AI.timer) } catch (e) {}
+			phoenix.npc.AI.timer = null
+		}
+		foreach (_sid, entry in phoenix.npc.Spawn.live) {
+			if (entry == null || !entry.alive) continue
+			try {
+				entry.ai.combatCleared <- false
+				phoenix.npc.AI._clearCombatMovement(entry)
+				try { stopAni(entry.npcId, phoenix.npc.AI._neutralRunAnim(entry.row)) } catch (e) {}
+				try { stopAni(entry.npcId, phoenix.npc.AI._neutralWalkAnim(entry.row)) } catch (e) {}
+				entry.ai.targetPid = -1
+				entry.ai.warnStart = 0
+				entry.ai.waitAction = -1
+				entry.ai.lastAttack = 0
+				entry.ai.returning <- false
+				entry.ai.postCombatReturn <- false
+				entry.ai.postCombatSettleUntil <- 0
+				entry.ai.combatCooldownUntil <- 0
+				entry.ai.killedPlayer <- -1
+				entry.ai.lootTarget <- -1
+				entry.ai.state = "idle"
+				entry.ai.idleApplied <- ""
+				phoenix.npc.AI._ensureIdle(entry, true)
+			} catch (e) {}
+		}
+	}
+
 	function start() {
+		if (!phoenix.features.Settings.isEnabled("npc.ai")) return
 		if (phoenix.npc.AI.timer != null) return
 		phoenix.npc.AI.timer = setTimer(phoenix.npc.AI.tickAll, phoenix.npc.AI.tickIntervalMs, 0)
 	}
 }
+
+addEventHandler("phoenix.features.OnChanged", function (key, enabled) {
+	if (key != "npc.ai") return
+	if (enabled) {
+		try { phoenix.npc.AI.start() } catch (e) {}
+	} else {
+		try { phoenix.npc.AI.stop() } catch (e) {}
+	}
+})
 
 addEventHandler("onInit", function () {
 	setTimer(function () {

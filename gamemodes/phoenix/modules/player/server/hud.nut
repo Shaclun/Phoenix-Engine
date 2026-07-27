@@ -39,6 +39,10 @@ phoenix.player.Hud <- {
 	}
 
 	function _getStamina(playerId, record) {
+		if (!phoenix.features.Settings.isEnabled("player.stamina")) {
+			local value = (record.stamina != null && record.stamina >= 0) ? record.stamina : 0
+			return value.tointeger()
+		}
 		if (!(playerId in phoenix.player.Hud.staminaState)) {
 			local current = (record.stamina != null && record.stamina >= 0) ? record.stamina.tofloat() : (record.staminaMax > 0 ? record.staminaMax.tofloat() : 100.0)
 			local maxV = record.staminaMax > 0 ? record.staminaMax.tofloat() : 100.0
@@ -56,6 +60,7 @@ phoenix.player.Hud <- {
 	}
 
 	function _setStamina(playerId, record, value) {
+		if (!phoenix.features.Settings.isEnabled("player.stamina")) return
 		local maxV = record.staminaMax > 0 ? record.staminaMax.tofloat() : 100.0
 		if (value < 0) value = 0
 		if (value > maxV) value = maxV
@@ -68,6 +73,7 @@ phoenix.player.Hud <- {
 	}
 
 	function consumeStamina(playerId, amount) {
+		if (!phoenix.features.Settings.isEnabled("player.stamina")) return false
 		local record = phoenix.character.Structure.getActive(playerId)
 		if (record == null) return false
 		local cur = phoenix.player.Hud._getStamina(playerId, record).tofloat()
@@ -77,12 +83,61 @@ phoenix.player.Hud <- {
 		return true
 	}
 
+	function _regenerate(playerId, record, dt, staminaRatio, sitting) {
+		if (!phoenix.features.Settings.isEnabled("player.regeneration")) return
+		if (staminaRatio < 0.20) return
+		local factor = (staminaRatio - 0.20) / 0.80
+		if (factor > 1.0) factor = 1.0
+		local inCombat = phoenix.player.Hud._inCombat(playerId)
+		local hpRate = 0.0
+		local manaRate = 0.0
+		if (inCombat) {
+			hpRate = 0.2 + 0.4 * factor
+			manaRate = 0.1 + 0.2 * factor
+		} else if (sitting) {
+			hpRate = 4.0 + 4.0 * factor
+			manaRate = 2.5 + 3.0 * factor
+		} else {
+			hpRate = 0.8 + 1.2 * factor
+			manaRate = 0.4 + 0.8 * factor
+		}
+		local hpMax = record.hpMax > 0 ? record.hpMax : 100
+		local manaMax = record.manaMax > 0 ? record.manaMax : 0
+		local rtHpMax = 0
+		local rtManaMax = 0
+		try { rtHpMax = getPlayerMaxHealth(playerId) } catch (erhm) {}
+		try { rtManaMax = getPlayerMaxMana(playerId) } catch (ermm) {}
+		local trustedHp = (rtHpMax > 0) && !(rtHpMax < record.hpMax)
+		local trustedMana = (rtManaMax > 0) && !(rtManaMax < record.manaMax)
+		local hp = record.hp
+		local mana = record.mana
+		if (trustedHp) { try { hp = getPlayerHealth(playerId) } catch (eh) {} }
+		if (trustedMana) { try { mana = getPlayerMana(playerId) } catch (em) {} }
+		if (trustedHp && hp > 0 && hp < hpMax) {
+			hp += hpRate * dt
+			phoenix.player.Resources.set(playerId, record, "hp", hp, true)
+		}
+		if (trustedMana && manaMax > 0 && mana >= 0 && mana < manaMax) {
+			mana += manaRate * dt
+			phoenix.player.Resources.set(playerId, record, "mana", mana, true)
+		}
+	}
+
 	function tickAll() {
 		local now = getTickCount()
 		for (local pid = 0; pid < getMaxSlots(); pid += 1) {
 			if (!isPlayerConnected(pid)) continue
 			local record = phoenix.character.Structure.getActive(pid)
 			if (record == null) continue
+			local staminaEnabled = phoenix.features.Settings.isEnabled("player.stamina")
+			local sittingEnabled = phoenix.features.Settings.isEnabled("player.sitting")
+			if (!sittingEnabled && pid in phoenix.player.Hud.sittingState) phoenix.player.Hud.setSitting(pid, false)
+			if (!staminaEnabled) {
+				if (pid in phoenix.player.Hud.staminaState) phoenix.player.Hud.staminaState.rawdelete(pid)
+				phoenix.player.Hud._regenerate(pid, record, phoenix.player.Hud.staminaTickInterval / 1000.0, 1.0, sittingEnabled && pid in phoenix.player.Hud.sittingState)
+				phoenix.player.Hud.pushSnapshot(pid)
+				continue
+			}
 
 			local maxV = record.staminaMax > 0 ? record.staminaMax.tofloat() : 100.0
 			if (!(pid in phoenix.player.Hud.staminaState)) {
@@ -130,48 +185,13 @@ phoenix.player.Hud <- {
 
 			record.stamina = state.value.tointeger()
 			local staminaRatio = maxV > 0.0 ? (state.value / maxV) : 0.0
-			if (staminaRatio >= 0.20) {
-				local factor = (staminaRatio - 0.20) / 0.80
-				if (factor > 1.0) factor = 1.0
-				local inCombat = phoenix.player.Hud._inCombat(pid)
-				local hpRate = 0.0
-				local manaRate = 0.0
-				if (inCombat) {
-					hpRate = 0.2 + 0.4 * factor
-					manaRate = 0.1 + 0.2 * factor
-				} else if (sitting) {
-					hpRate = 4.0 + 4.0 * factor
-					manaRate = 2.5 + 3.0 * factor
-				} else {
-					hpRate = 0.8 + 1.2 * factor
-					manaRate = 0.4 + 0.8 * factor
-				}
-				local hpMax = record.hpMax > 0 ? record.hpMax : 100
-				local manaMax = record.manaMax > 0 ? record.manaMax : 0
-				local rtHpMax = 0
-				local rtManaMax = 0
-				try { rtHpMax = getPlayerMaxHealth(pid) } catch (erhm) {}
-				try { rtManaMax = getPlayerMaxMana(pid) } catch (ermm) {}
-				local trustedHp = (rtHpMax > 0) && !(rtHpMax < record.hpMax)
-				local trustedMana = (rtManaMax > 0) && !(rtManaMax < record.manaMax)
-				local hp = record.hp
-				local mana = record.mana
-				if (trustedHp) { try { hp = getPlayerHealth(pid) } catch (eh) {} }
-				if (trustedMana) { try { mana = getPlayerMana(pid) } catch (em) {} }
-				if (trustedHp && hp > 0 && hp < hpMax) {
-					hp += hpRate * dt
-					phoenix.player.Resources.set(pid, record, "hp", hp, true)
-				}
-				if (trustedMana && manaMax > 0 && mana >= 0 && mana < manaMax) {
-					mana += manaRate * dt
-					phoenix.player.Resources.set(pid, record, "mana", mana, true)
-				}
-			}
+			phoenix.player.Hud._regenerate(pid, record, dt, staminaRatio, sitting)
 			phoenix.player.Hud.pushSnapshot(pid)
 		}
 	}
 
 	function setSitting(playerId, value) {
+		if (value && !phoenix.features.Settings.isEnabled("player.sitting")) return
 		if (value) {
 			if (!isPlayerConnected(playerId)) return
 			phoenix.player.Hud.sittingState[playerId] <- true
@@ -193,10 +213,12 @@ phoenix.player.Hud <- {
 	}
 
 	function isSitting(playerId) {
+		if (!phoenix.features.Settings.isEnabled("player.sitting")) return false
 		return playerId in phoenix.player.Hud.sittingState
 	}
 
 	function onSitToggle(playerId, message) {
+		if (!phoenix.features.Settings.isEnabled("player.sitting")) return
 		local record = phoenix.character.Structure.getActive(playerId)
 		if (record == null) return
 		local current = playerId in phoenix.player.Hud.sittingState
@@ -230,6 +252,16 @@ addEventHandler("phoenix.character.OnSelected", function (playerId, _characterId
 
 addEventHandler("onPlayerDisconnect", function (playerId, _reason) {
 	phoenix.player.Hud.clear(playerId)
+})
+
+addEventHandler("phoenix.features.OnChanged", function(key, enabled) {
+	if (enabled) return
+	if (key == "player.stamina") phoenix.player.Hud.staminaState = {}
+	if (key == "player.sitting") {
+		local players = []
+		foreach (playerId, _ in phoenix.player.Hud.sittingState) players.push(playerId)
+		foreach (playerId in players) phoenix.player.Hud.setSitting(playerId, false)
+	}
 })
 
 phoenix.player.Message.Sit.bind(phoenix.player.Hud.onSitToggle)

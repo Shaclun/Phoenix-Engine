@@ -1,6 +1,10 @@
 phoenix.chat.Server <- {
-	LOCAL_DISTANCE_SQ = 4000.0 * 4000.0
+	IC_DISTANCE_SQ = 1500.0 * 1500.0
+	OOC_DISTANCE_SQ = 2500.0 * 2500.0
+	ACTION_DISTANCE_SQ = 1800.0 * 1800.0
+	AME_DISTANCE_SQ = 900.0 * 900.0
 	MAX_LEN = 240
+	rateBuckets = {}
 
 	function getSpeakerName(playerId) {
 		try {
@@ -25,6 +29,41 @@ phoenix.chat.Server <- {
 		return dx * dx + dy * dy + dz * dz
 	}
 
+	function rateAllowed(playerId, channel) {
+		local key = playerId.tostring() + ":" + channel
+		local now = getTickCount()
+		local bucket = null
+		if (key in phoenix.chat.Server.rateBuckets) bucket = phoenix.chat.Server.rateBuckets[key]
+		else {
+			bucket = { tokens = 5.0, at = now }
+			phoenix.chat.Server.rateBuckets[key] <- bucket
+		}
+		local elapsed = now - bucket.at
+		if (elapsed < 0) elapsed = 0
+		bucket.tokens += elapsed.tofloat() / 1250.0
+		if (bucket.tokens > 5.0) bucket.tokens = 5.0
+		bucket.at = now
+		if (bucket.tokens < 1.0) {
+			try { sendMessageToPlayer(playerId, 255, 160, 80, "[Chat] Zwolnij tempo wiadomości.") } catch (e) {}
+			return false
+		}
+		bucket.tokens -= 1.0
+		return true
+	}
+
+	function isActionChannel(channel) {
+		return channel == phoenix.chat.Channel.ME || channel == phoenix.chat.Channel.DO || channel == phoenix.chat.Channel.TRY || channel == phoenix.chat.Channel.TODO || channel == phoenix.chat.Channel.AME
+	}
+
+	function channelEnabled(channel) {
+		if (channel == phoenix.chat.Channel.ADMIN) return true
+		if (channel == phoenix.chat.Channel.LOCAL) return phoenix.features.Settings.isEnabled("chat.local")
+		if (channel == phoenix.chat.Channel.GLOBAL) return phoenix.features.Settings.isEnabled("chat.global")
+		if (channel == phoenix.chat.Channel.OOC) return phoenix.features.Settings.isEnabled("chat.ooc")
+		if (phoenix.chat.Server.isActionChannel(channel)) return phoenix.features.Settings.isEnabled("chat.rpActions")
+		return false
+	}
+
 	function broadcast(senderId, channel, name, text, recipientIds) {
 		local packet = phoenix.chat.Message.Broadcast()
 		packet.playerId = senderId
@@ -37,7 +76,18 @@ phoenix.chat.Server <- {
 		}
 	}
 
-	function localRecipients(senderId) {
+	function sameContext(senderId, recipientId) {
+		try {
+			if (getPlayerVirtualWorld(senderId) != getPlayerVirtualWorld(recipientId)) return false
+			local senderWorld = getPlayerWorld(senderId)
+			local recipientWorld = getPlayerWorld(recipientId)
+			if (senderWorld == null || recipientWorld == null) return false
+			return senderWorld.tostring().toupper() == recipientWorld.tostring().toupper()
+		} catch (e) {}
+		return false
+	}
+
+	function rangedRecipients(senderId, maxDistanceSq) {
 		local list = [senderId]
 		local senderPos = null
 		try { senderPos = getPlayerPosition(senderId) } catch (e) { return list }
@@ -49,11 +99,11 @@ phoenix.chat.Server <- {
 			if (i == senderId) continue
 			try {
 				if (!isPlayerConnected(i)) continue
+				if (!phoenix.chat.Server.sameContext(senderId, i)) continue
 				if (senderVanished && !phoenix.account.Auth.isAdmin(i)) continue
 				local pos = getPlayerPosition(i)
 				if (pos == null) continue
-				if (phoenix.chat.Server.distSq(senderPos, pos) <= phoenix.chat.Server.LOCAL_DISTANCE_SQ)
-					list.append(i)
+				if (phoenix.chat.Server.distSq(senderPos, pos) <= maxDistanceSq) list.append(i)
 			} catch (e) {}
 		}
 		return list
@@ -159,18 +209,25 @@ phoenix.chat.Server <- {
 		return format("%04d-%02d-%02d %02d:%02d:%02d", d.year, d.month + 1, d.day, d.hour, d.min, d.sec)
 	}
 
-	function dispatch(playerId, channel, text) {
-		if (channel == phoenix.chat.Channel.ADMIN) {
-			if (!phoenix.account.Auth.requireAdmin(playerId)) return
-		}
+	function dispatch(playerId, channel, text, trusted = false) {
+		local allowed = channel == phoenix.chat.Channel.LOCAL || channel == phoenix.chat.Channel.GLOBAL || channel == phoenix.chat.Channel.ADMIN || channel == phoenix.chat.Channel.OOC
+		if (trusted && phoenix.chat.Server.isActionChannel(channel)) allowed = true
+		if (!allowed) return
+		text = phoenix.chat.Server.trim(phoenix.chat.Server.sanitize(text))
+		if (text == "") return
+		if (channel == phoenix.chat.Channel.ADMIN && !phoenix.account.Auth.requireAdmin(playerId)) return
+		if (!phoenix.chat.Server.channelEnabled(channel)) return
+		if (!phoenix.chat.Server.rateAllowed(playerId, channel)) return
 		local name = phoenix.chat.Server.getSpeakerName(playerId)
 		local recipients
-		if (channel == phoenix.chat.Channel.ADMIN) {
-			recipients = phoenix.account.Auth.adminPlayerIds()
-		} else if (channel == phoenix.chat.Channel.GLOBAL) {
-			recipients = phoenix.chat.Server.visibleRecipients(playerId)
-		} else {
-			recipients = phoenix.chat.Server.localRecipients(playerId)
+		if (channel == phoenix.chat.Channel.ADMIN) recipients = phoenix.account.Auth.adminPlayerIds()
+		else if (channel == phoenix.chat.Channel.GLOBAL) recipients = phoenix.chat.Server.visibleRecipients(playerId)
+		else {
+			local distanceSq = phoenix.chat.Server.IC_DISTANCE_SQ
+			if (channel == phoenix.chat.Channel.OOC) distanceSq = phoenix.chat.Server.OOC_DISTANCE_SQ
+			else if (channel == phoenix.chat.Channel.AME) distanceSq = phoenix.chat.Server.AME_DISTANCE_SQ
+			else if (phoenix.chat.Server.isActionChannel(channel)) distanceSq = phoenix.chat.Server.ACTION_DISTANCE_SQ
+			recipients = phoenix.chat.Server.rangedRecipients(playerId, distanceSq)
 		}
 		phoenix.chat.Server.broadcast(playerId, channel, name, text, recipients)
 
@@ -179,7 +236,8 @@ phoenix.chat.Server <- {
 		stop.typing = false
 		stop.channel = channel
 		local stopSerialized = stop.serialize()
-		foreach (pid in phoenix.chat.Server.allRecipients()) {
+		foreach (pid in recipients) {
+			if (pid == playerId) continue
 			try { stopSerialized.send(pid, RELIABLE) } catch (e) {}
 		}
 	}
@@ -206,14 +264,17 @@ phoenix.chat.Server <- {
 	}
 
 	function onTyping(playerId, message) {
-
-		local channel = 0
-		try { channel = ("channel" in message) ? message.channel : 0 } catch (e) {}
+		local channel = phoenix.chat.Channel.LOCAL
+		try { channel = ("channel" in message) ? message.channel : phoenix.chat.Channel.LOCAL } catch (e) {}
+		if (channel != phoenix.chat.Channel.LOCAL && channel != phoenix.chat.Channel.GLOBAL && channel != phoenix.chat.Channel.ADMIN && channel != phoenix.chat.Channel.OOC) return
+		if (channel == phoenix.chat.Channel.ADMIN && !phoenix.account.Auth.isAdmin(playerId)) return
+		if (!phoenix.chat.Server.channelEnabled(channel)) return
 		local recipients
-		if (channel == phoenix.chat.Channel.ADMIN || phoenix.account.Auth.isVanished(playerId)) {
-			recipients = phoenix.account.Auth.adminPlayerIds()
-		} else {
-			recipients = phoenix.chat.Server.allRecipients()
+		if (channel == phoenix.chat.Channel.ADMIN) recipients = phoenix.account.Auth.adminPlayerIds()
+		else if (channel == phoenix.chat.Channel.GLOBAL) recipients = phoenix.chat.Server.visibleRecipients(playerId)
+		else {
+			local distanceSq = channel == phoenix.chat.Channel.OOC ? phoenix.chat.Server.OOC_DISTANCE_SQ : phoenix.chat.Server.IC_DISTANCE_SQ
+			recipients = phoenix.chat.Server.rangedRecipients(playerId, distanceSq)
 		}
 		local packet = phoenix.chat.Message.Typing()
 		packet.playerId = playerId
@@ -230,3 +291,11 @@ phoenix.chat.Server <- {
 phoenix.chat.Message.Submit.bind(phoenix.chat.Server.onSubmit)
 phoenix.chat.Message.Typing.bind(phoenix.chat.Server.onTyping)
 addEventHandler("onPlayerMessage", phoenix.chat.Server.onPlayerMessage)
+addEventHandler("onPlayerDisconnect", function (playerId, _reason) {
+	local prefix = playerId.tostring() + ":"
+	local remove = []
+	foreach (key, _bucket in phoenix.chat.Server.rateBuckets) {
+		if (key.find(prefix) == 0) remove.append(key)
+	}
+	foreach (key in remove) phoenix.chat.Server.rateBuckets.rawdelete(key)
+})

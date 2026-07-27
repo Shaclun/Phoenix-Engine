@@ -169,6 +169,55 @@ phoenix.command.Handlers <- {
 		phoenix.command.Dispatcher.info(playerId, "[Pogoda] Sila wiatru: " + scale)
 	}
 
+	function cmdRpText(playerId, args, channel, usage) {
+		local text = phoenix.command.Handlers._joinArgs(args)
+		text = phoenix.chat.Server.trim(phoenix.chat.Server.sanitize(text))
+		if (text == "") { phoenix.command.Dispatcher.hint(playerId, usage); return }
+		phoenix.chat.Server.dispatch(playerId, channel, text, true)
+	}
+
+	function cmdOoc(playerId, args, raw) {
+		if (!phoenix.features.Settings.isEnabled("chat.ooc")) {
+			phoenix.command.Dispatcher.error(playerId, "[RP] Chat OOC jest wyłączony.")
+			return
+		}
+		phoenix.command.Handlers.cmdRpText(playerId, args, phoenix.chat.Channel.OOC, "/b <wiadomość>")
+	}
+
+	function cmdMe(playerId, args, raw) {
+		phoenix.command.Handlers.cmdRpText(playerId, args, phoenix.chat.Channel.ME, "/me <akcja>")
+	}
+
+	function cmdDo(playerId, args, raw) {
+		phoenix.command.Handlers.cmdRpText(playerId, args, phoenix.chat.Channel.DO, "/do <opis otoczenia>")
+	}
+
+	function cmdTry(playerId, args, raw) {
+		local text = phoenix.command.Handlers._joinArgs(args)
+		text = phoenix.chat.Server.trim(phoenix.chat.Server.sanitize(text))
+		if (text == "") { phoenix.command.Dispatcher.hint(playerId, "/try <próba>"); return }
+		if (text.len() > 220) text = text.slice(0, 220)
+		local result = (rand() % 2) == 0 ? "SUCCESS" : "FAILURE"
+		phoenix.chat.Server.dispatch(playerId, phoenix.chat.Channel.TRY, text + " — " + result, true)
+	}
+
+	function cmdTodo(playerId, args, raw) {
+		local text = phoenix.command.Handlers._joinArgs(args)
+		local separator = text.find("*")
+		if (separator == null || text.slice(separator + 1).find("*") != null) {
+			phoenix.command.Dispatcher.hint(playerId, "/todo <wypowiedź>*<akcja>")
+			return
+		}
+		local speech = phoenix.chat.Server.trim(text.slice(0, separator))
+		local action = phoenix.chat.Server.trim(text.slice(separator + 1))
+		if (speech == "" || action == "") { phoenix.command.Dispatcher.hint(playerId, "/todo <wypowiedź>*<akcja>"); return }
+		phoenix.chat.Server.dispatch(playerId, phoenix.chat.Channel.TODO, phoenix.chat.Server.sanitize(speech + " — " + action), true)
+	}
+
+	function cmdAme(playerId, args, raw) {
+		phoenix.command.Handlers.cmdRpText(playerId, args, phoenix.chat.Channel.AME, "/ame <krótka akcja>")
+	}
+
 	function cmdFly(playerId, args, raw) {
 		phoenix.admin.Server.dispatchAdminFly(playerId, null)
 	}
@@ -187,6 +236,12 @@ phoenix.command.Handlers <- {
 		D.register("weather", phoenix.command.Handlers.cmdWeather, true, ["pogoda"], "/weather <clear|rain|snow|storm|stop>")
 		D.register("wind", phoenix.command.Handlers.cmdWeatherWind, true, ["wiatr"], "/wind <skala>")
 		D.register("fly", phoenix.command.Handlers.cmdFly, true, ["lataj"], "/fly - przelacz latanie")
+		D.register("b", phoenix.command.Handlers.cmdOoc, false, ["ooc"], "/b <wiadomość>", "chat.ooc")
+		D.register("me", phoenix.command.Handlers.cmdMe, false, null, "/me <akcja>", "chat.rpActions")
+		D.register("do", phoenix.command.Handlers.cmdDo, false, null, "/do <opis otoczenia>", "chat.rpActions")
+		D.register("try", phoenix.command.Handlers.cmdTry, false, null, "/try <próba>", "chat.rpActions")
+		D.register("todo", phoenix.command.Handlers.cmdTodo, false, null, "/todo <wypowiedź>*<akcja>", "chat.rpActions")
+		D.register("ame", phoenix.command.Handlers.cmdAme, false, null, "/ame <krótka akcja>", "chat.rpActions")
 	}
 }
 

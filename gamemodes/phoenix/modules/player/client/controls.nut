@@ -78,6 +78,7 @@ addEventHandler("onKeyUp", function(key) {
 
 addEventHandler("onKeyDown", function(key) {
 	if (key != KEY_O) return
+	if (!phoenix.features.Client.effectiveEnabled("player.sitting")) return
 	if (phoenix.player.Controls.dettached) return
 	try { if (phoenix.chat.Client.inputOpen) return } catch (e) {}
 	try { if (phoenix.chat.Client.menuOpen) return } catch (e) {}

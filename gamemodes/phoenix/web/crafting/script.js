@@ -7,11 +7,29 @@
 	const MAX_BATCH = 100;
 	let requestSequence = 0;
 	let progressTimer = null;
+	let featureFlags = {};
+	const featureDefaults = { "crafting.enabled": true };
 	const state = {
 		station: "", recipes: [], items: [], level: 1, stamina: 0, selected: -1,
 		filter: "", category: "", quantity: 1, crafting: false,
 		requestId: "", progress: null
 	};
+
+	function featureEnabled(path) {
+		const parts = path.split(".");
+		let value = featureFlags;
+		for (let i = 0; i < parts.length; i += 1) {
+			if (!value || typeof value !== "object" || !Object.prototype.hasOwnProperty.call(value, parts[i])) return featureDefaults[path] !== false;
+			value = value[parts[i]];
+		}
+		return value !== false;
+	}
+	function craftingEnabled() { return featureEnabled("crafting.enabled"); }
+	function closeCrafting() {
+		if (state.crafting) PhoenixBridge.send("phoenix:crafting:cancel", { requestId: state.requestId });
+		PhoenixBridge.send("phoenix:crafting:close", null);
+		if (window.phoenixApp && phoenixApp.current() === "crafting") phoenixApp.hide();
+	}
 
 	function t(key, fallback) {
 		if (!I18n || typeof I18n.t !== "function") return fallback || key;
@@ -254,6 +272,7 @@
 		const target = event.target.closest("[data-action]");
 		if (!target) return;
 		const action = target.dataset.action;
+		if (!craftingEnabled() && action !== "close") return;
 		if (action === "close") { PhoenixBridge.send("phoenix:crafting:close", null); return; }
 		if (action === "cat") { state.category = target.dataset.cat || ""; render(); return; }
 		if (action === "select") {
@@ -287,6 +306,7 @@
 	});
 
 	function onOpen(payload) {
+		if (!craftingEnabled()) { closeCrafting(); return; }
 		state.station = payload.stationName || ""; state.recipes = (payload.recipes || []).slice(); state.items = (payload.items || []).slice();
 		state.level = payload.playerLevel || 1; state.stamina = Math.max(0, payload.playerStamina | 0); state.crafting = false; state.requestId = ""; state.progress = null; state.quantity = 1;
 		if (!state.recipes.some(function (recipe) { return recipe.id === state.selected; })) state.selected = state.recipes.length ? state.recipes[0].id : -1;
@@ -342,8 +362,16 @@
 	PhoenixBridge.on("phoenix:crafting:progress", onProgress);
 	PhoenixBridge.on("phoenix:crafting:result", onResult);
 	PhoenixBridge.on("phoenix:crafting:hide", onHide);
+	PhoenixBridge.on("phoenix:features:snapshot", function (payload) {
+		featureFlags = payload && payload.settings && payload.settings.flags && typeof payload.settings.flags === "object" ? payload.settings.flags : {};
+		if (!craftingEnabled() && window.phoenixApp && phoenixApp.current() === "crafting") closeCrafting();
+	});
 	const page = {
-		onShow: function () { render(); if (window.PhoenixHud && typeof window.PhoenixHud.setBlocked === "function") window.PhoenixHud.setBlocked(true); },
+		onShow: function () {
+			if (!craftingEnabled()) { closeCrafting(); return; }
+			render();
+			if (window.PhoenixHud && typeof window.PhoenixHud.setBlocked === "function") window.PhoenixHud.setBlocked(true);
+		},
 		onHide: function () { stopProgressTimer(); if (window.PhoenixHud && typeof window.PhoenixHud.setBlocked === "function") window.PhoenixHud.setBlocked(false); }
 	};
 	if (window.phoenixApp) window.phoenixApp.register("crafting", page);

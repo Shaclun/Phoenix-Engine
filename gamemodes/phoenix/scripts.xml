@@ -10,6 +10,7 @@
 	<import src="modules/net/index.xml" />
 	<import src="modules/database/index.xml" />
 	<import src="modules/web/index.xml" />
+	<import src="modules/features/index.xml" />
 	<import src="modules/ui/index.xml" />
 	<import src="modules/notification/index.xml" />
 	<import src="modules/text/index.xml" />

@@ -199,12 +199,17 @@ phoenix.chat.Client <- {
 			local d = Draw3d(pos.x, pos.y + phoenix.chat.Client.baseHeight, pos.z)
 			try { d.setFont("FONT_OLD_10_WHITE_HI.TGA") } catch (e) {}
 			local r = 240; local g = 220; local b = 180
-			if (channel == 1) { r = 120; g = 200; b = 255 }
-			else if (channel == 2) { r = 212; g = 175; b = 55 }
+			if (channel == phoenix.chat.Channel.GLOBAL) { r = 120; g = 200; b = 255 }
+			else if (channel == phoenix.chat.Channel.ADMIN) { r = 212; g = 175; b = 55 }
+			else if (channel == phoenix.chat.Channel.OOC) { r = 185; g = 190; b = 205 }
+			else if (channel == phoenix.chat.Channel.ME || channel == phoenix.chat.Channel.AME) { r = 211; g = 158; b = 255 }
+			else if (channel == phoenix.chat.Channel.DO) { r = 118; g = 220; b = 220 }
+			else if (channel == phoenix.chat.Channel.TRY) { r = 150; g = 220; b = 130 }
+			else if (channel == phoenix.chat.Channel.TODO) { r = 255; g = 188; b = 110 }
 			try { d.setColor(Color(r, g, b, 235)) } catch (e) {}
 			if (text != null && text != "") d.insertText(phoenix.text.Encoding.forLabel(text))
 			else d.insertText(" ")
-			d.distance = 2500
+			d.distance = channel == phoenix.chat.Channel.AME ? 900 : (channel == phoenix.chat.Channel.OOC ? 2500 : (channel == phoenix.chat.Channel.LOCAL ? 1500 : 1800))
 			d.visible = true
 			try { d.top() } catch (e) {}
 			return d

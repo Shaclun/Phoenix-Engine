@@ -94,6 +94,7 @@ phoenix.npc.Spawn <- {
 	}
 
 	function _retaliate(entry, attackerId) {
+		if (!phoenix.features.Settings.isEnabled("npc.ai")) return
 		if (entry == null || attackerId == null || attackerId < 0) return
 		try {
 			if (!isPlayerConnected(attackerId) && phoenix.npc.Spawn._liveByNpcId(attackerId) == null) return
@@ -414,9 +415,9 @@ phoenix.npc.Spawn <- {
 		return out
 	}
 
-	function broadcastNameplates(targetPid = -1) {
+	function _sendNameplates(entries, targetPid = -1) {
 		local msg = phoenix.npc.Message.Nameplates()
-		msg.entries = phoenix.npc.Spawn._makeNameplateList()
+		msg.entries = entries
 		local serialized = msg.serialize()
 		if (targetPid >= 0) {
 			try { serialized.send(targetPid, RELIABLE_ORDERED) } catch (e) {}
@@ -429,9 +430,16 @@ phoenix.npc.Spawn <- {
 		}
 	}
 
+	function broadcastNameplates(targetPid = -1) {
+		if (!phoenix.features.Settings.isEnabled("npc.nameplates")) return
+		phoenix.npc.Spawn._sendNameplates(phoenix.npc.Spawn._makeNameplateList(), targetPid)
+	}
+
 	function ensureNameplateTicker() {
+		if (!phoenix.features.Settings.isEnabled("npc.nameplates")) return
 		if (phoenix.npc.Spawn.nameplateTimer != null) return
 		phoenix.npc.Spawn.nameplateTimer = setTimer(function () {
+			if (!phoenix.features.Settings.isEnabled("npc.nameplates")) return
 			try { phoenix.npc.Spawn.broadcastNameplates() } catch (e) {}
 		}, 2000, 0)
 	}
@@ -460,6 +468,7 @@ phoenix.npc.Spawn <- {
 	}
 
 	function spawnRow(row) {
+		if (!phoenix.features.Settings.isEnabled("npc.spawning")) return -1
 		try {
 			phoenix.npc.Spawn.normalizeEquipmentFields(row)
 			local createName = row.instance
@@ -568,12 +577,17 @@ phoenix.npc.Spawn <- {
 	}
 
 	function loadAll() {
+		if (!phoenix.features.Settings.isEnabled("npc.spawning")) {
+			phoenix.npc.Spawn.loading = false
+			return
+		}
 		if (phoenix.npc.Spawn.loaded || phoenix.npc.Spawn.loading) return
 		phoenix.npc.Spawn.loading = true
 		phoenix.npc.Spawn.loadAttempts += 1
 		phoenix.npc.Spawn.ensureTable(function () {
 			ORM.engine.executeAsync("SELECT * FROM `phoenix_npc_spawns` ORDER BY `id` ASC", function (rows) {
 				phoenix.npc.Spawn.loading = false
+				if (!phoenix.features.Settings.isEnabled("npc.spawning")) return
 				if (rows == null) {
 					phoenix.npc.Spawn.scheduleLoadRetry()
 					return
@@ -729,6 +743,10 @@ phoenix.npc.Spawn <- {
 		if (sets.len() == 0) { if (callback != null) callback(false); return }
 		local sql = "UPDATE `phoenix_npc_spawns` SET " + sets.reduce(function (a, b) { return a + ", " + b }) + " WHERE `id` = " + spawnId
 		ORM.engine.executeAsync(sql, function (_) {
+			if (!phoenix.features.Settings.isEnabled("npc.spawning")) {
+				if (callback != null) callback(true)
+				return
+			}
 			phoenix.npc.Spawn.despawnRow(spawnId)
 			ORM.engine.executeAsync("SELECT * FROM `phoenix_npc_spawns` WHERE `id` = " + spawnId, function (rows) {
 				if (rows != null && rows.len() > 0) {
@@ -762,26 +780,31 @@ phoenix.npc.Spawn <- {
 						} else {
 							local rec = phoenix.character.Structure.getActive(killerId)
 							if (rec != null) {
-								phoenix.npc.Bestiary.bumpFromEntry(rec.id, entry)
-								if (xp > 0) phoenix.player.Progression.awardExperience(killerId, xp)
-								try {
-									callEvent("phoenix.quest.OnDomainEvent", killerId, "kill", {
-										spawnId = sid,
-										presetId = ("presetId" in row) ? row.presetId : 0,
-										instance = row.instance,
-										tag = row.tag
-									}, "kill:" + npcId + ":" + getTickCount())
-								} catch (eQuest) {}
+								if (phoenix.features.Settings.isEnabled("bestiary.enabled")) phoenix.npc.Bestiary.bumpFromEntry(rec.id, entry)
+								if (xp > 0 && phoenix.features.Settings.isEnabled("progression.mobExperience")) phoenix.player.Progression.awardExperience(killerId, xp)
+								if (phoenix.features.Settings.isEnabled("quests.enabled")) {
+									try {
+										callEvent("phoenix.quest.OnDomainEvent", killerId, "kill", {
+											spawnId = sid,
+											presetId = ("presetId" in row) ? row.presetId : 0,
+											instance = row.instance,
+											tag = row.tag
+										}, "kill:" + npcId + ":" + getTickCount())
+									} catch (eQuest) {}
+								}
 							}
 						}
 					}
 				} catch (ex) {}
-				try { phoenix.profession.Hunting.spawnCarcass(entry, killerId) } catch (eCarcass) {}
+				if (phoenix.features.Settings.isEnabled("professions.hunting")) {
+					try { phoenix.profession.Hunting.spawnCarcass(entry, killerId) } catch (eCarcass) {}
+				}
 				if (row.respawnSec > 0) {
 					local sec = row.respawnSec
 					entry.respawnTimer = setTimer(function () {
+						if (!phoenix.features.Settings.isEnabled("npc.spawning")) return
 						try {
-							phoenix.profession.Hunting.removeBySpawn(row.id)
+							if (phoenix.features.Settings.isEnabled("professions.hunting")) phoenix.profession.Hunting.removeBySpawn(row.id)
 							phoenix.npc.Spawn.despawnRow(row.id)
 							phoenix.npc.Spawn.spawnRow(row)
 						} catch (e) {}
@@ -890,6 +913,7 @@ phoenix.npc.Spawn <- {
 	}
 
 	function bootLoad() {
+		if (!phoenix.features.Settings.isEnabled("npc.spawning")) return
 		phoenix.npc.Spawn.ensureNameplateTicker()
 		if (phoenix.npc.Spawn.loaded || phoenix.npc.Spawn.loading) return
 		if (phoenix.npc.Spawn.bootScheduled) return
@@ -916,6 +940,11 @@ addEventHandler("onPlayerDamage", function (victimId, killerId, desc) {
 		local attackerNpc = null
 		if (killerId != null && killerId >= 0) {
 			try { attackerNpc = phoenix.npc.Spawn._liveByNpcId(killerId) } catch (en) { attackerNpc = null }
+		}
+		if (attackerNpc != null && !phoenix.features.Settings.isEnabled("npc.ai")) {
+			cancelEvent()
+			try { eventValue(0) } catch (e) {}
+			return
 		}
 		if (entry != null && (attackerIsPlayer || attackerNpc != null)) {
 			cancelEvent()
@@ -973,6 +1002,20 @@ addEventHandler("onPlayerDamage", function (victimId, killerId, desc) {
 	} catch (e) {}
 })
 
+addEventHandler("phoenix.features.OnChanged", function (key, enabled) {
+	if (key != "npc.nameplates") return
+	if (!enabled) {
+		try { phoenix.npc.Spawn._sendNameplates([]) } catch (e) {}
+		if (phoenix.npc.Spawn.nameplateTimer != null) {
+			try { killTimer(phoenix.npc.Spawn.nameplateTimer) } catch (e) {}
+			phoenix.npc.Spawn.nameplateTimer = null
+		}
+		return
+	}
+	try { phoenix.npc.Spawn.ensureNameplateTicker() } catch (e) {}
+	try { phoenix.npc.Spawn.broadcastNameplates() } catch (e) {}
+})
+
 addEventHandler("onInit", function () {
 	try { phoenix.npc.Spawn.ensureNameplateTicker() } catch (e) {}
 	phoenix.npc.Spawn.bootLoad()
@@ -980,18 +1023,23 @@ addEventHandler("onInit", function () {
 
 addEventHandler("onPlayerJoin", function (playerId) {
 	try { phoenix.npc.Spawn.bootLoad() } catch (e) {}
+	if (!phoenix.features.Settings.isEnabled("npc.nameplates")) return
 	try { phoenix.npc.Spawn.broadcastNameplates(playerId) } catch (e) {}
 	setTimer(function () {
+		if (!phoenix.features.Settings.isEnabled("npc.nameplates")) return
 		try { phoenix.npc.Spawn.broadcastNameplates(playerId) } catch (e) {}
 	}, 1000, 1)
 	setTimer(function () {
+		if (!phoenix.features.Settings.isEnabled("npc.nameplates")) return
 		try { phoenix.npc.Spawn.broadcastNameplates(playerId) } catch (e) {}
 	}, 5000, 1)
 })
 
 addEventHandler("phoenix.player.OnSpawned", function (playerId, _characterId, _record) {
+	if (!phoenix.features.Settings.isEnabled("npc.nameplates")) return
 	try { phoenix.npc.Spawn.broadcastNameplates(playerId) } catch (e) {}
 	setTimer(function () {
+		if (!phoenix.features.Settings.isEnabled("npc.nameplates")) return
 		try { phoenix.npc.Spawn.broadcastNameplates(playerId) } catch (e) {}
 	}, 1000, 1)
 })

@@ -92,6 +92,24 @@
 	const MAX_SLOTS = 4;
 	const LAST_SLOT_KEY = "phoenix:character:lastSlot";
 	const LAST_ID_KEY = "phoenix:character:lastCharacterId";
+	let featureFlags = {};
+	const featureDefaults = { "lobby.enabled": true, "character.creation": true, "character.deletion": true, "character.preview": true };
+
+	function featureEnabled(path) {
+		const parts = path.split(".");
+		let value = featureFlags;
+		for (let i = 0; i < parts.length; i += 1) {
+			if (!value || typeof value !== "object" || !Object.prototype.hasOwnProperty.call(value, parts[i])) return featureDefaults[path] !== false;
+			value = value[parts[i]];
+		}
+		return value !== false;
+	}
+
+	function lobbyEnabled() { return featureEnabled("lobby.enabled"); }
+	function cleanupCharacterUi() {
+		PhoenixBridge.send("phoenix:character:create:stop", {});
+		PhoenixBridge.send("phoenix:character:list:leave", {});
+	}
 
 	const starterCatalog = {
 		weapon: [
@@ -173,7 +191,7 @@
 	}
 
 	function focusSelectedPreview() {
-		if (selectedId == null) return;
+		if (!lobbyEnabled() || !featureEnabled("character.preview") || selectedId == null) return;
 		PhoenixBridge.send("phoenix:character:list:focus", { characterId: selectedId });
 	}
 
@@ -308,32 +326,34 @@
 
 		root.querySelectorAll(".char-card").forEach(function (n) {
 			n.addEventListener("click", function () {
+				if (!lobbyEnabled()) return;
 				selectedId = parseInt(n.dataset.id, 10);
 				storeSelection(selectedId);
-				PhoenixBridge.send("phoenix:character:list:focus", { characterId: selectedId });
+				if (featureEnabled("character.preview")) PhoenixBridge.send("phoenix:character:list:focus", { characterId: selectedId });
 				renderList();
 			});
 		});
 
 		root.querySelector('[data-action="create"]').addEventListener("click", function () {
+			if (!lobbyEnabled() || !featureEnabled("character.creation")) return;
 			if (characters.length >= MAX_SLOTS) { setError(tr("phoenix.character.error.noSlots", "Limit postaci na koncie został osiągnięty")); return; }
 			mode = "create";
 			render();
 			PhoenixBridge.send("phoenix:character:create:start", {});
 		});
 		root.querySelector('[data-action="enter"]').addEventListener("click", function () {
-			if (selectedId == null) return;
+			if (!lobbyEnabled() || selectedId == null) return;
 			storeSelection(selectedId);
 			if (window.app && window.app.showLoading) window.app.showLoading("world");
 			PhoenixBridge.send("phoenix:character:select", { characterId: selectedId });
 		});
 		root.querySelector('[data-action="delete"]').addEventListener("click", function () {
-			if (selectedId == null) return;
+			if (!lobbyEnabled() || !featureEnabled("character.deletion") || selectedId == null) return;
 			PhoenixBridge.send("phoenix:character:delete", { characterId: selectedId });
 		});
 
 		const exitBtn = root.querySelector('[data-action="exit"]');
-		if (exitBtn) exitBtn.addEventListener("click", function () { PhoenixBridge.send("phoenix:app:exit", {}); });
+		if (exitBtn) exitBtn.addEventListener("click", function () { if (lobbyEnabled()) PhoenixBridge.send("phoenix:app:exit", {}); });
 
 		updateActions();
 		renderDetails();
@@ -344,21 +364,35 @@
 		const del = root.querySelector('[data-action="delete"]');
 		const has = selectedId != null && characters.some(function (c) { return c.id === selectedId; });
 		const selected = selectedCharacter();
-		if (enter) enter.disabled = !has || (selected && parseInt(selected.status || 1, 10) === 2);
-		if (del) del.disabled = !has;
+		if (enter) enter.disabled = !lobbyEnabled() || !has || (selected && parseInt(selected.status || 1, 10) === 2);
+		if (del) {
+			del.hidden = !featureEnabled("character.deletion");
+			del.disabled = !lobbyEnabled() || !featureEnabled("character.deletion") || !has;
+		}
 		const create = root.querySelector('[data-action="create"]');
-		if (create) create.disabled = characters.length >= MAX_SLOTS;
+		if (create) {
+			create.hidden = !featureEnabled("character.creation");
+			create.disabled = !lobbyEnabled() || !featureEnabled("character.creation") || characters.length >= MAX_SLOTS;
+		}
 	}
 
 	function bindRotateControls() {
+		const controls = root.querySelector('[data-role="rotate-controls"]');
+		if (controls) controls.hidden = !featureEnabled("character.preview");
 		root.querySelectorAll('[data-rotate]').forEach(function (button) {
 			button.addEventListener("click", function () {
+				if (!lobbyEnabled() || !featureEnabled("character.creation") || !featureEnabled("character.preview")) return;
 				PhoenixBridge.send("phoenix:character:preview:rotate", { dir: parseInt(button.dataset.rotate, 10) || 0 });
 			});
 		});
 	}
 
 	function renderCreate() {
+		if (!lobbyEnabled() || !featureEnabled("character.creation")) {
+			mode = "list";
+			renderList();
+			return;
+		}
 		root.innerHTML = createTpl;
 		if (window.PhoenixI18n) PhoenixI18n.applyDom(root);
 
@@ -379,18 +413,21 @@
 			row.querySelectorAll(".option-row__arrow").forEach(function (arrow) {
 				const dir = parseInt(arrow.dataset.dir, 10) || 0;
 				arrow.addEventListener("click", function () {
+					if (!lobbyEnabled() || !featureEnabled("character.creation") || !featureEnabled("character.preview")) return;
 					PhoenixBridge.send("phoenix:character:create:cycle", { key: key, dir: dir });
 				});
 			});
 		});
 
 		root.querySelector('[data-button="back"]').addEventListener("click", function () {
+			if (!lobbyEnabled() || !featureEnabled("character.creation")) return;
 			PhoenixBridge.send("phoenix:character:create:stop", {});
 			mode = "list";
 			render();
 		});
 
 		root.querySelector('[data-button="create"]').addEventListener("click", function () {
+			if (!lobbyEnabled() || !featureEnabled("character.creation")) return;
 			const name = (root.querySelector("#char-name").value || "").trim();
 			if (!name) {
 				setStatus(window.PhoenixI18n ? PhoenixI18n.t("character.create.error.nameRequired") : "Podaj nazwę postaci");
@@ -416,23 +453,29 @@
 
 	app.register("character", {
 		onShow: function () {
+			if (!lobbyEnabled()) {
+				cleanupCharacterUi();
+				if (window.app) app.hide();
+				return;
+			}
 			mode = "list";
 			selectedId = null;
 			optionState = { gender: 0, weapon: 0, ranged: 0, outfit: 0 };
 			if (window.PhoenixHud && typeof window.PhoenixHud.setBlocked === "function") PhoenixHud.setBlocked(true);
 			render();
 			PhoenixBridge.send("phoenix:character:requestList", {});
-			PhoenixBridge.send("phoenix:character:list:enter", {});
+			if (featureEnabled("character.preview")) PhoenixBridge.send("phoenix:character:list:enter", {});
+			else PhoenixBridge.send("phoenix:character:list:leave", {});
 		},
 		onHide: function () {
 			document.body.classList.remove("phoenix-body--cinematic");
 			if (window.PhoenixHud && typeof window.PhoenixHud.setBlocked === "function") PhoenixHud.setBlocked(false);
-			PhoenixBridge.send("phoenix:character:create:stop", {});
-			PhoenixBridge.send("phoenix:character:list:leave", {});
+			cleanupCharacterUi();
 		}
 	});
 
 	PhoenixBridge.on("phoenix:character:list", function (payload) {
+		if (!lobbyEnabled()) return;
 		characters = (payload && Array.isArray(payload.characters)) ? payload.characters : [];
 		if (selectedId != null && !characters.some(function (c) { return c.id === selectedId; })) {
 			selectedId = null;
@@ -443,7 +486,7 @@
 	});
 
 	PhoenixBridge.on("phoenix:character:option", function (payload) {
-		if (mode !== "create" || !payload || !payload.key) return;
+		if (!lobbyEnabled() || !featureEnabled("character.creation") || mode !== "create" || !payload || !payload.key) return;
 		const node = root.querySelector('[data-value="' + payload.key + '"]');
 		if (!node) return;
 		let text = payload.value || "—";
@@ -479,7 +522,7 @@
 	}
 
 	PhoenixBridge.on("phoenix:character:createResult", function (payload) {
-		if (!payload) return;
+		if (!lobbyEnabled() || !featureEnabled("character.creation") || !payload) return;
 		if (payload.success) {
 			mode = "list";
 			PhoenixBridge.send("phoenix:character:create:stop", {});
@@ -492,7 +535,30 @@
 		}
 	});
 
+	PhoenixBridge.on("phoenix:features:snapshot", function (payload) {
+		const previewWasEnabled = featureEnabled("character.preview");
+		featureFlags = payload && payload.settings && payload.settings.flags && typeof payload.settings.flags === "object" ? payload.settings.flags : {};
+		const visible = window.app && app.current && app.current() === "character";
+		if (!lobbyEnabled()) {
+			cleanupCharacterUi();
+			mode = "list";
+			document.body.classList.remove("phoenix-body--cinematic");
+			if (visible) app.hide();
+			return;
+		}
+		if (!featureEnabled("character.creation") && mode === "create") {
+			PhoenixBridge.send("phoenix:character:create:stop", {});
+			mode = "list";
+		}
+		if (!featureEnabled("character.preview")) PhoenixBridge.send("phoenix:character:list:leave", {});
+		else if (!previewWasEnabled && visible) {
+			PhoenixBridge.send("phoenix:character:list:enter", {});
+			focusSelectedPreview();
+		}
+		if (visible) render();
+	});
+
 	if (window.PhoenixI18n) {
-		PhoenixI18n.onChange(function () { render(); });
+		PhoenixI18n.onChange(function () { if (lobbyEnabled()) render(); });
 	}
 })();

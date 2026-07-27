@@ -9,6 +9,67 @@
 	let lastProfessions = [];
 	let bestiaryRenderConfig = {};
 	let activeTab = "stats";
+	let featureFlags = {};
+	const featureDefaults = {
+		"progression.leveling": true,
+		"progression.statsSpending": true,
+		"progression.learnPoints": true,
+		"progression.weaponExperience": true,
+		"progression.magicExperience": true,
+		"player.stamina": true,
+		"bestiary.enabled": true,
+		"professions.enabled": true
+	};
+
+	function featureEnabled(path) {
+		const parts = path.split(".");
+		let value = featureFlags;
+		for (let i = 0; i < parts.length; i += 1) {
+			if (!value || typeof value !== "object" || !Object.prototype.hasOwnProperty.call(value, parts[i])) return featureDefaults[path] !== false;
+			value = value[parts[i]];
+		}
+		return value !== false;
+	}
+
+	function tabEnabled(tab) {
+		if (tab === "stats") return featureEnabled("progression.leveling") || featureEnabled("progression.statsSpending");
+		if (tab === "bestiary") return featureEnabled("bestiary.enabled");
+		if (tab === "professions") return featureEnabled("professions.enabled");
+		return false;
+	}
+
+	function availableTabs() {
+		return ["stats", "bestiary", "professions"].filter(tabEnabled);
+	}
+
+	function statsPageVisible() {
+		return window.phoenixApp && phoenixApp.current() === "stats";
+	}
+
+	function applyFeatureFlags(payload) {
+		featureFlags = payload && payload.settings && payload.settings.flags && typeof payload.settings.flags === "object" ? payload.settings.flags : {};
+		root.querySelectorAll(".stats-tab").forEach(function (node) { node.hidden = !tabEnabled(node.dataset.tab); });
+		root.querySelectorAll(".stats-rank").forEach(function (node) { node.hidden = !featureEnabled("progression.leveling"); });
+		root.querySelectorAll(".stats-block--attributes").forEach(function (node) { node.hidden = !featureEnabled("progression.statsSpending"); });
+		root.querySelectorAll(".stats-chip--points").forEach(function (node) { node.hidden = !featureEnabled("progression.learnPoints"); });
+		root.querySelectorAll(".stats-block--weapons").forEach(function (node) { node.hidden = !featureEnabled("progression.weaponExperience"); });
+		root.querySelectorAll(".stats-block--magic").forEach(function (node) { node.hidden = !featureEnabled("progression.magicExperience"); });
+		const staminaRow = els.stamina && els.stamina.closest(".attribute-row");
+		if (staminaRow) staminaRow.hidden = !featureEnabled("player.stamina");
+		const tabs = availableTabs();
+		if (!tabs.length) {
+			if (statsPageVisible()) {
+				PhoenixBridge.send("phoenix:stats:close", null);
+				phoenixApp.hide();
+			}
+			return;
+		}
+		if (!tabEnabled(activeTab)) switchTab(tabs[0], !statsPageVisible());
+		else switchTab(activeTab, true);
+		if (lastSnapshot && tabEnabled("stats")) applySnapshot(lastSnapshot);
+		if (lastBestiary && tabEnabled("bestiary")) applyBestiary(lastBestiary);
+		if (tabEnabled("professions")) applyProfessions({ entries: lastProfessions });
+	}
 
 	function t(key, fallback) {
 		if (!I18n || typeof I18n.t !== "function") return fallback || key;
@@ -188,7 +249,7 @@
 	}
 
 	function applySnapshot(d) {
-		if (!d) return;
+		if (!d || !tabEnabled("stats")) return;
 		lastSnapshot = d;
 		const cur = d.experience || 0;
 		const next = d.experienceNext || 1;
@@ -294,6 +355,7 @@
 	}
 
 	function applyBestiary(payload) {
+		if (!tabEnabled("bestiary")) return;
 		lastBestiary = payload;
 		const entries = payload && Array.isArray(payload.entries) ? payload.entries : [];
 		let totalKills = 0;
@@ -311,6 +373,7 @@
 	}
 
 	function applyProfessions(payload) {
+		if (!tabEnabled("professions")) return;
 		lastProfessions = payload && Array.isArray(payload.entries) ? payload.entries.slice() : [];
 		if (!els.professionGrid) return;
 		if (!lastProfessions.length) {
@@ -330,7 +393,8 @@
 		}).join('');
 	}
 
-	function switchTab(tab) {
+	function switchTab(tab, skipRequest) {
+		if (!tabEnabled(tab)) return;
 		activeTab = tab;
 		root.querySelectorAll(".stats-tab").forEach(function (btn) {
 			btn.classList.toggle("is-active", btn.dataset.tab === tab);
@@ -339,8 +403,8 @@
 			if (view.dataset.tab === tab) view.removeAttribute("hidden");
 			else view.setAttribute("hidden", "");
 		});
-		if (tab === "bestiary") PhoenixBridge.send("phoenix:bestiary:request", null);
-		if (tab === "professions") PhoenixBridge.send("phoenix:profession:request", null);
+		if (!skipRequest && tab === "bestiary") PhoenixBridge.send("phoenix:bestiary:request", null);
+		if (!skipRequest && tab === "professions") PhoenixBridge.send("phoenix:profession:request", null);
 	}
 
 	root.addEventListener("click", function (ev) {
@@ -350,11 +414,13 @@
 		if (tabTarget && tabTarget.dataset.tab) { switchTab(tabTarget.dataset.tab); }
 	});
 
-	PhoenixBridge.on("phoenix:stats:snapshot", applySnapshot);
-	PhoenixBridge.on("phoenix:stats:result", applyResult);
-	PhoenixBridge.on("phoenix:bestiary:snapshot", applyBestiary);
-	PhoenixBridge.on("phoenix:profession:snapshot", applyProfessions);
+	PhoenixBridge.on("phoenix:stats:snapshot", function (payload) { if (tabEnabled("stats")) applySnapshot(payload); });
+	PhoenixBridge.on("phoenix:stats:result", function (payload) { if (tabEnabled("stats")) applyResult(payload); });
+	PhoenixBridge.on("phoenix:bestiary:snapshot", function (payload) { if (tabEnabled("bestiary")) applyBestiary(payload); });
+	PhoenixBridge.on("phoenix:profession:snapshot", function (payload) { if (tabEnabled("professions")) applyProfessions(payload); });
+	PhoenixBridge.on("phoenix:features:snapshot", applyFeatureFlags);
 	PhoenixBridge.on("phoenix:bestiary:renderConfig", function (payload) {
+		if (!tabEnabled("bestiary")) return;
 		const entries = payload && Array.isArray(payload.entries) ? payload.entries : [];
 		bestiaryRenderConfig = {};
 		entries.forEach(function (e) {
@@ -366,10 +432,15 @@
 
 	const page = {
 		onShow: function () {
-			PhoenixBridge.send("phoenix:stats:request", null);
-			PhoenixBridge.send("phoenix:profession:request", null);
-			if (activeTab === "bestiary") PhoenixBridge.send("phoenix:bestiary:request", null);
+			const tabs = availableTabs();
+			if (!tabs.length) { PhoenixBridge.send("phoenix:stats:close", null); if (window.phoenixApp) phoenixApp.hide(); return; }
+			if (!tabEnabled(activeTab)) activeTab = tabs[0];
+			switchTab(activeTab, true);
+			if (tabEnabled("stats")) PhoenixBridge.send("phoenix:stats:request", null);
+			if (tabEnabled("professions")) PhoenixBridge.send("phoenix:profession:request", null);
+			if (activeTab === "bestiary" && tabEnabled("bestiary")) PhoenixBridge.send("phoenix:bestiary:request", null);
 			if (I18n) I18n.applyDom(root);
+			applyFeatureFlags({ settings: { flags: featureFlags } });
 			if (window.PhoenixHud && typeof window.PhoenixHud.setBlocked === "function") window.PhoenixHud.setBlocked(true);
 		},
 		onHide: function () {

@@ -31,7 +31,9 @@ phoenix.database.Migrations <- {
 		"28-hud-portrait-scale.sql",
 		"29-custom-consumables-effects.sql",
 		"30-advanced-crafting.sql",
-		"31-professions.sql"
+		"31-professions.sql",
+		"32-server-feature-settings.sql",
+		"33-server-feature-registry.sql"
 	]
 
 	function readStatements(path) {

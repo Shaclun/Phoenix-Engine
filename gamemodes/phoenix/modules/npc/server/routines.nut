@@ -175,8 +175,18 @@ phoenix.npc.Routines <- {
 	}
 
 	function loadAll(callback) {
+		if (!phoenix.features.Settings.isEnabled("npc.routines")) {
+			if (callback != null) callback({})
+			return
+		}
 		phoenix.npc.Routines.ensureTable(function () {
 			ORM.engine.executeAsync("SELECT * FROM `phoenix_npc_routines` WHERE `enabled` = 1", function (rows) {
+				if (!phoenix.features.Settings.isEnabled("npc.routines")) {
+					phoenix.npc.Routines.cache = {}
+					phoenix.npc.Routines.loaded = false
+					if (callback != null) callback({})
+					return
+				}
 				phoenix.npc.Routines.cache = {}
 				if (rows != null) {
 					foreach (r in rows) {
@@ -229,9 +239,11 @@ phoenix.npc.Routines <- {
 					loop = loop,
 					nodes = normalizedNodes
 				}
-				phoenix.npc.Routines.cache[spawnId] <- routine
-				foreach (sid, e in phoenix.npc.Spawn.live) {
-					if (sid == spawnId) { phoenix.npc.Routines.bindRoutineToEntry(e, routine); break }
+				if (phoenix.features.Settings.isEnabled("npc.routines")) {
+					phoenix.npc.Routines.cache[spawnId] <- routine
+					foreach (sid, e in phoenix.npc.Spawn.live) {
+						if (sid == spawnId) { phoenix.npc.Routines.bindRoutineToEntry(e, routine); break }
+					}
 				}
 				if (callback != null) callback(true)
 			})
@@ -287,6 +299,7 @@ phoenix.npc.Routines <- {
 	}
 
 	function bindRoutineToEntry(entry, routine) {
+		if (!phoenix.features.Settings.isEnabled("npc.routines")) return
 		if (entry == null) return
 		entry.ai.routine <- routine
 		entry.ai.routineIndex <- 0
@@ -314,6 +327,7 @@ phoenix.npc.Routines <- {
 	}
 
 	function onSpawnBound(spawnId, entry) {
+		if (!phoenix.features.Settings.isEnabled("npc.routines")) return
 		if (!phoenix.npc.Routines.loaded) return
 		local r = phoenix.npc.Routines.getBySpawnId(spawnId)
 		if (r != null) phoenix.npc.Routines.bindRoutineToEntry(entry, r)
@@ -334,6 +348,7 @@ phoenix.npc.Routines <- {
 	}
 
 	function tick(entry, now) {
+		if (!phoenix.features.Settings.isEnabled("npc.routines")) return false
 		if (entry == null || !entry.alive) return false
 		if (("dialogPartner" in entry.ai) && entry.ai.dialogPartner >= 0) {
 			local partner = entry.ai.dialogPartner
@@ -518,9 +533,48 @@ phoenix.npc.Routines <- {
 		entry.ai.state = "routine-move"
 		return true
 	}
+
+	function detachRuntime() {
+		foreach (_sid, entry in phoenix.npc.Spawn.live) {
+			if (entry == null || !("ai" in entry)) continue
+			try {
+				if (("routine" in entry.ai) && entry.ai.routine != null) {
+					try { clearNpcActions(entry.npcId) } catch (e) {}
+					try { stopAni(entry.npcId, phoenix.npc.Routines._runAnimFor(entry, "run")) } catch (e) {}
+					try { stopAni(entry.npcId, phoenix.npc.Routines._runAnimFor(entry, "walk")) } catch (e) {}
+					try { stopAni(entry.npcId, phoenix.npc.Routines._runAnimFor(entry, "sneak")) } catch (e) {}
+					if (("routineAnimApplied" in entry.ai) && entry.ai.routineAnimApplied != "") {
+						try { stopAni(entry.npcId, entry.ai.routineAnimApplied) } catch (e) {}
+					}
+					entry.ai.routine <- null
+					entry.ai.routineIndex <- 0
+					entry.ai.routineWaitUntil <- 0
+					entry.ai.routineAnimApplied <- ""
+					if (entry.ai.state == "routine-move" || entry.ai.state == "routine-wait" || entry.ai.state == "routine-complete") entry.ai.state = "idle"
+					try { phoenix.npc.AI._ensureIdle(entry, true) } catch (e) {}
+				}
+			} catch (e) {}
+		}
+		phoenix.npc.Routines.cache = {}
+		phoenix.npc.Routines.loaded = false
+	}
 }
 
+addEventHandler("phoenix.features.OnChanged", function (key, enabled) {
+	if (key != "npc.routines") return
+	if (!enabled) {
+		phoenix.npc.Routines.detachRuntime()
+		return
+	}
+	try {
+		phoenix.npc.Routines.loadAll(function (_) {
+			foreach (sid, entry in phoenix.npc.Spawn.live) phoenix.npc.Routines.onSpawnBound(sid, entry)
+		})
+	} catch (e) {}
+})
+
 addEventHandler("phoenix.database.OnReady", function () {
+	if (!phoenix.features.Settings.isEnabled("npc.routines")) return
 	try {
 		phoenix.npc.Routines.loadAll(function (_) {
 			foreach (sid, entry in phoenix.npc.Spawn.live) {

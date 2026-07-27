@@ -110,11 +110,12 @@ phoenix.npc.Teacher <- {
 	}
 
 	function openRootDialog(playerId, npcId) {
+		if (!phoenix.features.Settings.isEnabled("npc.interaction")) return
 		local entry = phoenix.npc.Teacher._findByNpcId(npcId)
 		if (entry == null) return
 		local row = entry.row
-		local hasTeacher = phoenix.npc.Teacher._hasTeacher(row)
-		local hasMerchant = phoenix.npc.Teacher._hasMerchant(row)
+		local hasTeacher = phoenix.features.Settings.isEnabled("npc.teachers") && phoenix.npc.Teacher._hasTeacher(row)
+		local hasMerchant = phoenix.features.Settings.isEnabled("npc.merchants") && phoenix.npc.Teacher._hasMerchant(row)
 		if (!hasTeacher && !hasMerchant) return
 		phoenix.npc.Teacher._gesture(playerId, npcId)
 		local m = phoenix.npc.Message.Dialog()
@@ -127,6 +128,8 @@ phoenix.npc.Teacher <- {
 	}
 
 	function openDialog(playerId, npcId) {
+		if (!phoenix.features.Settings.isEnabled("npc.interaction")) return
+		if (!phoenix.features.Settings.isEnabled("npc.teachers")) return
 		local entry = phoenix.npc.Teacher._findByNpcId(npcId)
 		if (entry == null) return
 		local row = entry.row
@@ -154,6 +157,8 @@ phoenix.npc.Teacher <- {
 	}
 
 	function onTrain(playerId, message) {
+		if (!phoenix.features.Settings.isEnabled("npc.interaction")) return
+		if (!phoenix.features.Settings.isEnabled("npc.teachers")) return
 		local npcId = message.npcId
 		if (!phoenix.npc.Teacher._sessionValid(playerId, npcId, true)) { phoenix.npc.Teacher._reply(playerId, false, "tooFar"); return }
 		local skill = message.skill
@@ -178,12 +183,20 @@ phoenix.npc.Teacher <- {
 		local stat = (skill in phoenix.npc.Teacher.skillToStat) ? phoenix.npc.Teacher.skillToStat[skill] : null
 		if (stat == null) { phoenix.npc.Teacher._reply(playerId, false, "skillUnavailable"); return }
 		if (phoenix.npc.Teacher._isWeaponSkill(skill)) {
+			if (!phoenix.features.Settings.isEnabled("progression.weaponExperience")) {
+				phoenix.npc.Teacher._reply(playerId, false, "skillUnavailable")
+				return
+			}
 			local errKey = null
 			try { errKey = phoenix.player.WeaponProgression.unlockCap(playerId, stat) } catch (e) { errKey = "internal" }
 			if (errKey != null) { phoenix.npc.Teacher._reply(playerId, false, errKey); return }
 			phoenix.npc.Teacher._reply(playerId, true, "")
 			try { phoenix.player.Stats.pushSnapshot(playerId) } catch (e) {}
 			phoenix.npc.Teacher.openDialog(playerId, npcId)
+			return
+		}
+		if (!phoenix.features.Settings.isEnabled("progression.statsSpending")) {
+			phoenix.npc.Teacher._reply(playerId, false, "skillUnavailable")
 			return
 		}
 		phoenix.npc.Teacher._takePlayerGold(playerId, cost, function(goldOk) {
@@ -203,6 +216,7 @@ phoenix.npc.Teacher <- {
 	}
 
 	function onInteract(playerId, message) {
+		if (!phoenix.features.Settings.isEnabled("npc.interaction")) return
 		if (!phoenix.npc.Teacher._sessionValid(playerId, message.npcId, false)) return
 		try { if (phoenix.quest.Dialog.openForNpc(playerId, message.npcId)) return } catch (eQuest) {}
 		phoenix.npc.Teacher.openRootDialog(playerId, message.npcId)
@@ -217,6 +231,7 @@ phoenix.npc.Teacher <- {
 	}
 
 	function onAction(playerId, message) {
+		if (message.action != "close" && !phoenix.features.Settings.isEnabled("npc.interaction")) return
 		if (message.action != "close" && !phoenix.npc.Teacher._sessionValid(playerId, message.npcId, true)) return
 		if (message.action == "teacher") { phoenix.npc.Teacher.openDialog(playerId, message.npcId); return }
 		if (message.action == "merchant") { phoenix.npc.Teacher.openMerchant(playerId, message.npcId); return }
@@ -348,6 +363,8 @@ phoenix.npc.Teacher <- {
 	}
 
 	function openMerchant(playerId, npcId) {
+		if (!phoenix.features.Settings.isEnabled("npc.interaction")) return
+		if (!phoenix.features.Settings.isEnabled("npc.merchants")) return
 		local entry = phoenix.npc.Teacher._findByNpcId(npcId)
 		if (entry == null) return
 		local row = entry.row
@@ -377,6 +394,8 @@ phoenix.npc.Teacher <- {
 	}
 
 	function onTrade(playerId, message) {
+		if (!phoenix.features.Settings.isEnabled("npc.interaction")) return
+		if (!phoenix.features.Settings.isEnabled("npc.merchants")) return
 		if (!phoenix.npc.Teacher._sessionValid(playerId, message.npcId, true)) { phoenix.npc.Teacher._merchantReply(playerId, false, "tooFar"); return }
 		local entry = phoenix.npc.Teacher._findByNpcId(message.npcId)
 		if (entry == null) { phoenix.npc.Teacher._merchantReply(playerId, false, "noMerchant"); return }

@@ -157,6 +157,7 @@ phoenix.player.WeaponProgression <- {
 	}
 
 	function onValidHit(attackerId, victimId, damage, desc = null) {
+		if (!phoenix.features.Settings.isEnabled("progression.weaponExperience")) return
 		if (attackerId == null || attackerId < 0 || attackerId >= getMaxSlots()) return
 		if (victimId == attackerId) return
 		local record = phoenix.character.Structure.getActive(attackerId)
@@ -205,6 +206,7 @@ phoenix.player.WeaponProgression <- {
 	}
 
 	function unlockCap(playerId, key) {
+		if (!phoenix.features.Settings.isEnabled("progression.weaponExperience")) return "featureDisabled"
 		local record = phoenix.character.Structure.getActive(playerId)
 		if (record == null) return "noCharacter"
 		if (!phoenix.player.WeaponProgression.isWeaponKey(key)) return "unknownStat"

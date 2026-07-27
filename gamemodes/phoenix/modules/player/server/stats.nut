@@ -87,6 +87,7 @@ phoenix.player.Stats <- {
 	// Spend learn points to raise a stat. amount: how many points to spend (each grants +1 stat * unitFor(stat)).
 	// Returns null on success, error key on failure.
 	function spend(playerId, stat, amount) {
+		if (!phoenix.features.Settings.isEnabled("progression.statsSpending")) return "featureDisabled"
 		local record = phoenix.character.Structure.getActive(playerId)
 		if (record == null) return "noCharacter"
 		phoenix.player.Progression.normalizeRecordStats(record)
@@ -131,6 +132,7 @@ phoenix.player.Stats <- {
 	}
 
 	function onSpend(playerId, message) {
+		if (!phoenix.features.Settings.isEnabled("progression.statsSpending")) return
 		local stat = message.stat
 		local amount = message.amount.tointeger()
 		if (amount > 50) amount = 50

@@ -71,7 +71,15 @@ phoenix.npc.Bestiary <- {
 	}
 
 	function bump(characterId, instance, name, visual = "", kind = "monster", callback = null) {
+		if (!phoenix.features.Settings.isEnabled("bestiary.enabled")) {
+			if (callback != null) callback(false)
+			return
+		}
 		phoenix.npc.Bestiary.ensureSchema(function () {
+			if (!phoenix.features.Settings.isEnabled("bestiary.enabled")) {
+				if (callback != null) callback(false)
+				return
+			}
 			if (characterId == null || characterId <= 0 || instance == null || instance == "") {
 				if (callback != null) callback(false); return
 			}
@@ -95,7 +103,15 @@ phoenix.npc.Bestiary <- {
 	}
 
 	function loadFor(characterId, callback) {
+		if (!phoenix.features.Settings.isEnabled("bestiary.enabled")) {
+			if (callback != null) callback([])
+			return
+		}
 		phoenix.npc.Bestiary.ensureSchema(function () {
+			if (!phoenix.features.Settings.isEnabled("bestiary.enabled")) {
+				if (callback != null) callback([])
+				return
+			}
 			local sql = "SELECT `instance`,`name`,`visual`,`kind`,`killed`," +
 				"UNIX_TIMESTAMP(`firstKilledAt`) AS firstKilledAt," +
 				"UNIX_TIMESTAMP(`lastKilledAt`) AS lastKilledAt " +
@@ -153,6 +169,10 @@ addEventHandler("phoenix.database.OnReady", function () {
 })
 
 phoenix.npc.Bestiary.onRequest <- function (playerId, _message) {
+	if (!phoenix.features.Settings.isEnabled("bestiary.enabled")) {
+		phoenix.npc.Bestiary._sendSnapshot(playerId, [])
+		return
+	}
 	try {
 		local rec = phoenix.character.Structure.getActive(playerId)
 		if (rec == null) {
@@ -227,8 +247,16 @@ phoenix.npc.BestiaryRender <- {
 	}
 
 	function load(callback) {
+		if (!phoenix.features.Settings.isEnabled("bestiary.enabled")) {
+			if (callback != null) callback()
+			return
+		}
 		phoenix.npc.BestiaryRender.ensureTable(function () {
 			ORM.engine.executeAsync("SELECT `instance`,`rotX`,`rotY`,`rotZ`,`scaleValue`,`lightIntensity` FROM `phoenix_bestiary_render`", function (rows) {
+				if (!phoenix.features.Settings.isEnabled("bestiary.enabled")) {
+					if (callback != null) callback()
+					return
+				}
 				local payload = ""
 				if (rows != null) {
 					local first = true
@@ -252,9 +280,11 @@ phoenix.npc.BestiaryRender <- {
 	}
 
 	function pushTo(playerId) {
+		if (!phoenix.features.Settings.isEnabled("bestiary.enabled")) return
 		try {
 			if (!phoenix.npc.BestiaryRender.loaded) {
 				phoenix.npc.BestiaryRender.load(function () {
+					if (!phoenix.features.Settings.isEnabled("bestiary.enabled")) return
 					try { phoenix.npc.BestiaryRender.buildMessage().serialize().send(playerId, RELIABLE_ORDERED) } catch (e) {}
 				})
 				return
@@ -264,7 +294,9 @@ phoenix.npc.BestiaryRender <- {
 	}
 
 	function broadcast() {
+		if (!phoenix.features.Settings.isEnabled("bestiary.enabled")) return
 		phoenix.npc.BestiaryRender.load(function () {
+			if (!phoenix.features.Settings.isEnabled("bestiary.enabled")) return
 			try {
 				local serialized = phoenix.npc.BestiaryRender.buildMessage().serialize()
 				local maxSlots = getMaxSlots()

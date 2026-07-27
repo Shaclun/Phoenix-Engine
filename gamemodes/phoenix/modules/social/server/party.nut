@@ -400,6 +400,7 @@ phoenix.social.Party <- {
 	}
 
 	function distributeExperience(originId, amount) {
+		if (!phoenix.features.Settings.isEnabled("progression.partyExperience")) return false
 		amount = amount.tointeger()
 		if (amount <= 0) return true
 		local partyId = phoenix.social.Party.partyIdOf(originId)

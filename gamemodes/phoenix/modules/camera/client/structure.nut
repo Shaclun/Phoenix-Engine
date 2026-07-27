@@ -7,9 +7,21 @@ phoenix.camera.Structure <- {
 	activationTimerId = null
 	pauseDepth = 0
 
+	function effectiveOrbitalEnabled() {
+		return phoenix.camera.Structure.orbitalEnabled && phoenix.features.Client.effectiveEnabled("camera.orbital")
+	}
+
+	function enforceFeature() {
+		if (phoenix.camera.Structure.effectiveOrbitalEnabled()) return
+		local paused = phoenix.camera.Structure.pauseDepth > 0
+		phoenix.camera.Structure.destroyCamera()
+		try { Camera.movementEnabled = !paused } catch (e) {}
+		try { Camera.modeChangeEnabled = !paused } catch (e) {}
+	}
+
 	function onCharacterSelected(_characterId, _name) {
 		phoenix.camera.Structure.characterReady = true
-		if (!phoenix.camera.Structure.orbitalEnabled) {
+		if (!phoenix.camera.Structure.effectiveOrbitalEnabled()) {
 			phoenix.camera.Structure.destroyCamera()
 			try { Camera.movementEnabled = true } catch (e) {}
 			try { Camera.modeChangeEnabled = true } catch (e) {}
@@ -26,7 +38,7 @@ phoenix.camera.Structure <- {
 
 	function setOrbitalEnabled(value) {
 		phoenix.camera.Structure.orbitalEnabled = value == true
-		if (!phoenix.camera.Structure.orbitalEnabled) {
+		if (!phoenix.camera.Structure.effectiveOrbitalEnabled()) {
 			local paused = phoenix.camera.Structure.pauseDepth > 0
 			phoenix.camera.Structure.destroyCamera()
 			try { Camera.movementEnabled = !paused } catch (e) {}
@@ -45,7 +57,7 @@ phoenix.camera.Structure <- {
 
 	function activate() {
 		phoenix.camera.Structure.activationTimerId = null
-		if (!phoenix.camera.Structure.orbitalEnabled) {
+		if (!phoenix.camera.Structure.effectiveOrbitalEnabled()) {
 			phoenix.camera.Structure.destroyCamera()
 			return
 		}
@@ -56,7 +68,7 @@ phoenix.camera.Structure <- {
 	}
 
 	function createForHero() {
-		if (!phoenix.camera.Structure.orbitalEnabled || !phoenix.camera.Structure.characterReady) return
+		if (!phoenix.camera.Structure.effectiveOrbitalEnabled() || !phoenix.camera.Structure.characterReady) return
 		try { Camera.movementEnabled = true } catch (e) {}
 		try { Camera.modeChangeEnabled = true } catch (e) {}
 
@@ -74,7 +86,7 @@ phoenix.camera.Structure <- {
 	}
 
 	function rebuildForHero() {
-		if (!phoenix.camera.Structure.orbitalEnabled) {
+		if (!phoenix.camera.Structure.effectiveOrbitalEnabled()) {
 			phoenix.camera.Structure.destroyCamera()
 			phoenix.camera.Structure.pauseDepth = 0
 			try { Camera.movementEnabled = true } catch (e) {}
@@ -125,7 +137,7 @@ phoenix.camera.Structure <- {
 		phoenix.camera.Structure.pauseDepth -= 1
 		if (phoenix.camera.Structure.pauseDepth > 0) return
 		phoenix.camera.Structure.pauseDepth = 0
-		if (phoenix.camera.Structure.orbitalEnabled && phoenix.camera.Structure.orbitalCamera != null) {
+		if (phoenix.camera.Structure.effectiveOrbitalEnabled() && phoenix.camera.Structure.orbitalCamera != null) {
 			try { phoenix.camera.Structure.orbitalCamera.setEnabled(true) } catch (e) {}
 			try { Camera.movementEnabled = false } catch (e) {}
 			try { Camera.modeChangeEnabled = false } catch (e) {}
@@ -137,6 +149,7 @@ phoenix.camera.Structure <- {
 }
 
 addEventHandler("phoenix.character.OnSelected", phoenix.camera.Structure.onCharacterSelected)
+addEventHandler("onRender", function() { phoenix.camera.Structure.enforceFeature() })
 
 phoenix.web.Router.on("phoenix:camera:orbital:set", function(payload) {
 	local enabled = true

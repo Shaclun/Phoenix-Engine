@@ -125,6 +125,8 @@ phoenix.quest.Engine <- {
 		return rewardPending
 	}
 	function process(playerId, typeName, payload, eventId = "") {
+		if (!phoenix.features.Settings.isEnabled("quests.enabled")) return false
+		if (typeName == "reach" && !phoenix.features.Settings.isEnabled("quests.zones")) return false
 		local record = phoenix.character.Structure.getActive(playerId)
 		if (record == null || !phoenix.quest.Events.validate(typeName, payload)) return false
 		local event = { id = phoenix.quest.Schema.string(eventId, phoenix.quest.Schema.Limits.RequestId), type = typeName, payload = payload }
@@ -144,12 +146,14 @@ phoenix.quest.Engine <- {
 			try { ORM.engine.execute("ROLLBACK") } catch (rollbackError) {}
 			return false
 		}
-		if (rewardStates.len() == 0) phoenix.quest.State.reloadAndSync(record.id)
+		if (rewardStates.len() == 0 || !phoenix.features.Settings.isEnabled("quests.rewards")) phoenix.quest.Handlers.sendSnapshot(playerId, record.id, false)
 		else foreach (stateId in rewardStates) phoenix.quest.Rewards.complete(playerId, stateId)
 		return true
 	}
 }
 
 addEventHandler("phoenix.quest.OnDomainEvent", function(playerId, typeName, payload, eventId) {
+	if (!phoenix.features.Settings.isEnabled("quests.enabled")) return
+	if (typeName == "reach" && !phoenix.features.Settings.isEnabled("quests.zones")) return
 	phoenix.quest.Engine.process(playerId, typeName, payload, eventId)
 })

@@ -10,7 +10,19 @@
 	let view = "social";
 	let confirmOpen = false;
 	let amountPicker = null;
+	let featureFlags = {};
+	const featureDefaults = { "social.party": true, "social.trade": true, "social.directMessages": true };
 	const ITEM_RENDER = { rotX: "1.584", rotY: "-1.662", rotZ: "-0.488", scale: "1.40", light: "2.85" };
+
+	function featureEnabled(path) {
+		const parts = path.split(".");
+		let value = featureFlags;
+		for (let i = 0; i < parts.length; i += 1) {
+			if (!value || typeof value !== "object" || !Object.prototype.hasOwnProperty.call(value, parts[i])) return featureDefaults[path] !== false;
+			value = value[parts[i]];
+		}
+		return value !== false;
+	}
 	const PLAYER_RENDER = { rotX: "-0.022", rotY: "0.58", rotZ: "1.584", scale: "1.60", light: "1.75" };
 	const VISUAL_BY_INSTANCE = { ITMI_GOLD: "ITMI_GOLD.MRM", ITRW_ARROW: "ITRW_ARROW.MRM", ITRW_BOLT: "ITRW_BOLT.MRM" };
 	const meshQueue = {
@@ -181,11 +193,12 @@
 	}
 
 	function renderInvite() {
-		if (!invite || !invite.from) return "";
+		if (!featureEnabled("social.party") || !invite || !invite.from) return "";
 		return '<section class="social-invite"><div><span>' + esc(t("social.party.invitation", "Zaproszenie do drużyny")) + '</span><strong>' + esc(invite.from.name || t("social.player", "Gracz")) + '</strong></div><div class="social-row-actions"><button type="button" class="social-primary" data-action="party-accept" data-invite="' + num(invite.inviteId) + '">' + esc(t("social.action.join", "Dołącz")) + '</button><button type="button" data-action="party-decline" data-invite="' + num(invite.inviteId) + '">' + esc(t("social.action.decline", "Odrzuć")) + '</button></div></section>';
 	}
 
 	function renderPartyPanel() {
+		if (!featureEnabled("social.party")) return "";
 		const members = social.party || [];
 		const selfId = num(social.self && social.self.playerId);
 		const leaderId = num(social.partyLeaderId);
@@ -248,6 +261,9 @@
 		meshQueue.reset();
 		const compact = !trade && view === "interaction" && interaction && interaction.target;
 		root.innerHTML = '<div class="social-shell' + (compact ? ' social-shell--compact' : '') + '"><button type="button" class="phoenix-exit-btn social-close" data-action="close" aria-label="close">x</button>' + (trade ? renderTrade() : renderPanel()) + '</div>';
+		root.querySelectorAll("[data-action^='party-']").forEach(function (node) { node.hidden = !featureEnabled("social.party"); });
+		root.querySelectorAll("[data-action*='trade'], [data-action='offer-item'], [data-action='remove-offer'], [data-action^='amount-']").forEach(function (node) { node.hidden = !featureEnabled("social.trade"); });
+		root.querySelectorAll("[data-action='dm-open']").forEach(function (node) { node.hidden = !featureEnabled("social.directMessages"); });
 		scheduleMeshes();
 	}
 
@@ -256,6 +272,9 @@
 		if (!button) return;
 		const action = button.dataset.action;
 		const targetId = num(button.dataset.target);
+		if (action && action.indexOf("party-") === 0 && !featureEnabled("social.party")) return;
+		if (action && (action.indexOf("trade") !== -1 || action === "offer-item" || action === "remove-offer" || action.indexOf("amount-") === 0) && !featureEnabled("social.trade")) return;
+		if (action === "dm-open" && !featureEnabled("social.directMessages")) return;
 		if (action === "close") send("phoenix:social:close", {});
 		if (action === "trade-start") send("phoenix:social:tradeStart", { targetId: targetId });
 		if (action === "friend-add") send("phoenix:social:friendAdd", { targetId: targetId });
@@ -298,22 +317,32 @@
 	});
 
 	root.addEventListener("change", function (event) {
-		if (event.target && event.target.dataset.role === "trade-gold") send("phoenix:social:tradeGold", { gold: num(event.target.value) });
+		if (event.target && event.target.dataset.role === "trade-gold" && featureEnabled("social.trade")) send("phoenix:social:tradeGold", { gold: num(event.target.value) });
 	});
 
 	if (window.PhoenixBridge) {
 		PhoenixBridge.on("phoenix:social:mode", function (payload) {
 			view = payload && payload.mode ? String(payload.mode) : "social";
+			if (view === "trade" && !featureEnabled("social.trade")) { send("phoenix:social:tradeCancel", {}); view = "social"; }
 			if (view === "social") { interaction = null; trade = null; confirmOpen = false; }
 			render();
 		});
 		PhoenixBridge.on("phoenix:item:inventory", function (payload) { inventory = payload || inventory; render(); });
 		PhoenixBridge.on("phoenix:social:state", function (payload) { social = payload || social; render(); });
 		PhoenixBridge.on("phoenix:social:interaction", function (payload) { view = "interaction"; interaction = payload || null; trade = null; render(); });
-		PhoenixBridge.on("phoenix:social:trade", function (payload) { view = "trade"; trade = payload || null; confirmOpen = false; amountPicker = null; render(); });
+		PhoenixBridge.on("phoenix:social:trade", function (payload) {
+			if (!featureEnabled("social.trade")) { send("phoenix:social:tradeCancel", {}); return; }
+			view = "trade"; trade = payload || null; confirmOpen = false; amountPicker = null; render();
+		});
 		PhoenixBridge.on("phoenix:social:tradeClosed", function () { trade = null; confirmOpen = false; amountPicker = null; view = "social"; render(); });
-		PhoenixBridge.on("phoenix:social:partyInvite", function (payload) { invite = payload || null; render(); });
+		PhoenixBridge.on("phoenix:social:partyInvite", function (payload) { if (!featureEnabled("social.party")) return; invite = payload || null; render(); });
 		PhoenixBridge.on("phoenix:social:partyInviteClosed", function () { invite = null; render(); });
+		PhoenixBridge.on("phoenix:features:snapshot", function (payload) {
+			featureFlags = payload && payload.settings && payload.settings.flags && typeof payload.settings.flags === "object" ? payload.settings.flags : {};
+			if (!featureEnabled("social.trade") && trade) { send("phoenix:social:tradeCancel", {}); trade = null; confirmOpen = false; amountPicker = null; view = "social"; }
+			if (!featureEnabled("social.party")) invite = null;
+			render();
+		});
 	}
 
 	if (window.phoenixApp) {

@@ -4,6 +4,10 @@ phoenix.profession.Structure <- {
 	progressCache = {}
 	loaded = false
 
+	function enabled() {
+		return phoenix.features.Settings.isEnabled("professions.enabled")
+	}
+
 	function _sql(value) {
 		if (value == null) return ""
 		try { return ORM.engine.escape(value.tostring()) } catch (e) { return value.tostring() }
@@ -108,6 +112,7 @@ phoenix.profession.Structure <- {
 	}
 
 	function staminaCostForLevel(level, contentTier, baseStamina) {
+		if (!phoenix.features.Settings.effectiveEnabled("player.stamina")) return 0
 		local baseCost = baseStamina.tointeger()
 		if (baseCost <= 0) return 0
 		local playerTier = phoenix.profession.Structure.tierForLevel(level)
@@ -120,6 +125,7 @@ phoenix.profession.Structure <- {
 	}
 
 	function check(playerId, professionId, requiredTier, baseStamina, quantity = 1) {
+		if (!phoenix.profession.Structure.enabled()) return { ok = false, error = "featureDisabled" }
 		local record = phoenix.character.Structure.getActive(playerId)
 		if (record == null) return { ok = false, error = "noCharacter" }
 		local pid = professionId != null ? professionId.tointeger() : 0
@@ -134,12 +140,16 @@ phoenix.profession.Structure <- {
 		} else if (required > 0) return { ok = false, error = "professionUnavailable" }
 		local unitCost = phoenix.profession.Structure.staminaCostForLevel(level, required, baseStamina)
 		local totalCost = unitCost * (quantity > 0 ? quantity : 1)
-		local current = phoenix.player.Resources.current(playerId, record, "stamina")
-		if (current < totalCost) return { ok = false, error = "noStamina:" + totalCost, staminaCost = totalCost, level = level, tier = tier }
+		if (totalCost > 0) {
+			local current = phoenix.player.Resources.current(playerId, record, "stamina")
+			if (current < totalCost) return { ok = false, error = "noStamina:" + totalCost, staminaCost = totalCost, level = level, tier = tier }
+		}
 		return { ok = true, profession = def, level = level, tier = tier, staminaCost = totalCost }
 	}
 
 	function consumeStamina(playerId, amount) {
+		if (!phoenix.profession.Structure.enabled()) return false
+		if (!phoenix.features.Settings.effectiveEnabled("player.stamina")) return true
 		if (amount <= 0) return true
 		local ok = phoenix.player.Hud.consumeStamina(playerId, amount)
 		if (ok) {
@@ -171,6 +181,7 @@ phoenix.profession.Structure <- {
 	}
 
 	function awardForCharacter(playerId, characterId, professionId, baseXp, contentTier) {
+		if (!phoenix.profession.Structure.enabled()) return 0
 		local amount = baseXp.tointeger()
 		local cid = characterId.tointeger()
 		if (cid <= 0 || professionId <= 0 || amount <= 0) return 0
@@ -198,6 +209,7 @@ phoenix.profession.Structure <- {
 	}
 
 	function award(playerId, professionId, baseXp, contentTier) {
+		if (!phoenix.profession.Structure.enabled()) return 0
 		local record = phoenix.character.Structure.getActive(playerId)
 		if (record == null) return 0
 		return phoenix.profession.Structure.awardForCharacter(playerId, record.id, professionId, baseXp, contentTier)
@@ -205,6 +217,7 @@ phoenix.profession.Structure <- {
 
 	function snapshotEntries(playerId) {
 		local out = []
+		if (!phoenix.profession.Structure.enabled()) return out
 		local record = phoenix.character.Structure.getActive(playerId)
 		if (record == null || !phoenix.profession.Structure.ensureLoaded()) return out
 		foreach (id, def in phoenix.profession.Structure.definitions) {
@@ -295,9 +308,9 @@ phoenix.profession.Structure <- {
 	}
 }
 
-phoenix.profession.Message.Request.bind(function(playerId, _message) { phoenix.profession.Structure.sendSnapshot(playerId) })
+phoenix.profession.Message.Request.bind(function(playerId, _message) { if (phoenix.profession.Structure.enabled()) phoenix.profession.Structure.sendSnapshot(playerId) })
 addEventHandler("phoenix.database.OnReady", function() { try { phoenix.profession.Structure.loadDefinitions() } catch (e) {} })
-addEventHandler("phoenix.character.OnSelected", function(playerId, _characterId) { try { phoenix.profession.Structure.sendSnapshot(playerId) } catch (e) {} })
+addEventHandler("phoenix.character.OnSelected", function(playerId, _characterId) { try { if (phoenix.profession.Structure.enabled()) phoenix.profession.Structure.sendSnapshot(playerId) } catch (e) {} })
 addEventHandler("onPlayerDisconnect", function(playerId, _reason) {
 	local record = null; try { record = phoenix.character.Structure.getActive(playerId) } catch (e) {}
 	if (record != null && record.id in phoenix.profession.Structure.progressCache) phoenix.profession.Structure.progressCache.rawdelete(record.id)

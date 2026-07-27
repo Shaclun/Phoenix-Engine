@@ -4,6 +4,17 @@ phoenix.crafting.Crafter <- {
 	activeByPlayer = {}
 	jobs = {}
 
+	function enabled() {
+		return phoenix.features.Settings.isEnabled("crafting.enabled")
+	}
+
+	function disableAll() {
+		local playerIds = {}
+		foreach (playerId, _ in phoenix.crafting.Crafter.activeByPlayer) playerIds[playerId] <- true
+		foreach (playerId, _ in phoenix.crafting.Crafter.jobs) playerIds[playerId] <- true
+		foreach (playerId, _ in playerIds) phoenix.crafting.Crafter.close(playerId, "featureDisabled")
+	}
+
 	function playerInventoryString(playerId) {
 		local active = phoenix.character.Structure.getActive(playerId)
 		if (active == null) return ""
@@ -127,6 +138,7 @@ phoenix.crafting.Crafter <- {
 	}
 
 	function open(playerId, vobId) {
+		if (!phoenix.crafting.Crafter.enabled()) { phoenix.crafting.Crafter.close(playerId, "featureDisabled"); return }
 		if (vobId == null || vobId == "") return
 		local activeCharacter = phoenix.character.Structure.getActive(playerId)
 		if (activeCharacter == null) return
@@ -217,6 +229,7 @@ phoenix.crafting.Crafter <- {
 			maxCraftable = maxCraftable, professionCheck = professionCheck }
 	}
 	function onRequestOpen(playerId, message) {
+		if (!phoenix.crafting.Crafter.enabled()) { phoenix.crafting.Crafter.close(playerId, "featureDisabled"); return }
 		if (message != null && message.vobId != null) open(playerId, message.vobId.tostring())
 	}
 
@@ -230,6 +243,12 @@ phoenix.crafting.Crafter <- {
 	}
 
 	function onCraftRequest(playerId, message) {
+		if (!phoenix.crafting.Crafter.enabled()) {
+			local hadJob = playerId in phoenix.crafting.Crafter.jobs
+			phoenix.crafting.Crafter.close(playerId, "featureDisabled")
+			if (!hadJob) phoenix.crafting.Crafter._reply(playerId, false, "featureDisabled", message != null && message.requestId != null ? message.requestId.tostring() : "", "", 0)
+			return
+		}
 		if (message == null) return
 		local requestId = message.requestId != null ? message.requestId.tostring() : ""
 		if (requestId == "") requestId = playerId + "-" + getTickCount()
@@ -260,6 +279,7 @@ phoenix.crafting.Crafter <- {
 	}
 
 	function tick() {
+		if (!phoenix.crafting.Crafter.enabled()) { phoenix.crafting.Crafter.disableAll(); return }
 		local now = getTickCount(); local playerIds = []
 		foreach (playerId, _ in phoenix.crafting.Crafter.jobs) playerIds.append(playerId)
 		foreach (playerId in playerIds) {
@@ -311,6 +331,7 @@ phoenix.crafting.Crafter <- {
 	}
 
 	function _beginFinalize(playerId, requestId) {
+		if (!phoenix.crafting.Crafter.enabled()) { phoenix.crafting.Crafter.close(playerId, "featureDisabled"); return }
 		local job = phoenix.crafting.Crafter._currentJob(playerId, requestId)
 		if (job == null || job.state != "crafting") return
 		local checked = phoenix.crafting.Crafter._validate(playerId, job.vobId, job.recipeId, job.quantity)
@@ -339,6 +360,7 @@ phoenix.crafting.Crafter <- {
 		}
 		phoenix.crafting.Crafter._consumeAll(job.characterId, playerId, plan, function(ok, rollbackOk, consumed) {
 			local current = phoenix.crafting.Crafter._currentJob(playerId, requestId)
+			if (!phoenix.crafting.Crafter.enabled() && current != null) phoenix.crafting.Crafter._abortJob(playerId, "featureDisabled", true)
 			if (!ok) {
 				phoenix.crafting.Crafter._refundJobStamina(playerId, job)
 				if (current != null) phoenix.crafting.Crafter.jobs.rawdelete(playerId)
@@ -358,11 +380,21 @@ phoenix.crafting.Crafter <- {
 	}
 
 	function _giveOutputs(playerId, job, recipe, consumed) {
+		if (!phoenix.crafting.Crafter.enabled()) {
+			phoenix.crafting.Crafter._abortJob(playerId, "featureDisabled", false)
+			phoenix.crafting.Crafter._restoreConsumed(job.characterId, consumed, function(restored) {
+				phoenix.crafting.Crafter._refundJobStamina(playerId, job)
+				if (phoenix.crafting.Crafter._currentJob(playerId, job.requestId) != null) phoenix.crafting.Crafter.jobs.rawdelete(playerId)
+				phoenix.crafting.Crafter._reply(playerId, false, restored ? "featureDisabled" : "rollbackFailed", job.requestId, "", 0)
+			})
+			return
+		}
 		local mainAmount = recipe.resultAmount * job.quantity
 		phoenix.item.Structure.giveItem(PhoenixInventoryOwner.Player, job.characterId, recipe.resultInstance, {
 			amount = mainAmount, quality = PhoenixItemQuality.Common, upgrade = 0, source = "craft", suppressQuest = true
 		}, function(record) {
 			local current = phoenix.crafting.Crafter._currentJob(playerId, job.requestId)
+			if (!phoenix.crafting.Crafter.enabled() && current != null) phoenix.crafting.Crafter._abortJob(playerId, "featureDisabled", false)
 			if (record == null) { phoenix.crafting.Crafter._restoreAfterOutputFailure(playerId, job, consumed, [], "outputFailed"); return }
 			local granted = [{ itemId = record.id, instance = recipe.resultInstance, amount = mainAmount }]
 			if (current == null || current.aborted) {
@@ -373,6 +405,7 @@ phoenix.crafting.Crafter <- {
 			foreach (output in recipe.outputs) extras.append({ instance = output.instance, amount = output.amount * job.quantity })
 			phoenix.crafting.Crafter._giveExtras(job.characterId, extras, granted, function(ok, allGranted) {
 				local latest = phoenix.crafting.Crafter._currentJob(playerId, job.requestId)
+				if (!phoenix.crafting.Crafter.enabled() && latest != null) phoenix.crafting.Crafter._abortJob(playerId, "featureDisabled", false)
 				if (!ok || latest == null || latest.aborted) {
 					local reason = !ok ? "outputFailed" : (latest != null ? latest.abortError : "cancelled")
 					phoenix.crafting.Crafter._restoreAfterOutputFailure(playerId, job, consumed, allGranted, reason)
@@ -412,6 +445,7 @@ phoenix.crafting.Crafter <- {
 	}
 
 	function _giveExtras(characterId, extras, granted, callback) {
+		if (!phoenix.crafting.Crafter.enabled()) { callback(false, granted); return }
 		if (extras == null || extras.len() == 0) { callback(true, granted); return }
 		local first = extras[0]; local rest = extras.slice(1)
 		phoenix.item.Structure.giveItem(PhoenixInventoryOwner.Player, characterId, first.instance, {
@@ -444,6 +478,10 @@ phoenix.crafting.Crafter <- {
 
 	function _consumeAll(characterId, playerId, queue, callback, consumed = null) {
 		if (consumed == null) consumed = []
+		if (!phoenix.crafting.Crafter.enabled()) {
+			phoenix.crafting.Crafter._restoreConsumed(characterId, consumed, function(restored) { callback(false, restored, []) })
+			return
+		}
 		if (queue.len() == 0) { callback(true, true, consumed); return }
 		local first = queue[0]; local rest = queue.slice(1)
 		phoenix.item.Structure.takeItem(PhoenixInventoryOwner.Player, characterId, first.itemId, first.amount, function(ok) {
@@ -499,6 +537,9 @@ phoenix.crafting.Message.Cancel.bind(function(playerId, message) {
 
 addEventHandler("onInit", function() {
 	setTimer(function() { phoenix.crafting.Crafter.tick() }, phoenix.crafting.Crafter.TICK_MS, 0)
+})
+addEventHandler("phoenix.features.OnChanged", function(key, enabled) {
+	if (key == "crafting.enabled" && !enabled) phoenix.crafting.Crafter.disableAll()
 })
 addEventHandler("onPlayerDisconnect", function(playerId, _reason) {
 	if (playerId in phoenix.crafting.Crafter.jobs) phoenix.crafting.Crafter._abortJob(playerId, "disconnected", false)

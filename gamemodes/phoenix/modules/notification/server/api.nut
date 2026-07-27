@@ -1,5 +1,6 @@
 phoenix.notification.Api <- {
 	function notify(playerId, kind, title, text, durationMs) {
+		if (!phoenix.features.Settings.isEnabled("notifications.enabled")) return
 		if (playerId == null || playerId < 0) return
 		local msg = phoenix.notification.Message.Show()
 		msg.kind = kind != null ? kind.tostring() : "info"

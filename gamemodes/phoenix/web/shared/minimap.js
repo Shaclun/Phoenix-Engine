@@ -11,6 +11,7 @@
 	let nodes = null;
 	let activeMap = "";
 	let hudVisible = false;
+	let featureVisible = true;
 	let lastPayload = null;
 
 	function clamp(value, min, max) { return Math.max(min, Math.min(max, value)); }
@@ -76,13 +77,19 @@
 		view.image.style.left = (width * 0.5 - u * imageWidth) + "px";
 		view.image.style.top = (width * 0.5 - v * imageHeight) + "px";
 		view.marker.style.transform = "translate(-50%, -50%) rotate(" + finite(payload.angle, 0) + "deg)";
-		view.root.classList.toggle("is-visible", hudVisible);
+		view.root.classList.toggle("is-visible", hudVisible && featureVisible);
 	}
 
 	function setVisible(value) {
 		hudVisible = !!value;
 		const view = ensure();
-		view.root.classList.toggle("is-visible", hudVisible && !!lastPayload);
+		view.root.classList.toggle("is-visible", hudVisible && featureVisible && !!lastPayload);
+	}
+
+	function setFeatureEnabled(value) {
+		featureVisible = value !== false;
+		const view = ensure();
+		view.root.classList.toggle("is-visible", hudVisible && featureVisible && !!lastPayload);
 	}
 
 	ensure();
@@ -90,12 +97,18 @@
 		PhoenixBridge.on("phoenix:minimap:update", render);
 		PhoenixBridge.on("phoenix:hud:show", function () { setVisible(true); });
 		PhoenixBridge.on("phoenix:hud:hide", function () { setVisible(false); });
+		PhoenixBridge.on("phoenix:features:snapshot", function (payload) {
+			const flags = payload && payload.settings && payload.settings.flags;
+			const enabled = !flags || !flags.minimap || flags.minimap.enabled !== false;
+			setFeatureEnabled(enabled);
+		});
 	}
 
 	global.PhoenixMinimap = {
 		ensure: ensure,
 		render: render,
 		setVisible: setVisible,
+		setFeatureEnabled: setFeatureEnabled,
 		maps: MAPS,
 		selectMap: selectMap,
 		width: MAP_WIDTH,

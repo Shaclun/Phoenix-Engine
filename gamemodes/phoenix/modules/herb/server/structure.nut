@@ -6,6 +6,16 @@ phoenix.herb.Structure <- {
 	bootScheduled = false
 	loadAttempts = 0
 
+	function enabled() {
+		return phoenix.features.Settings.isEnabled("herbs.enabled")
+	}
+
+	function cancelAll() {
+		local playerIds = []
+		foreach (playerId, _ in phoenix.herb.Structure.active) playerIds.append(playerId)
+		foreach (playerId in playerIds) phoenix.herb.Structure.cancel(playerId, "", true)
+	}
+
 	function dist(a, b) {
 		local dx = a.x - b.x
 		local dz = a.z - b.z
@@ -83,6 +93,7 @@ phoenix.herb.Structure <- {
 	}
 
 	function broadcastSnapshot() {
+		if (!phoenix.herb.Structure.enabled()) return
 		local maxSlots = getMaxSlots()
 		for (local pid = 0; pid < maxSlots; pid += 1) {
 			try {
@@ -172,11 +183,13 @@ phoenix.herb.Structure <- {
 	}
 
 	function sendSnapshot(playerId) {
+		if (!phoenix.herb.Structure.enabled()) return
 		local active = null
 		try { active = phoenix.character.Structure.getActive(playerId) } catch (e) { active = null }
 		if (active != null && active.id > 0) {
 			try {
 				ORM.engine.executeAsync(phoenix.herb.Structure.cooldownMapSql(active.id), function(rows) {
+					if (!phoenix.herb.Structure.enabled()) return
 					local msg = phoenix.herb.Message.Snapshot()
 					msg.entries = phoenix.herb.Structure.snapshotListWithCooldowns(active.id, rows)
 					try { msg.serialize().send(playerId, RELIABLE_ORDERED) } catch (e2) {}
@@ -200,6 +213,7 @@ phoenix.herb.Structure <- {
 	}
 
 	function bootLoad() {
+		if (!phoenix.herb.Structure.enabled()) return
 		if (phoenix.herb.Structure.spotsLoaded || phoenix.herb.Structure.loading) return
 		if (phoenix.herb.Structure.bootScheduled) return
 		phoenix.herb.Structure.bootScheduled = true
@@ -208,6 +222,7 @@ phoenix.herb.Structure <- {
 
 	function bootLoadTick() {
 		phoenix.herb.Structure.bootScheduled = false
+		if (!phoenix.herb.Structure.enabled()) return
 		local ready = false
 		try { ready = phoenix.database.ready } catch (e) {}
 		if (!ready) { phoenix.herb.Structure.bootLoad(); return }
@@ -217,11 +232,13 @@ phoenix.herb.Structure <- {
 	}
 
 	function afterSchema() {
+		if (!phoenix.herb.Structure.enabled()) { phoenix.herb.Structure.loading = false; return }
 		phoenix.herb.Structure.loadDbSpots(phoenix.herb.Structure.afterLoad)
 	}
 
 	function afterLoad() {
 		phoenix.herb.Structure.loading = false
+		if (!phoenix.herb.Structure.enabled()) return
 		phoenix.herb.Structure.broadcastSnapshot()
 	}
 
@@ -229,6 +246,11 @@ phoenix.herb.Structure <- {
 		if (phoenix.herb.Structure.spotsLoaded) { if (callback != null) callback(); return }
 		try {
 			ORM.engine.executeAsync("SELECT * FROM `phoenix_herb_spots` WHERE `active` = 1 ORDER BY `id` ASC", function(rows) {
+				if (!phoenix.herb.Structure.enabled()) {
+					phoenix.herb.Structure.loading = false
+					if (callback != null) callback()
+					return
+				}
 				phoenix.herb.Structure.spotsLoaded = true
 				if (rows != null) {
 					foreach (row in rows) {
@@ -349,6 +371,7 @@ phoenix.herb.Structure <- {
 	}
 
 	function start(playerId, plantId) {
+		if (!phoenix.herb.Structure.enabled()) return
 		local spot = phoenix.herb.Structure.spotById(plantId)
 		if (spot == null) return
 		local entry = phoenix.herb.Structure.entryOf(spot)
@@ -381,6 +404,7 @@ phoenix.herb.Structure <- {
 		if (effectiveYield < 1) effectiveYield = 1
 		local capturedCharacterId = activeCharacter.id
 		ORM.engine.executeAsync(phoenix.herb.Structure.cooldownSql(capturedCharacterId, spot.id), function(rows) {
+			if (!phoenix.herb.Structure.enabled()) return
 			local current = phoenix.character.Structure.getActive(playerId)
 			local becameBusy = (playerId in phoenix.herb.Structure.active)
 			try { if (playerId in phoenix.crafting.Crafter.jobs) becameBusy = true } catch (eCrafting) {}
@@ -402,6 +426,7 @@ phoenix.herb.Structure <- {
 	}
 
 	function finishSweep() {
+		if (!phoenix.herb.Structure.enabled()) { phoenix.herb.Structure.cancelAll(); return }
 		local now = getTickCount()
 		local due = []
 		foreach (playerId, state in phoenix.herb.Structure.active) {
@@ -412,6 +437,7 @@ phoenix.herb.Structure <- {
 	}
 
 	function finish(playerId, plantId) {
+		if (!phoenix.herb.Structure.enabled()) { phoenix.herb.Structure.cancel(playerId, plantId, true); return }
 		if (!(playerId in phoenix.herb.Structure.active)) return
 		local state = phoenix.herb.Structure.active[playerId]
 		if (state.plantId != plantId) return
@@ -434,12 +460,20 @@ phoenix.herb.Structure <- {
 			phoenix.herb.Structure.sendResult(playerId, plantId, false, state.entry.instance, state.entry.namePl, "failed", state.entry.cooldownSec)
 			return
 		}
-		phoenix.item.Structure.giveItem(PhoenixInventoryOwner.Player, state.characterId, state.entry.instance, { amount = state.yieldAmount, source = "herb" }, function(record) {
+		phoenix.item.Structure.giveItem(PhoenixInventoryOwner.Player, state.characterId, state.entry.instance, { amount = state.yieldAmount, source = "herb", suppressQuest = true }, function(record) {
 			if (record == null) {
 				phoenix.profession.Structure.refundStaminaForCharacter(playerId, state.characterId, checked.staminaCost)
 				phoenix.herb.Structure.sendResult(playerId, plantId, false, state.entry.instance, state.entry.namePl, "grantFailed", 0)
 				return
 			}
+			if (!phoenix.herb.Structure.enabled()) {
+				phoenix.item.Structure.takeItem(PhoenixInventoryOwner.Player, state.characterId, record.id, state.yieldAmount, function(rolledBack) {
+					if (rolledBack) phoenix.profession.Structure.refundStaminaForCharacter(playerId, state.characterId, checked.staminaCost)
+					phoenix.herb.Structure.sendResult(playerId, plantId, false, state.entry.instance, state.entry.namePl, rolledBack ? "featureDisabled" : "rollbackFailed", 0)
+				})
+				return
+			}
+			try { phoenix.quest.Events.itemGranted(PhoenixInventoryOwner.Player, state.characterId, state.entry.instance, state.yieldAmount, "herb", record.id) } catch (eQuest) {}
 			ORM.engine.executeAsync(phoenix.herb.Structure.recordSql(state.characterId, plantId, state.entry.instance, true), function(_) {})
 			local xp = phoenix.profession.Structure.awardForCharacter(playerId, state.characterId, state.professionId, state.professionXp, state.contentTier)
 			local active = phoenix.character.Structure.getActive(playerId)
@@ -468,3 +502,8 @@ phoenix.herb.Structure.bootLoad()
 
 addEventHandler("onInit", function() { try { phoenix.herb.Structure.bootLoad() } catch (e) {} })
 addEventHandler("onPlayerJoin", function(_pid) { try { phoenix.herb.Structure.bootLoad() } catch (e) {} })
+addEventHandler("phoenix.features.OnChanged", function(key, enabled) {
+	if (key != "herbs.enabled") return
+	if (enabled) phoenix.herb.Structure.bootLoad()
+	else phoenix.herb.Structure.cancelAll()
+})
