@@ -107,10 +107,19 @@ phoenix.item.Schemes.byInstance <- {}
 
 phoenix.item.visuals <- {}
 
+phoenix.item.visualAliases <- {
+	ITMI_FUR = "ITAT_WOLFFUR.MRM",
+	ITMI_CLAW = "ITAT_CLAW.MRM",
+	ITMI_TEETH = "ITAT_TEETH.MRM",
+	ITFO_MUTTONRAW = "ITFOMUTTONRAW.MRM",
+	ITFO_MUTTON = "ITFOMUTTON.MRM"
+}
+
 phoenix.item.lookupVisual <- function(instanceId) {
 	if (instanceId == null) return null
 	local up = instanceId.toupper()
 	if (up in phoenix.item.visuals) return phoenix.item.visuals[up]
+	if (up in phoenix.item.visualAliases) return phoenix.item.visualAliases[up]
 	return null
 }
 

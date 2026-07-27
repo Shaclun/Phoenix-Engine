@@ -923,6 +923,7 @@ addEventHandler("onPlayerDamage", function (victimId, killerId, desc) {
 				try {
 					if (phoenix.character.Structure.getActive(killerId) != null) phoenix.player.Hud.consumeStamina(killerId, 1.0)
 				} catch (es) {}
+				phoenix.player.Gate.consumeRangedAmmo(killerId)
 			}
 			local hp = getPlayerHealth(victimId)
 			local summary = phoenix.player.Combat.calculate(killerId, victimId, desc, 0)

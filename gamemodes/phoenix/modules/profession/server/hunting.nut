@@ -7,8 +7,16 @@ phoenix.profession.Hunting <- {
 	nextJobId = 1
 	loaded = false
 
+	function _canonicalLootInstance(instance) {
+		if (instance == "ITMI_FUR") return "ITAT_WOLFFUR"
+		if (instance == "ITMI_CLAW") return "ITAT_CLAW"
+		if (instance == "ITMI_TEETH") return "ITAT_TEETH"
+		if (instance == "ITFO_MUTTONRAW") return "ITFOMUTTONRAW"
+		return instance
+	}
+
 	function load() {
-		local nextConfigs = {}; local nextLoot = {}
+		local nextConfigs = {}; local nextLoot = {}; local lootSlots = {}
 		local configs = ORM.engine.execute("SELECT * FROM `phoenix_hunting_carcasses` WHERE `active`=1")
 		if (configs != null) foreach (row in configs) {
 			local instance = row.npcInstance.tostring().toupper()
@@ -22,11 +30,17 @@ phoenix.profession.Hunting <- {
 		local loot = ORM.engine.execute("SELECT * FROM `phoenix_hunting_loot` WHERE `active`=1 ORDER BY `id` ASC")
 		if (loot != null) foreach (row in loot) {
 			local instance = row.npcInstance.tostring().toupper()
-			local itemInstance = row.itemInstance.tostring().toupper()
+			local itemInstance = phoenix.profession.Hunting._canonicalLootInstance(row.itemInstance.tostring().toupper())
 			if (phoenix.item.find(itemInstance) == null) continue
 			if (!(instance in nextLoot)) nextLoot[instance] <- []
-			nextLoot[instance].append({ itemInstance = itemInstance, baseChance = row.baseChance.tointeger(),
-				baseMin = row.baseMin.tointeger(), baseMax = row.baseMax.tointeger(), chancePerTier = row.chancePerTier.tointeger(), amountPerTier = row.amountPerTier.tofloat() })
+			local loadedLoot = { itemInstance = itemInstance, baseChance = row.baseChance.tointeger(),
+				baseMin = row.baseMin.tointeger(), baseMax = row.baseMax.tointeger(), chancePerTier = row.chancePerTier.tointeger(), amountPerTier = row.amountPerTier.tofloat() }
+			local lootKey = instance + ":" + itemInstance
+			if (lootKey in lootSlots) nextLoot[instance][lootSlots[lootKey]] = loadedLoot
+			else {
+				lootSlots[lootKey] <- nextLoot[instance].len()
+				nextLoot[instance].append(loadedLoot)
+			}
 		}
 		phoenix.profession.Hunting.configs = nextConfigs; phoenix.profession.Hunting.lootByInstance = nextLoot; phoenix.profession.Hunting.loaded = true
 	}

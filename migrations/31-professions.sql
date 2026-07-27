@@ -89,6 +89,6 @@ UPDATE `phoenix_herb_spots` SET `professionId`=(SELECT `id` FROM `phoenix_profes
 INSERT INTO `phoenix_hunting_carcasses` (`npcInstance`,`corpseVisual`,`professionId`) SELECT 'WOLF','WOLF.MDS',`id` FROM `phoenix_professions` WHERE `code`='HUNTING' ON DUPLICATE KEY UPDATE `professionId`=VALUES(`professionId`),`active`=1;
 INSERT INTO `phoenix_hunting_carcasses` (`npcInstance`,`corpseVisual`,`professionId`) SELECT 'YWOLF','WOLF.MDS',`id` FROM `phoenix_professions` WHERE `code`='HUNTING' ON DUPLICATE KEY UPDATE `professionId`=VALUES(`professionId`),`active`=1;
 INSERT INTO `phoenix_hunting_loot` (`npcInstance`,`itemInstance`,`baseChance`,`baseMin`,`baseMax`,`chancePerTier`,`amountPerTier`) VALUES
-('WOLF','ITMI_FUR',50,1,1,5,0.50),('WOLF','ITMI_CLAW',20,1,1,4,0.35),('WOLF','ITMI_TEETH',10,1,1,3,0.25),('WOLF','ITFO_MUTTONRAW',80,1,2,4,1.00),
-('YWOLF','ITMI_FUR',50,1,1,5,0.50),('YWOLF','ITMI_CLAW',20,1,1,4,0.35),('YWOLF','ITMI_TEETH',10,1,1,3,0.25),('YWOLF','ITFO_MUTTONRAW',80,1,2,4,1.00)
+('WOLF','ITAT_WOLFFUR',50,1,1,5,0.50),('WOLF','ITAT_CLAW',20,1,1,4,0.35),('WOLF','ITAT_TEETH',10,1,1,3,0.25),('WOLF','ITFOMUTTONRAW',80,1,2,4,1.00),
+('YWOLF','ITAT_WOLFFUR',50,1,1,5,0.50),('YWOLF','ITAT_CLAW',20,1,1,4,0.35),('YWOLF','ITAT_TEETH',10,1,1,3,0.25),('YWOLF','ITFOMUTTONRAW',80,1,2,4,1.00)
 ON DUPLICATE KEY UPDATE `baseChance`=VALUES(`baseChance`),`baseMin`=VALUES(`baseMin`),`baseMax`=VALUES(`baseMax`),`chancePerTier`=VALUES(`chancePerTier`),`amountPerTier`=VALUES(`amountPerTier`),`active`=1;
