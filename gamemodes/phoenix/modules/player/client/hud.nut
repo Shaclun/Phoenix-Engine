@@ -64,6 +64,11 @@ phoenix.player.HudClient <- {
 
 	function onKnockedDown(message) {
 		phoenix.player.HudClient.knockedDown = true
+		try { phoenix.admin.Tools.reset() } catch (e) {}
+		try {
+			phoenix.camera.Structure.destroyCamera()
+			phoenix.camera.Structure.pauseDepth = 0
+		} catch (e) {}
 		try { phoenix.ui.ActiveGui.setKnockedDown(true) } catch (e) {}
 		try { disableControls(true) } catch (e) {}
 		try { setFreeze(true) } catch (e) {}
@@ -81,16 +86,9 @@ phoenix.player.HudClient <- {
 		try { stopAni(heroId, "T_DEADB") } catch (e) {}
 		try { disableControls(false) } catch (e) {}
 		try { setFreeze(false) } catch (e) {}
-		try { Camera.movementEnabled = true } catch (e) {}
-		try { Camera.modeChangeEnabled = true } catch (e) {}
 		try { setCursorVisible(false) } catch (e) {}
-		try {
-			if ("camera" in phoenix && "Structure" in phoenix.camera) {
-				phoenix.camera.Structure.destroyCamera()
-				phoenix.camera.Structure.isActivated = true
-				setTimer(phoenix.camera.Structure.activate, 250, 1)
-			}
-		} catch (e) {}
+		try { phoenix.camera.Structure.rebuildForHero() } catch (e) {}
+		try { phoenix.admin.Tools.applyPlayerLock() } catch (e) {}
 		try { phoenix.web.Manager.emit("phoenix:player:revived", { hp = message.hp, hpMax = message.hpMax }) } catch (e) {}
 	}
 

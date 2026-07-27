@@ -33,6 +33,10 @@ class phoenix.player.Message.RespawnChoice extends phoenix.net.Message {
 	</ type = phoenix.net.type.String /> mode = "here"
 }
 
+class phoenix.player.Message.FallDamage extends phoenix.net.Message {
+	</ type = phoenix.net.type.UInt16 /> amount = 0
+}
+
 class phoenix.player.Message.StatsRequest extends phoenix.net.Message {
 }
 

@@ -1,4 +1,6 @@
 phoenix.admin.Server <- {
+	flyStates = {}
+	godmodeStates = {}
 
 	function findPlayerByCharacterId(characterId) {
 		local maxSlots = getMaxSlots()
@@ -317,6 +319,56 @@ phoenix.admin.Server <- {
 		} catch (e) {}
 		phoenix.admin.Server.audit(playerId, "tpHere", "player", targetPid, targetName, "")
 		phoenix.admin.Server.reply(playerId, "tpHere", true, "", null)
+	}
+
+	function dispatchAdminMapTeleport(playerId, payload) {
+		if (!phoenix.account.Auth.isAdmin(playerId)) return phoenix.admin.Server.reply(playerId, "adminMapTeleport", false, "denied", null)
+		if (payload == null || !("x" in payload) || !("y" in payload) || !("z" in payload) || !("map" in payload)) return phoenix.admin.Server.reply(playerId, "adminMapTeleport", false, "payload", null)
+		local xType = typeof payload.x
+		local yType = typeof payload.y
+		local zType = typeof payload.z
+		if ((xType != "integer" && xType != "float") || (yType != "integer" && yType != "float") || (zType != "integer" && zType != "float")) return phoenix.admin.Server.reply(playerId, "adminMapTeleport", false, "position", null)
+		local mapKey = payload.map.tostring()
+		local bounds = null
+		if (mapKey == "newworld") bounds = { minX = -28000.0, maxX = 95500.0, minZ = -42500.0, maxZ = 50500.0 }
+		else if (mapKey == "city") bounds = { minX = -6900.0, maxX = 21600.0, minZ = -9400.0, maxZ = 11800.0 }
+		if (bounds == null) return phoenix.admin.Server.reply(playerId, "adminMapTeleport", false, "map", null)
+		local x = payload.x.tofloat()
+		local y = payload.y.tofloat()
+		local z = payload.z.tofloat()
+		if (!(x >= bounds.minX && x <= bounds.maxX && y >= -20000.0 && y <= 100000.0 && z >= bounds.minZ && z <= bounds.maxZ)) return phoenix.admin.Server.reply(playerId, "adminMapTeleport", false, "position", null)
+		try { setPlayerPosition(playerId, x, y, z) } catch (e) { return phoenix.admin.Server.reply(playerId, "adminMapTeleport", false, "teleport", null) }
+		phoenix.admin.Server.audit(playerId, "adminMapTeleport", "self", null, "", "map=" + mapKey + " x=" + x + " y=" + y + " z=" + z)
+		phoenix.admin.Server.reply(playerId, "adminMapTeleport", true, "", { x = x, y = y, z = z })
+	}
+
+	function disableFly(playerId) {
+		local wasEnabled = playerId in phoenix.admin.Server.flyStates
+		if (wasEnabled) phoenix.admin.Server.flyStates.rawdelete(playerId)
+		try { setPlayerCollision(playerId, true) } catch (e) {}
+		if (wasEnabled) phoenix.admin.Server.reply(playerId, "adminFly", true, "", { enabled = false })
+		return wasEnabled
+	}
+
+	function dispatchAdminFly(playerId, payload) {
+		if (!phoenix.account.Auth.isAdmin(playerId)) return phoenix.admin.Server.reply(playerId, "adminFly", false, "denied", null)
+		local enabled = !(playerId in phoenix.admin.Server.flyStates)
+		if (payload != null && "enabled" in payload) enabled = payload.enabled == true || payload.enabled == 1
+		if (enabled) phoenix.admin.Server.flyStates[playerId] <- true
+		else if (playerId in phoenix.admin.Server.flyStates) phoenix.admin.Server.flyStates.rawdelete(playerId)
+		try { setPlayerCollision(playerId, !enabled) } catch (e) {}
+		phoenix.admin.Server.audit(playerId, "adminFly", "self", null, "", enabled ? "on" : "off")
+		phoenix.admin.Server.reply(playerId, "adminFly", true, "", { enabled = enabled })
+	}
+
+	function dispatchAdminGodmode(playerId, payload) {
+		if (!phoenix.account.Auth.isAdmin(playerId)) return phoenix.admin.Server.reply(playerId, "adminGodmode", false, "denied", null)
+		local enabled = !(playerId in phoenix.admin.Server.godmodeStates)
+		if (payload != null && "enabled" in payload) enabled = payload.enabled == true || payload.enabled == 1
+		if (enabled) phoenix.admin.Server.godmodeStates[playerId] <- true
+		else if (playerId in phoenix.admin.Server.godmodeStates) phoenix.admin.Server.godmodeStates.rawdelete(playerId)
+		phoenix.admin.Server.audit(playerId, "adminGodmode", "self", null, "", enabled ? "on" : "off")
+		phoenix.admin.Server.reply(playerId, "adminGodmode", true, "", { enabled = enabled })
 	}
 
 	function dispatchKick(playerId, payload) {
@@ -1431,6 +1483,9 @@ phoenix.admin.Server.dispatchers = {
 	giveItem = phoenix.admin.Server.dispatchGiveItem,
 	tpTo = phoenix.admin.Server.dispatchTeleportTo,
 	tpHere = phoenix.admin.Server.dispatchTeleportHere,
+	adminMapTeleport = phoenix.admin.Server.dispatchAdminMapTeleport,
+	adminFly = phoenix.admin.Server.dispatchAdminFly,
+	adminGodmode = phoenix.admin.Server.dispatchAdminGodmode,
 	kick = phoenix.admin.Server.dispatchKick,
 	ban = phoenix.admin.Server.dispatchBan,
 	unban = phoenix.admin.Server.dispatchUnban,
@@ -1500,6 +1555,19 @@ phoenix.admin.Message.Request.bind(phoenix.admin.Server.onRequest)
 
 addEventHandler("phoenix.database.OnReady", function () {
 	try { phoenix.admin.Server.loadCustomItems() } catch (e) {}
+})
+
+addEventHandler("onPlayerDisconnect", function (playerId, _reason) {
+	if (playerId in phoenix.admin.Server.flyStates) phoenix.admin.Server.flyStates.rawdelete(playerId)
+	if (playerId in phoenix.admin.Server.godmodeStates) phoenix.admin.Server.godmodeStates.rawdelete(playerId)
+})
+
+addEventHandler("phoenix.character.OnSelected", function (playerId, _characterId) {
+	phoenix.admin.Server.disableFly(playerId)
+	if (playerId in phoenix.admin.Server.godmodeStates) {
+		phoenix.admin.Server.godmodeStates.rawdelete(playerId)
+		phoenix.admin.Server.reply(playerId, "adminGodmode", true, "", { enabled = false })
+	}
 })
 
 try {

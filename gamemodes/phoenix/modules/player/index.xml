@@ -13,6 +13,7 @@
 	<script src="server/lobbyConfig.nut" type="server" />
 	<script src="client/lobby.nut" type="client" />
 	<script src="client/controls.nut" type="client" />
+	<script src="client/fallDamage.nut" type="client" />
 	<script src="client/hud.nut" type="client" />
 	<script src="client/combatText.nut" type="client" />
 	<script src="client/stats.nut" type="client" />

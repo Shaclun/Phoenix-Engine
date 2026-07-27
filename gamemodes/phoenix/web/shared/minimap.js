@@ -92,5 +92,13 @@
 		PhoenixBridge.on("phoenix:hud:hide", function () { setVisible(false); });
 	}
 
-	global.PhoenixMinimap = { ensure: ensure, render: render, setVisible: setVisible };
+	global.PhoenixMinimap = {
+		ensure: ensure,
+		render: render,
+		setVisible: setVisible,
+		maps: MAPS,
+		selectMap: selectMap,
+		width: MAP_WIDTH,
+		height: MAP_HEIGHT
+	};
 })(window);

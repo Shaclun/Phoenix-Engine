@@ -10,6 +10,7 @@ phoenix.player.Gate <- {
 	reviving = {}
 	applying = {}
 	appliedAt = {}
+	fallDamageAt = {}
 
 	function normalizeWorld(value) {
 		if (value == null || value == "") return "NEWWORLD.ZEN"
@@ -67,6 +68,52 @@ phoenix.player.Gate <- {
 		return { body = body, head = head, bodyTex = bodyTex, faceTex = faceTex }
 	}
 
+	function restoreIdentity(playerId, instance) {
+		local target = (instance == null || instance == "") ? "PC_HERO" : instance.tostring()
+		local changed = true
+		try {
+			local current = getPlayerInstance(playerId)
+			if (current != null && current.tostring().toupper() == target.toupper()) changed = false
+		} catch (e) {}
+		if (changed) {
+			try { setPlayerInstance(playerId, target) } catch (e) { return false }
+		}
+		if (target.toupper() != "PC_HERO" || !changed) return changed
+		local record = phoenix.character.Structure.getActive(playerId)
+		if (record == null) return changed
+		local visual = phoenix.player.Gate.normalizeVisual(record)
+		try { setPlayerVisual(playerId, visual.body, visual.bodyTex, visual.head, visual.faceTex) } catch (e) {}
+		try { setPlayerScale(playerId, 1.0, 1.0, 1.0) } catch (e) {}
+		return changed
+	}
+
+	function restoreRevivingIdentity(playerId) {
+		if (!(playerId in phoenix.player.Gate.reviving)) return
+		local state = phoenix.player.Gate.reviving[playerId]
+		local instance = ("instance" in state) ? state.instance : "PC_HERO"
+		phoenix.player.Gate.restoreIdentity(playerId, instance)
+	}
+
+	function restoreIdentityIfCurrent(playerId, instance, characterId) {
+		try { if (!isPlayerConnected(playerId)) return false } catch (e) { return false }
+		if (characterId > 0) {
+			local record = null
+			try { record = phoenix.character.Structure.getActive(playerId) } catch (e) {}
+			if (record == null || record.id != characterId) return false
+		}
+		local changed = phoenix.player.Gate.restoreIdentity(playerId, instance)
+		if (changed && playerId in phoenix.player.Gate.applying) {
+			local state = phoenix.player.Gate.applying[playerId]
+			if (typeof state == "table") state.identityChanged = true
+		}
+		return changed
+	}
+
+	function hasGodmode(playerId) {
+		try { return playerId in phoenix.admin.Server.godmodeStates } catch (e) {}
+		return false
+	}
+
 	function isLocked(playerId) {
 		return playerId in pending
 	}
@@ -84,6 +131,7 @@ phoenix.player.Gate <- {
 
 	function release(playerId) {
 		if (playerId in phoenix.player.Gate.pending) phoenix.player.Gate.pending.rawdelete(playerId)
+		if (playerId in phoenix.player.Gate.fallDamageAt) phoenix.player.Gate.fallDamageAt.rawdelete(playerId)
 	}
 
 	function onPlayerJoin(playerId) {
@@ -92,6 +140,7 @@ phoenix.player.Gate <- {
 
 	function onPlayerRespawn(playerId) {
 		try { cancelEvent() } catch (e) {}
+		try { phoenix.admin.Server.disableFly(playerId) } catch (e) { try { setPlayerCollision(playerId, true) } catch (ec) {} }
 		if (playerId in phoenix.player.Gate.pending) {
 			try { setPlayerPosition(playerId, phoenix.player.Gate.LOBBY_X, phoenix.player.Gate.LOBBY_Y, phoenix.player.Gate.LOBBY_Z) } catch (e) {}
 			return
@@ -99,15 +148,27 @@ phoenix.player.Gate <- {
 		if (playerId in phoenix.player.Gate.applying) return
 		if (playerId in phoenix.player.Gate.reviving) {
 			local state = phoenix.player.Gate.reviving[playerId]
+			phoenix.player.Gate.restoreRevivingIdentity(playerId)
+			setTimer(function () { try { phoenix.player.Gate.restoreRevivingIdentity(playerId) } catch (e) {} }, 50, 1)
+			setTimer(function () { try { phoenix.player.Gate.restoreRevivingIdentity(playerId) } catch (e) {} }, 250, 1)
+			setTimer(function () { try { phoenix.player.Gate.restoreRevivingIdentity(playerId) } catch (e) {} }, 750, 1)
 			try { setPlayerHealth(playerId, 1) } catch (e) {}
 			try { setPlayerPosition(playerId, state.x, state.y, state.z) } catch (e) {}
 			try { setPlayerAngle(playerId, state.angle) } catch (e) {}
-			try { stopAni(playerId) } catch (e) {}
+			try { stopAni(playerId, "S_DEADB") } catch (e) {}
 			try { playAni(playerId, "T_DEADB") } catch (e) {}
 			return
 		}
 		setTimer(function () {
-			try { phoenix.player.Gate.restoreVisual(playerId) } catch (e) {}
+			try {
+				if (!phoenix.player.Gate.restoreVisual(playerId)) return
+				local record = phoenix.character.Structure.getActive(playerId)
+				if (record != null) phoenix.player.Gate.restoreEquipment(playerId, record)
+				local msg = phoenix.player.Message.Revived()
+				msg.hp = getPlayerHealth(playerId)
+				msg.hpMax = getPlayerMaxHealth(playerId)
+				msg.serialize().send(playerId, RELIABLE_ORDERED)
+			} catch (e) {}
 		}, 200, 1)
 	}
 
@@ -116,16 +177,27 @@ phoenix.player.Gate <- {
 		if (playerId in phoenix.player.Gate.pending) return
 		if (playerId in phoenix.player.Gate.reviving) return
 		if (playerId in phoenix.player.Gate.applying) return
+		try { phoenix.admin.Server.disableFly(playerId) } catch (e) { try { setPlayerCollision(playerId, true) } catch (ec) {} }
+		try { setPlayerHealth(playerId, 1) } catch (e) {}
 		local deathPos = null
 		try { deathPos = getPlayerPosition(playerId) } catch (e) {}
 		local deathAngle = 0.0
 		try { deathAngle = getPlayerAngle(playerId) } catch (e) {}
+		local deathInstance = "PC_HERO"
+		try { deathInstance = getPlayerInstance(playerId) } catch (e) {}
+		local deathCharacterId = 0
+		try {
+			local record = phoenix.character.Structure.getActive(playerId)
+			if (record != null) deathCharacterId = record.id
+		} catch (e) {}
 		phoenix.player.Gate.reviving[playerId] <- {
 			ready = false,
 			x = deathPos != null ? deathPos.x : 0.0,
 			y = deathPos != null ? deathPos.y : 0.0,
 			z = deathPos != null ? deathPos.z : 0.0,
-			angle = deathAngle
+			angle = deathAngle,
+			instance = deathInstance,
+			characterId = deathCharacterId
 		}
 		try { playAni(playerId, "T_DEADB") } catch (e) {}
 		local delay = phoenix.player.Gate.DEATH_REVIVE_DELAY_MS
@@ -191,8 +263,39 @@ phoenix.player.Gate <- {
 		try { phoenix.player.Gate.applyKnockdownRevive(playerId, mode) } catch (e) {}
 	}
 
+	function onFallDamage(playerId, message) {
+		try { if (!isPlayerConnected(playerId)) return } catch (e) { return }
+		try { if (phoenix.character.Structure.getActive(playerId) == null) return } catch (e) { return }
+		if (phoenix.player.Gate.hasGodmode(playerId)) return
+		if (playerId in phoenix.player.Gate.pending) return
+		if (playerId in phoenix.player.Gate.reviving) return
+		if (playerId in phoenix.player.Gate.applying) return
+		if (message == null) return
+
+		local rawAmount = null
+		try { rawAmount = message.amount } catch (e) { return }
+		local amountType = typeof rawAmount
+		if (amountType != "integer" && amountType != "float") return
+		local amount = rawAmount.tointeger()
+		if (amount <= 0 || amount > 65535) return
+
+		local now = getTickCount()
+		if (playerId in phoenix.player.Gate.fallDamageAt) {
+			local elapsed = now - phoenix.player.Gate.fallDamageAt[playerId]
+			if (elapsed >= 0 && elapsed < 250) return
+		}
+		phoenix.player.Gate.fallDamageAt[playerId] <- now
+
+		local hpMax = 0
+		try { hpMax = getPlayerMaxHealth(playerId).tointeger() } catch (e) {}
+		if (hpMax > 0 && amount > hpMax) amount = hpMax
+		try { phoenix.player.Combat.emitText(playerId, amount, "damage") } catch (e) {}
+		phoenix.player.Gate.applyDamage(playerId, amount, -1, true)
+	}
+
 	function applyDamage(playerId, amount, attackerId = -1, calculated = false) {
 		try { if (!isPlayerConnected(playerId)) return false } catch (e) { return false }
+		if (phoenix.player.Gate.hasGodmode(playerId)) return false
 		if (playerId in phoenix.player.Gate.pending) return false
 		if (playerId in phoenix.player.Gate.reviving) return false
 		if (playerId in phoenix.player.Gate.applying) return false
@@ -243,6 +346,41 @@ phoenix.player.Gate <- {
 		return dmg
 	}
 
+	function finishKnockdownRevive(playerId, reviveInstance, reviveCharacterId, hpMax, reviveHp, tx, ty, tz, tAngle) {
+		try { if (!isPlayerConnected(playerId)) return } catch (e) { return }
+		local record = null
+		try { record = phoenix.character.Structure.getActive(playerId) } catch (e) {}
+		if (record == null || (reviveCharacterId > 0 && record.id != reviveCharacterId)) {
+			if (playerId in phoenix.player.Gate.applying) phoenix.player.Gate.applying.rawdelete(playerId)
+			return
+		}
+		phoenix.player.Gate.restoreIdentityIfCurrent(playerId, reviveInstance, reviveCharacterId)
+		local identityChanged = false
+		if (playerId in phoenix.player.Gate.applying) {
+			local state = phoenix.player.Gate.applying[playerId]
+			if (typeof state == "table" && "identityChanged" in state) identityChanged = state.identityChanged
+		}
+		try { setPlayerVirtualWorld(playerId, 0) } catch (e) {}
+		try { setPlayerMaxHealth(playerId, hpMax) } catch (e) {}
+		try { setPlayerMaxMana(playerId, record.manaMax) } catch (e) {}
+		try { setPlayerPosition(playerId, tx, ty, tz) } catch (e) {}
+		try { setPlayerAngle(playerId, tAngle) } catch (e) {}
+		try { setPlayerHealth(playerId, reviveHp) } catch (e) {}
+		try { setPlayerWeaponMode(playerId, 0) } catch (e) {}
+		try { stopAni(playerId, "S_DEADB") } catch (e) {}
+		try { stopAni(playerId, "T_DEADB") } catch (e) {}
+		try { stopAni(playerId, "T_VICTIM") } catch (e) {}
+		if (identityChanged) phoenix.player.Gate.restoreEquipment(playerId, record)
+		else phoenix.player.Gate.reequipSavedItems(playerId, record)
+		if (playerId in phoenix.player.Gate.applying) phoenix.player.Gate.applying.rawdelete(playerId)
+		try {
+			local msg = phoenix.player.Message.Revived()
+			msg.hp = reviveHp
+			msg.hpMax = hpMax
+			msg.serialize().send(playerId, RELIABLE_ORDERED)
+		} catch (e) {}
+	}
+
 	function applyKnockdownRevive(playerId, mode = "here") {
 		local state = null
 		if (playerId in phoenix.player.Gate.reviving) state = phoenix.player.Gate.reviving[playerId]
@@ -273,25 +411,28 @@ phoenix.player.Gate <- {
 			}
 		}
 		try { stopAni(playerId, "S_DEADB") } catch (e) {}
-		phoenix.player.Gate.applying[playerId] <- true
+		phoenix.player.Gate.applying[playerId] <- { identityChanged = false }
 		local needsSpawn = false
 		try { needsSpawn = !isPlayerSpawned(playerId) } catch (e) {}
 		if (needsSpawn) {
 			try { spawnPlayer(playerId) } catch (e) {}
 		}
-		if (playerId in phoenix.player.Gate.applying) phoenix.player.Gate.applying.rawdelete(playerId)
+		local reviveInstance = (state != null && "instance" in state) ? state.instance : "PC_HERO"
+		local reviveCharacterId = (state != null && "characterId" in state) ? state.characterId : record.id
+		phoenix.player.Gate.restoreIdentityIfCurrent(playerId, reviveInstance, reviveCharacterId)
+		setTimer(function () { try { phoenix.player.Gate.restoreIdentityIfCurrent(playerId, reviveInstance, reviveCharacterId) } catch (e) {} }, 50, 1)
+		setTimer(function () { try { phoenix.player.Gate.restoreIdentityIfCurrent(playerId, reviveInstance, reviveCharacterId) } catch (e) {} }, 250, 1)
 		try { setPlayerVirtualWorld(playerId, 0) } catch (e) {}
 		try { setPlayerMaxHealth(playerId, hpMax) } catch (e) {}
 		try { setPlayerMaxMana(playerId, record.manaMax) } catch (e) {}
 		try { setPlayerPosition(playerId, tx, ty, tz) } catch (e) {}
 		try { setPlayerAngle(playerId, tAngle) } catch (e) {}
 		try { setPlayerHealth(playerId, reviveHp) } catch (e) {}
-		try {
-			local msg = phoenix.player.Message.Revived()
-			msg.hp = reviveHp
-			msg.hpMax = hpMax
-			msg.serialize().send(playerId, RELIABLE_ORDERED)
-		} catch (e) {}
+		setTimer(function () {
+			try { phoenix.player.Gate.finishKnockdownRevive(playerId, reviveInstance, reviveCharacterId, hpMax, reviveHp, tx, ty, tz, tAngle) } catch (e) {
+				if (playerId in phoenix.player.Gate.applying) phoenix.player.Gate.applying.rawdelete(playerId)
+			}
+		}, 750, 1)
 	}
 
 	function onCharacterSelected(playerId, characterId) {
@@ -306,12 +447,6 @@ phoenix.player.Gate <- {
 		try { stopAni(playerId, "S_DEADB") } catch (e) {}
 		try { stopAni(playerId, "T_DEADB") } catch (e) {}
 		try { stopAni(playerId, "T_VICTIM") } catch (e) {}
-		try {
-			local revive = phoenix.player.Message.Revived()
-			revive.hp = (record.hp != null && record.hp > 0) ? record.hp : ((record.hpMax != null && record.hpMax > 0) ? record.hpMax : 100)
-			revive.hpMax = (record.hpMax != null && record.hpMax > 0) ? record.hpMax : 100
-			revive.serialize().send(playerId, RELIABLE_ORDERED)
-		} catch (e) {}
 
 		local visual = phoenix.player.Gate.normalizeVisual(record)
 		local body = visual.body
@@ -355,6 +490,12 @@ phoenix.player.Gate <- {
 
 		phoenix.player.Gate.applyEquipment(playerId, record)
 		phoenix.player.Gate.restoreEquipment(playerId, record)
+		try {
+			local revive = phoenix.player.Message.Revived()
+			revive.hp = hp
+			revive.hpMax = hpMax
+			revive.serialize().send(playerId, RELIABLE_ORDERED)
+		} catch (e) {}
 
 		phoenix.player.Gate.release(playerId)
 
@@ -388,6 +529,27 @@ phoenix.player.Gate <- {
 		local apply = function(_) {
 			try { phoenix.item.Structure.applyToPlayer(playerId, characterId) } catch (ea) {}
 			try { phoenix.item.Structure.sendInventorySnapshot(playerId, characterId) } catch (eb) {}
+		}
+		local cacheKey = phoenix.item.Structure.key(PhoenixInventoryOwner.Player, characterId)
+		if (cacheKey in phoenix.item.Structure.cache) apply(null)
+		else phoenix.item.Structure.loadOwner(PhoenixInventoryOwner.Player, characterId, apply)
+	}
+
+	function reequipSavedItems(playerId, record) {
+		if (record == null) return
+		local characterId = 0
+		try { characterId = record.id } catch (e) { characterId = 0 }
+		if (characterId <= 0) return
+		local apply = function(_) {
+			local inventory = null
+			try { inventory = phoenix.item.Structure.getInventory(PhoenixInventoryOwner.Player, characterId) } catch (e) {}
+			if (inventory != null) {
+				foreach (item in inventory.items) {
+					if (item.equipped != 1) continue
+					try { ::equipItem(playerId, item.instanceId) } catch (e) {}
+				}
+			}
+			try { phoenix.item.Structure.sendInventorySnapshot(playerId, characterId) } catch (e) {}
 		}
 		local cacheKey = phoenix.item.Structure.key(PhoenixInventoryOwner.Player, characterId)
 		if (cacheKey in phoenix.item.Structure.cache) apply(null)
@@ -559,9 +721,17 @@ addEventHandler("onPlayerDamage", function (victimId, attackerId, desc) {
 	try {
 		if (victimId == null || victimId < 0 || victimId >= getMaxSlots()) return
 		try { if (phoenix.npc.Spawn._liveByNpcId(victimId) != null) return } catch (enpc) {}
+		if (phoenix.player.Gate.hasGodmode(victimId)) { cancelEvent(); eventValue(0); return }
 		if (victimId in phoenix.player.Gate.pending) { cancelEvent(); eventValue(0); return }
 		if (victimId in phoenix.player.Gate.reviving) { cancelEvent(); eventValue(0); return }
-		if (attackerId == null || attackerId < 0) return
+		if (attackerId == null || attackerId < 0 || attackerId == victimId) {
+			cancelEvent()
+			eventValue(0)
+			local environmentDamage = phoenix.player.Gate._damageFromDescription(desc, -1)
+			try { phoenix.player.Combat.emitText(victimId, environmentDamage, "damage") } catch (ect) {}
+			phoenix.player.Gate.applyDamage(victimId, environmentDamage, -1, true)
+			return
+		}
 		cancelEvent()
 		try {
 			if (phoenix.character.Structure.getActive(attackerId) != null) phoenix.player.Hud.consumeStamina(attackerId, 1.0)
@@ -584,5 +754,6 @@ addEventHandler("onPlayerDead", phoenix.player.Gate.onPlayerDead)
 addEventHandler("onPlayerDisconnect", phoenix.player.Gate.onPlayerDisconnect)
 addEventHandler("phoenix.character.OnSelected", phoenix.player.Gate.onCharacterSelected)
 phoenix.player.Message.RespawnChoice.bind(phoenix.player.Gate.onRespawnChoice)
+phoenix.player.Message.FallDamage.bind(phoenix.player.Gate.onFallDamage)
 
 setTimer(phoenix.player.Gate.onAutoSaveTimer, 60000, 0)

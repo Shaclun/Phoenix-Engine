@@ -21,6 +21,7 @@ phoenix.minimap <- {
 		try {
 			phoenix.web.Manager.emit("phoenix:minimap:update", {
 				x = pos.x.tofloat(),
+				y = pos.y.tofloat(),
 				z = pos.z.tofloat(),
 				angle = angle,
 				world = world

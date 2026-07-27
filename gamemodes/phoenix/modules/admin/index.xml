@@ -5,4 +5,5 @@
 
 	<script src="client/model.nut" type="client" />
 	<script src="client/routes.nut" type="client" />
+	<script src="client/tools.nut" type="client" />
 </server>

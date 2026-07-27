@@ -169,6 +169,10 @@ phoenix.command.Handlers <- {
 		phoenix.command.Dispatcher.info(playerId, "[Pogoda] Sila wiatru: " + scale)
 	}
 
+	function cmdFly(playerId, args, raw) {
+		phoenix.admin.Server.dispatchAdminFly(playerId, null)
+	}
+
 	function registerAll() {
 		local D = phoenix.command.Dispatcher
 		D.register("pos", phoenix.command.Handlers.cmdPos, true, null, "/pos [etykieta] - zapisuje pozycje do positions.txt")
@@ -182,6 +186,7 @@ phoenix.command.Handlers <- {
 		D.register("daylength", phoenix.command.Handlers.cmdDayLength, true, ["dzien"], "/daylength <minut>")
 		D.register("weather", phoenix.command.Handlers.cmdWeather, true, ["pogoda"], "/weather <clear|rain|snow|storm|stop>")
 		D.register("wind", phoenix.command.Handlers.cmdWeatherWind, true, ["wiatr"], "/wind <skala>")
+		D.register("fly", phoenix.command.Handlers.cmdFly, true, ["lataj"], "/fly - przelacz latanie")
 	}
 }
 

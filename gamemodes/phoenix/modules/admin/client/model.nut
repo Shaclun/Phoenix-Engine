@@ -1607,6 +1607,9 @@ phoenix.admin.Model <- {
 
 	function onResponse(message) {
 		try {
+			if ("Tools" in phoenix.admin) phoenix.admin.Tools.onResponse(message)
+		} catch (e) {}
+		try {
 			phoenix.web.Manager.emit("phoenix:admin:response", {
 				action = message.action,
 				success = message.success,
