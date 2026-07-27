@@ -801,7 +801,18 @@
 	function notifyHerb(payload, ok, error) {
 		if (!window.PhoenixNotify) return;
 		const label = payload && payload.label ? payload.label : tr("herb.defaultLabel");
-		if (ok) { PhoenixNotify.notify("success", tr("herb.notify.success.title"), label, 3500); return; }
+		if (ok) {
+			const amount = payload && payload.amount ? payload.amount | 0 : 1;
+			const xp = payload && payload.xp ? payload.xp | 0 : 0;
+			let text = label + (amount > 1 ? " ×" + amount : "");
+			if (xp > 0) text += " · +" + xp + " XP";
+			if (payload && payload.hunting) PhoenixNotify.notify("success", tr("hunting.notify.success.title"), text, 3500);
+			else PhoenixNotify.notify("success", tr("herb.notify.success.title"), text, 3500); return;
+		}
+		if (error === "noStamina") { PhoenixNotify.notify("error", tr("herb.notify.noStamina.title"), tr("herb.notify.noStamina.text"), 3000); return; }
+		if (error === "busy") { PhoenixNotify.notify("warn", tr("herb.notify.cancelled.title"), tr("crafting.error.busy"), 3000); return; }
+		if (error === "lowProfessionTier" || error === "professionUnavailable") { PhoenixNotify.notify("error", tr("herb.notify.lowTier.title"), tr("herb.notify.lowTier.text"), 3000); return; }
+		if (error === "grantFailed") { PhoenixNotify.notify("error", tr("herb.notify.failed.title"), tr("herb.notify.grantFailed.text"), 3500); return; }
 		if (error === "cooldown") {
 			const seconds = payload && payload.cooldownSec ? payload.cooldownSec | 0 : 0;
 			PhoenixNotify.notify("warn", tr("herb.notify.cooldown.title"), tr("herb.notify.cooldown.text").replace("{seconds}", String(seconds)), 3500);

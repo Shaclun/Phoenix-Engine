@@ -375,7 +375,7 @@ phoenix.herb.Ground <- {
 		try { stopAni(heroId, "T_PLUNDER") } catch (e) {}
 		try { stopAni(heroId, "S_PLUNDER") } catch (e2) {}
 		try { playAni(heroId, "T_STAND_2_RUN") } catch (e3) {}
-		try { phoenix.web.Manager.emit("phoenix:herb:result", { plantId = message.plantId, success = message.success, instance = message.instance, label = message.label, error = message.error, cooldownSec = message.cooldownSec }) } catch (e4) {}
+		try { phoenix.web.Manager.emit("phoenix:herb:result", { plantId = message.plantId, success = message.success, instance = message.instance, label = message.label, error = message.error, cooldownSec = message.cooldownSec, amount = message.amount, xp = message.xp }) } catch (e4) {}
 	}
 }
 

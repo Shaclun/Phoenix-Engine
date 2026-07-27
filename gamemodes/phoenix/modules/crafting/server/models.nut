@@ -22,6 +22,18 @@ class CraftingRecipeModel extends ORM.Model
 	</ type = "INT(11)", not_null = true />
 	requiredLevel = 0
 
+	</ type = "INT(11)" />
+	professionId = null
+
+	</ type = "INT(11)", not_null = true />
+	requiredProfessionTier = 0
+
+	</ type = "INT(11)", not_null = true />
+	baseStamina = 0
+
+	</ type = "INT(11)", not_null = true />
+	professionXp = 0
+
 	</ type = "TEXT" />
 	description = null
 

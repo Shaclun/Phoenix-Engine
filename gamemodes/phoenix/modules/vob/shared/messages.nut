@@ -10,6 +10,8 @@ phoenix.vob.Entry <- {
 	rotY = phoenix.net.type.Float
 	rotZ = phoenix.net.type.Float
 	interactive = phoenix.net.type.Bool
+	noCollision = phoenix.net.type.Bool
+	craftInteraction = phoenix.net.type.Bool
 	entryKind = phoenix.net.type.String
 	itemInstance = phoenix.net.type.String
 	itemAmount = phoenix.net.type.UInt32

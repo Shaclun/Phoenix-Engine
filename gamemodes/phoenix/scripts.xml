@@ -17,6 +17,7 @@
 	<import src="modules/item/index.xml" />
 	<import src="modules/character/index.xml" />
 	<import src="modules/player/index.xml" />
+	<import src="modules/profession/index.xml" />
 	<import src="modules/camera/index.xml" />
 	<import src="modules/chat/index.xml" />
 	<import src="modules/social/index.xml" />

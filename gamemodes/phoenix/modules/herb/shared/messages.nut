@@ -14,6 +14,11 @@ phoenix.herb.GroundEntry <- {
 	cooldownSec = phoenix.net.type.UInt32
 	cooldownLeftSec = phoenix.net.type.UInt32
 	successChance = phoenix.net.type.UInt8
+	professionId = phoenix.net.type.UInt32
+	requiredProfessionTier = phoenix.net.type.UInt32
+	baseStamina = phoenix.net.type.UInt32
+	baseProfessionXp = phoenix.net.type.UInt32
+	baseYield = phoenix.net.type.UInt32
 }
 
 class phoenix.herb.Message.Snapshot extends phoenix.net.Message {
@@ -41,4 +46,6 @@ class phoenix.herb.Message.Result extends phoenix.net.Message {
 	</ type = phoenix.net.type.String /> label = ""
 	</ type = phoenix.net.type.String /> error = ""
 	</ type = phoenix.net.type.UInt32 /> cooldownSec = 0
+	</ type = phoenix.net.type.UInt32 /> amount = 0
+	</ type = phoenix.net.type.UInt32 /> xp = 0
 }

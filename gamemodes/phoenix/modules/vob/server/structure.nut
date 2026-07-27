@@ -289,12 +289,6 @@ phoenix.vob.Structure <- {
 
 	function snapshotList() {
 		local out = []
-		local craftVisuals = null
-		try {
-			if ("crafting" in phoenix && "Structure" in phoenix.crafting) {
-				craftVisuals = phoenix.crafting.Structure.stationByVisual
-			}
-		} catch (e) {}
 		foreach (_id, entry in phoenix.vob.Structure.entries) {
 			local copy = {
 				vobId = entry.vobId, name = entry.name, visual = entry.visual, world = entry.world,
@@ -305,9 +299,11 @@ phoenix.vob.Structure <- {
 				itemInstance = entry.itemInstance, itemAmount = entry.itemAmount, itemQuality = entry.itemQuality
 			}
 			if (copy.craftInteraction) copy.interactive = true
-			if (craftVisuals != null && copy.visual != null && copy.visual != "") {
-				local key = copy.visual.tostring().toupper()
-				if (key in craftVisuals && craftVisuals[key].len() > 0) copy.interactive = true
+			if (copy.visual != null && copy.visual != "") {
+				try {
+					if ("crafting" in phoenix && "Structure" in phoenix.crafting && phoenix.crafting.Structure.isStationVisual(copy.visual))
+						copy.interactive = true
+				} catch (eCraft) {}
 			}
 			out.append(copy)
 		}
@@ -369,7 +365,7 @@ phoenix.vob.Structure <- {
 		if (phoenix.vob.Structure.loaded) { if (callback != null) callback(); return }
 		local runtimeEntries = []
 		foreach (_id, existing in phoenix.vob.Structure.entries) {
-			try { if (existing.entryKind == "item") runtimeEntries.append(existing) } catch (e0) {}
+			try { if (existing.entryKind == "item" || existing.entryKind == "carcass") runtimeEntries.append(existing) } catch (e0) {}
 		}
 		try {
 			ORM.engine.executeAsync("SELECT * FROM `phoenix_world_vobs` WHERE `active` = 1 ORDER BY `id` ASC", function(rows) {

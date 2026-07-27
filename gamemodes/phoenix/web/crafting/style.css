@@ -410,3 +410,54 @@
 	font-size: 24px;
 	font-weight: 700;
 }
+
+/* Advanced crafting states and Phoenix cut-corner layout. */
+.crafting-panel {
+	--craft-accent: #f0b75d;
+	--craft-border: rgba(214, 177, 105, .32);
+	clip-path: polygon(18px 0, 100% 0, 100% calc(100% - 18px), calc(100% - 18px) 100%, 0 100%, 0 18px);
+	border-radius: 0;
+}
+.crafting-header { align-items: center; }
+.crafting-summary { display: flex; gap: 7px; margin-left: auto; }
+.crafting-summary span { min-width: 74px; padding: 7px 10px; display: flex; flex-direction: column; align-items: center; background: rgba(0,0,0,.3); border: 1px solid var(--craft-border); color: #8b7550; font-size: 9px; text-transform: uppercase; letter-spacing: 1px; }
+.crafting-summary b { color: #f6e6c8; font-size: 15px; line-height: 1.1; }
+.crafting-row { border-radius: 0; clip-path: polygon(8px 0, 100% 0, 100% calc(100% - 8px), calc(100% - 8px) 100%, 0 100%, 0 8px); }
+.crafting-row__state { min-width: 38px; display: flex; flex-direction: column; align-items: center; color: #83c676; }
+.crafting-row__state b { font-size: 15px; }
+.crafting-row__state small { color: #786544; font-size: 8px; letter-spacing: 1px; }
+.crafting-row.is-locked .crafting-row__state { color: #a9685e; }
+.crafting-main, .crafting-toolbar, .crafting-details__visual, .crafting-ing, .crafting-ing__visual { border-radius: 0; }
+.crafting-ing__amount { display: flex; flex-direction: column; align-items: flex-end; }
+.crafting-ing__amount small { color: #7fa9dc; font-size: 8px; font-weight: 400; text-transform: uppercase; }
+.crafting-batch { display: grid; grid-template-columns: 1fr 34px 48px 34px auto; align-items: center; gap: 6px; padding: 10px 12px; background: rgba(0,0,0,.3); border: 1px solid var(--craft-border); }
+.crafting-batch > span { color: #c9b58a; font-size: 11px; text-transform: uppercase; letter-spacing: 1.5px; }
+.crafting-batch b { text-align: center; color: #f7c66a; font-size: 17px; }
+.crafting-batch button, .crafting-cancel-btn { min-height: 30px; border: 1px solid rgba(214,177,105,.42); background: rgba(20,12,6,.88); color: #f6e6c8; font: inherit; cursor: pointer; }
+.crafting-batch button:hover, .crafting-cancel-btn:hover { border-color: #f0b75d; background: rgba(104,57,20,.45); }
+.crafting-blockers { display: grid; gap: 4px; }
+.crafting-blockers span { padding: 6px 9px; border-left: 2px solid #d77462; background: rgba(120,35,28,.15); color: #e3a093; font-size: 11px; }
+.crafting-blockers .is-ready { border-left-color: #79bd71; background: rgba(48,112,51,.14); color: #9bd394; }
+.crafting-progress { display: grid; gap: 9px; padding: 13px; border: 1px solid rgba(240,183,93,.52); background: linear-gradient(135deg, rgba(89,44,16,.28), rgba(0,0,0,.34)); }
+.crafting-progress__head, .crafting-progress__foot { display: flex; justify-content: space-between; align-items: center; gap: 12px; }
+.crafting-progress__head strong { color: #f7c66a; text-transform: uppercase; letter-spacing: 1.5px; font-size: 12px; }
+.crafting-progress__head span, .crafting-progress__foot span { color: #b9a57e; font-size: 11px; }
+.crafting-progress__track { height: 9px; overflow: hidden; background: rgba(0,0,0,.65); border: 1px solid rgba(214,177,105,.3); }
+.crafting-progress__track i { display: block; height: 100%; background: linear-gradient(90deg, #b66c28, #f7c66a); box-shadow: 0 0 12px rgba(247,198,106,.5); transition: width .12s linear; }
+.crafting-cancel-btn { padding: 5px 14px; color: #e5a092; border-color: rgba(218,99,79,.5); }
+.crafting-details__foot > span { color: #9b865e; font-size: 11px; }
+@media (max-width: 920px) {
+	.crafting-panel { width: 96vw; max-height: 96vh; padding: 16px; }
+	.crafting-summary { display: none; }
+	.crafting-body { grid-template-columns: minmax(250px, .42fr) 1fr; }
+	.crafting-details__head { grid-template-columns: 96px 1fr; }
+	.crafting-details__visual { width: 96px; height: 96px; }
+}
+@media (max-width: 700px) {
+	.crafting-body { grid-template-columns: 1fr; overflow-y: auto; }
+	.crafting-list { max-height: 230px; }
+	.crafting-main { overflow: visible; }
+	.crafting-details { overflow: visible; }
+	.crafting-toolbar { align-items: stretch; flex-direction: column; }
+	.crafting-filter { width: 100%; box-sizing: border-box; }
+}

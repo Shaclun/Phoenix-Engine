@@ -24,8 +24,8 @@ phoenix.vob.Handlers.onPlayerJoin <- function(playerId) {
 
 phoenix.vob.Handlers.isInRange <- function(playerId, entry, maxDistance = 450.0) {
 	try {
-		local playerWorld = getPlayerWorld(playerId)
-		local entryWorld = ("world" in entry && entry.world != null) ? entry.world.tostring() : ""
+		local playerWorld = phoenix.vob.Structure.normalizeWorld(getPlayerWorld(playerId))
+		local entryWorld = ("world" in entry && entry.world != null) ? phoenix.vob.Structure.normalizeWorld(entry.world) : ""
 		if (entryWorld != "" && playerWorld != entryWorld) return false
 		local position = getPlayerPosition(playerId)
 		if (position == null) return false
@@ -41,18 +41,28 @@ phoenix.vob.Handlers.onInteractRequest <- function(playerId, message) {
 	local id = message.vobId.tostring()
 	if (!(id in phoenix.vob.Structure.entries)) return
 	local entry = phoenix.vob.Structure.entries[id]
-	if (!phoenix.vob.Handlers.isInRange(playerId, entry)) return
+	if (!phoenix.vob.Handlers.isInRange(playerId, entry)) {
+		try { phoenix.notification.notify(playerId, "error", "Interakcja", "Podejdz blizej do obiektu.", 2500) } catch (eRange) {}
+		return
+	}
 	local entryVisual = ""
-	try { entryVisual = ("visual" in entry && entry.visual != null) ? entry.visual.tostring().toupper() : "" } catch (eV) {}
+	try { entryVisual = ("visual" in entry && entry.visual != null) ? entry.visual.tostring() : "" } catch (eV) {}
 	local isStation = false
 	try {
-		if ("crafting" in phoenix && phoenix.crafting != null && "Structure" in phoenix.crafting) {
-			if (entryVisual != "" && entryVisual in phoenix.crafting.Structure.stationByVisual && phoenix.crafting.Structure.stationByVisual[entryVisual].len() > 0) isStation = true
-		}
+		if ("crafting" in phoenix && phoenix.crafting != null && "Structure" in phoenix.crafting)
+			isStation = phoenix.crafting.Structure.isStationVisual(entryVisual)
 	} catch (eC) {}
 	local wantsCraft = false
 	try { if ("craftInteraction" in entry && entry.craftInteraction == true) wantsCraft = true } catch (eCi) {}
-	if (entry.interactive != true && !isStation && !wantsCraft && entry.entryKind != "item") return
+	if (entry.interactive != true && !isStation && !wantsCraft && entry.entryKind != "item" && entry.entryKind != "carcass") return
+	if (entry.entryKind == "carcass") {
+		try {
+			if (phoenix.profession.Hunting.interact(playerId, id)) {
+				try { phoenix.quest.Events.vobInteracted(playerId, id, entry) } catch (eQuest) {}
+				return
+			}
+		} catch (eHunting) {}
+	}
 	if (phoenix.vob.Structure.pickupDroppedItem(playerId, id)) {
 		try { phoenix.quest.Events.vobInteracted(playerId, id, entry) } catch (eQuest) {}
 		return

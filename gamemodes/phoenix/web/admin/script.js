@@ -138,6 +138,7 @@
         { id: "vobs",    labelKey: "admin.tab.vobs",    fallback: "VOB-y" },
         { id: "houses",  labelKey: "admin.tab.houses",  fallback: "Domy" },
         { id: "craft",   labelKey: "admin.tab.craft",   fallback: "Crafty" },
+        { id: "professions", labelKey: "admin.tab.professions", fallback: "Profesje" },
         { id: "spawns",  labelKey: "admin.tab.spawns",  fallback: "Lobby/Spawny" },
         { id: "bestiary", labelKey: "admin.tab.bestiary", fallback: "Bestiariusz" },
         { id: "quests", labelKey: "admin.tab.quests", fallback: "Quest Maker" },
@@ -230,6 +231,8 @@
         herbCatalog: [],
         herbSpots: [],
         herbForm: defaultHerbForm(),
+        professionDefinitions: [],
+        professionEditor: defaultProfessionEditor(),
         vobCatalog: [],
         vobCategories: [],
         vobCategoryStats: [],
@@ -260,6 +263,9 @@
         craftStations: [],
         craftEditorId: 0,
         craftEditor: null,
+        craftDirty: false,
+        craftSaving: false,
+        craftError: "",
         craftFilter: "",
         craftStationVob: "",
         craftStationPicked: {},
@@ -440,7 +446,11 @@
     }
 
     function defaultHerbForm() {
-        return { instance: "ITPL_HEALTH_HERB_01", plantId: "", filter: "", posX: 0, posY: 0, posZ: 0, world: "", gatherMs: 7000, cooldownSec: 3600, successChance: 92 };
+        return { instance: "ITPL_HEALTH_HERB_01", plantId: "", filter: "", posX: 0, posY: 0, posZ: 0, world: "", gatherMs: 7000, cooldownSec: 3600, successChance: 92, professionId: 0, requiredProfessionTier: 0, baseStamina: 4, baseProfessionXp: 8, baseYield: 1 };
+    }
+
+    function defaultProfessionEditor() {
+        return { id: 0, code: "", namePl: "", nameEn: "", nameDe: "", nameRu: "", descriptionPl: "", descriptionEn: "", descriptionDe: "", descriptionRu: "", maxLevel: 100, xpBase: 100, xpGrowth: 1.35, gatherTimeReductionPerTier: 0.12, gatherChancePerTier: 3, gatherYieldPerTier: 1, active: true };
     }
 
     function defaultVobForm() {
@@ -900,6 +910,7 @@
         if (activeTab === "npc" || activeTab === "herbs") { send("herbCatalog"); send("herbList"); }
         if (activeTab === "vobs") { requestVobCatalog(); send("vobList"); }
         if (activeTab === "houses") send("houseList");
+        if (activeTab === "professions" || activeTab === "craft" || activeTab === "herbs") send("professionList");
         if (activeTab === "quests") { send("questList"); send("questCatalog"); send("npcCatalog"); send("bestiaryRenderList"); send("schemes"); send("itemRenderList"); }
         render();
     }
@@ -946,10 +957,11 @@
                 if (tab.id === "items") { send("players"); send("schemes"); send("itemRenderList"); }
                 if (tab.id === "inv") send("players");
                 if (tab.id === "npc") { send("npcCatalog"); send("npcList"); send("npcPresetList"); send("herbCatalog"); send("herbList"); }
-                if (tab.id === "herbs") { send("herbCatalog"); send("herbList"); }
+                if (tab.id === "herbs") { send("herbCatalog"); send("herbList"); send("professionList"); }
                 if (tab.id === "vobs") { requestVobCatalog(); send("vobList"); }
                 if (tab.id === "houses") send("houseList");
-                if (tab.id === "craft") { send("craftingList"); send("schemes"); requestVobCatalog(); send("vobList"); }
+                if (tab.id === "craft") { send("craftingList"); send("schemes"); send("professionList"); requestVobCatalog(); send("vobList"); }
+                if (tab.id === "professions") send("professionList");
                 if (tab.id === "spawns") send("spawnConfigGet");
                 if (tab.id === "bestiary") { send("npcCatalog"); send("bestiaryRenderList"); }
                 if (tab.id === "quests") { send("questList"); send("questCatalog"); send("npcCatalog"); send("bestiaryRenderList"); send("schemes"); send("itemRenderList"); }
@@ -1021,6 +1033,7 @@
         else if (activeTab === "vobs") html = renderVobs();
         else if (activeTab === "houses") html = renderHouses();
         else if (activeTab === "craft") html = renderCraft();
+        else if (activeTab === "professions") html = renderProfessions();
         else if (activeTab === "spawns") html = renderSpawnConfig();
         else if (activeTab === "bestiary") html = renderBestiaryRender();
         else if (activeTab === "quests") html = renderQuestMaker();
@@ -2159,6 +2172,11 @@
         html += '<label>' + escapeHtml(t("admin.herbs.field.gatherMs")) + '<input class="adm-input" type="number" data-herb="gatherMs" value="' + form.gatherMs + '"></label>';
         html += '<label>' + escapeHtml(t("admin.herbs.field.cooldownSec")) + '<input class="adm-input" type="number" data-herb="cooldownSec" value="' + form.cooldownSec + '"></label>';
         html += '<label>' + escapeHtml(t("admin.herbs.field.successChance")) + '<input class="adm-input" type="number" min="1" max="100" data-herb="successChance" value="' + form.successChance + '"></label>';
+        html += '<label>' + escapeHtml(t("admin.herbs.field.profession", "Profesja")) + '<select class="adm-input" data-herb="professionId">' + professionOptions(form.professionId, false) + '</select></label>';
+        html += '<label>' + escapeHtml(t("admin.herbs.field.tier", "Wymagany tier")) + '<input class="adm-input" type="number" min="0" max="100" data-herb="requiredProfessionTier" value="' + (+form.requiredProfessionTier || 0) + '"></label>';
+        html += '<label>' + escapeHtml(t("admin.herbs.field.stamina", "Stamina")) + '<input class="adm-input" type="number" min="0" max="10000" data-herb="baseStamina" value="' + (+form.baseStamina || 0) + '"></label>';
+        html += '<label>' + escapeHtml(t("admin.herbs.field.xp", "XP profesji")) + '<input class="adm-input" type="number" min="0" max="1000000" data-herb="baseProfessionXp" value="' + (+form.baseProfessionXp || 0) + '"></label>';
+        html += '<label>' + escapeHtml(t("admin.herbs.field.yield", "Bazowy zbiór")) + '<input class="adm-input" type="number" min="1" max="1000" data-herb="baseYield" value="' + (+form.baseYield || 1) + '"></label>';
         html += '</div><div class="adm-toolbar" style="margin-top:10px"><button class="adm-btn" data-action="herb-preview">' + escapeHtml(t("admin.herbs.btn.preview")) + '</button><button class="adm-btn" data-action="herb-floor">' + escapeHtml(t("admin.vobs.btn.floor")) + '</button><button class="adm-btn adm-btn--primary" data-action="herb-save-here">' + escapeHtml(t("admin.vobs.btn.saveHere")) + '</button><button class="adm-btn adm-btn--primary" data-action="herb-save-pos">' + escapeHtml(t("admin.vobs.btn.savePreview")) + '</button><button class="adm-btn" data-action="herb-reset">' + escapeHtml(t("admin.common.reset")) + '</button></div>';
         html += '<div class="adm-toolbar" style="margin-top:8px">';
         [["x-","X-"],["x+","X+"],["y-","Y-"],["y+","Y+"],["z-","Z-"],["z+","Z+"],["ry-","Obrót-"],["ry+","Obrót+"]].forEach(function (b) { html += '<button class="adm-btn" data-action="herb-nudge" data-axis="' + b[0] + '">' + b[1] + '</button>'; });
@@ -3261,6 +3279,16 @@
                 }
             });
         });
+        body.querySelectorAll("[data-profession]").forEach(function (el) {
+            var eventName = el.tagName === "SELECT" ? "change" : "input";
+            el.addEventListener(eventName, function () {
+                if (!state.professionEditor) state.professionEditor = defaultProfessionEditor();
+                var key = el.dataset.profession;
+                var value = el.type === "number" ? parseFloat(el.value) || 0 : el.value;
+                if (key === "code") value = String(value || "").toUpperCase();
+                state.professionEditor[key] = value;
+            });
+        });
         body.querySelectorAll("[data-herb]").forEach(function (el) {
             var ev = el.tagName === "SELECT" ? "change" : "input";
             el.addEventListener(ev, function () {
@@ -3582,6 +3610,20 @@
             handleCraftAction(a, el);
             return;
         }
+        if (a === "profession-refresh") return send("professionList");
+        if (a === "profession-new") { state.professionEditor = defaultProfessionEditor(); return render(true); }
+        if (a === "profession-edit") {
+            var profession = (state.professionDefinitions || []).filter(function (p) { return +p.id === (+el.dataset.id || 0); })[0];
+            if (profession) state.professionEditor = Object.assign(defaultProfessionEditor(), profession);
+            return render(true);
+        }
+        if (a === "profession-save") {
+            var professionPayload = state.professionEditor || defaultProfessionEditor();
+            professionPayload.code = String(professionPayload.code || "").trim().toUpperCase();
+            if (!professionPayload.code || !professionPayload.namePl) return setStatus(t("admin.professions.validation", "Kod i polska nazwa są wymagane."), "error");
+            send("professionSave", professionPayload); return setStatus(t("admin.professions.saving", "Zapisuję profesję..."), "");
+        }
+        if (a === "profession-delete") { send("professionDelete", { id: +el.dataset.id || 0 }); return setStatus(t("admin.professions.deleting", "Wyłączam profesję..."), ""); }
         if (a && a.indexOf("db-") === 0) {
             handleDbAction(a, el);
             return;
@@ -4193,14 +4235,14 @@
         if (a === "herb-edit") {
             var hs = (state.herbSpots || []).filter(function (x) { return x.plantId === el.dataset.id; })[0];
             if (!hs) return;
-            state.herbForm = { instance: hs.instance || "", plantId: hs.plantId || "", filter: state.herbForm.filter || "", posX: Math.round(hs.x || 0), posY: Math.round(hs.y || 0), posZ: Math.round(hs.z || 0), world: hs.world || "", gatherMs: hs.gatherMs || 7000, cooldownSec: hs.cooldownSec || 3600, successChance: hs.successChance || 90 };
+            state.herbForm = { instance: hs.instance || "", plantId: hs.plantId || "", filter: state.herbForm.filter || "", posX: Math.round(hs.x || 0), posY: Math.round(hs.y || 0), posZ: Math.round(hs.z || 0), world: hs.world || "", gatherMs: hs.gatherMs || 7000, cooldownSec: hs.cooldownSec || 3600, successChance: hs.successChance || 90, professionId: +hs.professionId || 0, requiredProfessionTier: +hs.requiredProfessionTier || 0, baseStamina: +hs.baseStamina || 0, baseProfessionXp: +hs.baseProfessionXp || 0, baseYield: +hs.baseYield || 1 };
             send("adminHerbPreviewStart", herbPreviewPayload(true));
             return render();
         }
         if (a === "herb-save-here" || a === "herb-save-pos") {
             if (!state.herbForm.instance) return setStatus(t("admin.status.pickInstance"), "error");
             var hf = state.herbForm;
-            var payload = { instance: hf.instance, plantId: hf.plantId || "", gatherMs: +hf.gatherMs || 0, cooldownSec: +hf.cooldownSec || 0, successChance: +hf.successChance || 100 };
+            var payload = { instance: hf.instance, plantId: hf.plantId || "", gatherMs: +hf.gatherMs || 0, cooldownSec: +hf.cooldownSec || 0, successChance: +hf.successChance || 100, professionId: +hf.professionId || 0, requiredProfessionTier: +hf.requiredProfessionTier || 0, baseStamina: +hf.baseStamina || 0, baseProfessionXp: +hf.baseProfessionXp || 0, baseYield: Math.max(1, +hf.baseYield || 1) };
             if (a === "herb-save-pos") { payload.posX = +hf.posX || 0; payload.posY = +hf.posY || 0; payload.posZ = +hf.posZ || 0; payload.world = hf.world || ""; }
             send("herbSave", payload);
             return setStatus(tFmt("admin.herbs.status.saving", hf.instance), "");
@@ -4652,6 +4694,10 @@
         if (p.action === "npcPresetList" && p.success) { state.npcPresets = pl.presets || []; return render(); }
         if (p.action === "herbCatalog" && p.success) { state.herbCatalog = pl.entries || []; return render(); }
         if (p.action === "herbList" && p.success) { state.herbSpots = pl.spots || []; return render(); }
+        if (p.action === "professionList" && p.success) { state.professionDefinitions = pl.entries || []; return render(); }
+        if (p.action === "professionSave" && p.success) { state.professionEditor = defaultProfessionEditor(); send("professionList"); return setStatus(t("admin.professions.saved", "Profesja zapisana."), "ok"); }
+        if (p.action === "professionDelete" && p.success) { state.professionEditor = defaultProfessionEditor(); send("professionList"); return setStatus(t("admin.professions.deleted", "Profesja wyłączona."), "ok"); }
+        if ((p.action === "professionSave" || p.action === "professionDelete") && !p.success) return setStatus((p.error || "database"), "error");
         if (p.action === "vobCatalog" && p.success) {
             state.vobCatalog = pl.entries || [];
             state.vobCategories = pl.categories || [];
@@ -4664,6 +4710,23 @@
         }
         if (p.action === "vobList" && p.success) { state.vobs = pl.vobs || []; return render(); }
         if (p.action === "houseList" && p.success) { state.houses = pl.houses || []; return render(); }
+        if (p.action === "craftingSave") {
+            state.craftSaving = false;
+            if (p.success) {
+                state.craftDirty = false;
+                state.craftError = "";
+                state.craftView = "list";
+                state.craftEditor = null;
+                state.craftPicker = "";
+                state.craftVobPickerOpen = false;
+                setStatus(t("admin.craft.saved", "Receptura została zapisana."), "ok");
+                send("craftingList");
+            } else {
+                state.craftError = p.error || "failed";
+                setStatus(t("admin.craft.saveFailed", "Nie udało się zapisać receptury.") + " " + state.craftError, "error");
+            }
+            return render(true);
+        }
         if (p.action === "craftingList" && p.success) {
             state.craftRecipes = pl.recipes || [];
             state.craftStations = pl.stations || [];
@@ -6093,6 +6156,32 @@
         }
     });
 
+    function professionOptions(selected, allowNone) {
+        var html = allowNone ? '<option value="0">—</option>' : '';
+        (state.professionDefinitions || []).filter(function (p) { return p && p.active !== false; }).forEach(function (p) {
+            html += '<option value="' + (+p.id || 0) + '"' + (+selected === +p.id ? ' selected' : '') + '>' + escapeHtml(p.namePl || p.code) + ' [' + escapeHtml(p.code || '') + ']</option>';
+        });
+        return html;
+    }
+
+    function renderProfessions() {
+        var ed = state.professionEditor || defaultProfessionEditor();
+        var html = '<div class="adm-section"><div class="adm-toolbar"><h3>' + escapeHtml(t("admin.professions.title", "Profesje")) + '</h3><button class="adm-btn" data-action="profession-refresh">⟳</button><button class="adm-btn adm-btn--primary" data-action="profession-new">+ ' + escapeHtml(t("admin.professions.new", "Nowa profesja")) + '</button></div>';
+        html += '<div class="adm-grid adm-grid--2"><div class="adm-section adm-section--inline"><h4>' + escapeHtml(t("admin.professions.list", "Definicje")) + '</h4>';
+        if (!(state.professionDefinitions || []).length) html += '<div class="adm-empty">' + escapeHtml(t("admin.professions.empty", "Brak profesji")) + '</div>';
+        (state.professionDefinitions || []).forEach(function (p) {
+            html += '<article class="adm-craft-card"><div class="adm-craft-card__body"><h4>' + escapeHtml(p.namePl || p.code) + '</h4><small>' + escapeHtml(p.code || '') + ' · max ' + (+p.maxLevel || 0) + '</small></div><div class="adm-craft-card__actions"><button class="adm-btn" data-action="profession-edit" data-id="' + (+p.id || 0) + '">' + escapeHtml(t("admin.a.edit", "Edytuj")) + '</button><button class="adm-btn adm-btn--danger" data-action="profession-delete" data-id="' + (+p.id || 0) + '">' + escapeHtml(t("admin.a.delete", "Usuń")) + '</button></div></article>';
+        });
+        html += '</div><div class="adm-section adm-section--inline"><h4>' + escapeHtml(ed.id ? t("admin.professions.edit", "Edycja profesji") : t("admin.professions.new", "Nowa profesja")) + '</h4>';
+        html += '<div class="adm-grid adm-grid--2"><label>Kod<input class="adm-input" data-profession="code" maxlength="48" value="' + escapeHtml(ed.code || '') + '"></label><label>Max level<input class="adm-input" type="number" min="1" max="1000" data-profession="maxLevel" value="' + (+ed.maxLevel || 100) + '"></label>';
+        ["Pl","En","De","Ru"].forEach(function (lang) { html += '<label>Nazwa ' + lang.toUpperCase() + '<input class="adm-input" data-profession="name' + lang + '" maxlength="96" value="' + escapeHtml(ed['name' + lang] || '') + '"></label>'; });
+        html += '<label>XP bazowe<input class="adm-input" type="number" min="1" data-profession="xpBase" value="' + (+ed.xpBase || 100) + '"></label><label>Wzrost XP<input class="adm-input" type="number" min="1" max="5" step="0.01" data-profession="xpGrowth" value="' + (+ed.xpGrowth || 1.35) + '"></label>';
+        html += '<label>Redukcja czasu / tier<input class="adm-input" type="number" min="0" max="0.9" step="0.01" data-profession="gatherTimeReductionPerTier" value="' + (+ed.gatherTimeReductionPerTier || 0) + '"></label><label>Szansa % / tier<input class="adm-input" type="number" min="0" max="100" data-profession="gatherChancePerTier" value="' + (+ed.gatherChancePerTier || 0) + '"></label><label>Yield / tier<input class="adm-input" type="number" min="0" max="100" data-profession="gatherYieldPerTier" value="' + (+ed.gatherYieldPerTier || 0) + '"></label></div>';
+        ["Pl","En","De","Ru"].forEach(function (lang) { html += '<label>Opis ' + lang.toUpperCase() + '<textarea class="adm-input" data-profession="description' + lang + '" maxlength="512" rows="2">' + escapeHtml(ed['description' + lang] || '') + '</textarea></label>'; });
+        html += '<div class="adm-toolbar"><button class="adm-btn adm-btn--primary" data-action="profession-save">' + escapeHtml(t("admin.a.save", "Zapisz")) + '</button></div></div></div></div>';
+        return html;
+    }
+
     function renderCraft() {
         if (!state.schemes || state.schemes.length === 0) send("schemes");
         if (state.craftView === "editor") return renderCraftEditor();
@@ -6103,47 +6192,29 @@
         var list = state.craftRecipes || [];
         var q = (state.craftFilter || "").toLowerCase();
         var filtered = q ? list.filter(function (r) {
-            return String(r.name || "").toLowerCase().indexOf(q) !== -1 ||
-                String(r.resultInstance || "").toLowerCase().indexOf(q) !== -1;
+            return String(r.name || "").toLowerCase().indexOf(q) !== -1 || String(r.resultInstance || "").toLowerCase().indexOf(q) !== -1;
         }) : list;
-        var html = '<div class="adm-section">';
+        var html = '<div class="adm-section adm-section--craft">';
         html += '<div class="adm-toolbar">';
-        html += '<input class="adm-input" type="search" placeholder="Szukaj receptury..." data-craft-filter value="' + escapeHtml(state.craftFilter || "") + '">';
-        html += '<button class="adm-btn adm-btn--primary" data-action="craft-new">+ Nowa receptura</button>';
-        html += '</div>';
-        html += '<div class="adm-craft-list" data-role="itemgrid">';
-        if (filtered.length === 0) {
-            html += '<div class="adm-empty">Brak receptur. Dodaj nową.</div>';
-        } else {
-            filtered.forEach(function (r) {
-                var ings = r.ingredients || [];
-                var ingCount = ings.filter(function (i) { return i.role !== "tool"; }).length;
-                var toolCount = ings.filter(function (i) { return i.role === "tool"; }).length;
-                var outsCount = (r.outputs || []).length;
-                var instanceUp = String(r.resultInstance || "").toUpperCase();
-                var scheme = instanceUp ? state.schemesById[instanceUp] : null;
-                var displayName = r.name && r.name !== r.resultInstance ? r.name : (scheme ? itemName(scheme) : instanceUp);
-                if (!displayName) displayName = instanceUp || "?";
-                var cardVisual = (scheme && scheme.visual) ? scheme.visual : (instanceUp + ".3DS");
-                html += '<div class="adm-craft-card">';
-                html += '<div class="adm-craft-card__visual adm-itemcell" data-instance="' + escapeHtml(instanceUp) + '" data-visual="' + escapeHtml(cardVisual) + '">';
-                html += '<div class="adm-itemcell__fallback"><span class="adm-itemcell__label">' + escapeHtml(displayName.slice(0, 14)) + '</span></div>';
-                html += '</div>';
-                html += '<div class="adm-craft-card__body">';
-                html += '<h4>' + escapeHtml(displayName) + '</h4>';
-                html += '<small>' + escapeHtml(instanceUp) + (r.resultAmount > 1 ? " x" + r.resultAmount : "") + ' · ' + escapeHtml(r.category || "") + '</small>';
-                html += '<div class="adm-craft-card__meta">' + ingCount + ' skł. · ' + toolCount + ' narz. · ' + outsCount + ' dod. · ' + (+r.craftTimeMs || 0) + 'ms</div>';
-                html += '</div>';
-                html += '<div class="adm-craft-card__actions">';
-                html += '<button class="adm-btn" data-action="craft-edit" data-id="' + (+r.id || 0) + '">Edytuj</button>';
-                html += '<button class="adm-btn adm-btn--danger" data-action="craft-delete" data-id="' + (+r.id || 0) + '">Usuń</button>';
-                html += '</div>';
-                html += '</div>';
-            });
-        }
-        html += '</div>';
-        html += '</div>';
-        return html;
+        html += '<input class="adm-input" type="search" placeholder="' + escapeHtml(t("admin.craft.search", "Szukaj receptury...")) + '" data-craft-filter value="' + escapeHtml(state.craftFilter || "") + '">';
+        html += '<button class="adm-btn adm-btn--primary" data-action="craft-new">' + escapeHtml(t("admin.craft.new", "+ Nowa receptura")) + '</button>';
+        html += '</div><div class="adm-craft-list" data-role="itemgrid">';
+        if (filtered.length === 0) html += '<div class="adm-empty">' + escapeHtml(t("admin.craft.empty", "Brak receptur. Dodaj nową.")) + '</div>';
+        else filtered.forEach(function (r) {
+            var ingredients = r.ingredients || [];
+            var consumed = ingredients.filter(function (i) { return i.role !== "tool"; }).length;
+            var tools = ingredients.filter(function (i) { return i.role === "tool"; }).length;
+            var outputs = (r.outputs || []).length;
+            var instance = String(r.resultInstance || "").toUpperCase();
+            var scheme = instance ? state.schemesById[instance] : null;
+            var label = r.name && r.name !== r.resultInstance ? r.name : (scheme ? itemName(scheme) : instance);
+            var visual = scheme && scheme.visual ? scheme.visual : instance + ".3DS";
+            html += '<article class="adm-craft-card"><div class="adm-craft-card__visual adm-itemcell" data-instance="' + escapeHtml(instance) + '" data-visual="' + escapeHtml(visual) + '"><div class="adm-itemcell__fallback"><span class="adm-itemcell__label">' + escapeHtml((label || "?").slice(0, 14)) + '</span></div></div>';
+            html += '<div class="adm-craft-card__body"><h4>' + escapeHtml(label || "?") + '</h4><small>' + escapeHtml(instance) + (r.resultAmount > 1 ? " ×" + r.resultAmount : "") + ' · ' + escapeHtml(t("crafting.cat." + (r.category || "misc"), r.category || "misc")) + '</small>';
+            html += '<div class="adm-craft-card__meta">' + escapeHtml(tFmt("admin.craft.cardMeta", consumed, tools, outputs, (+r.craftTimeMs || 0))) + '</div></div>';
+            html += '<div class="adm-craft-card__actions"><button class="adm-btn" data-action="craft-edit" data-id="' + (+r.id || 0) + '">' + escapeHtml(t("admin.a.edit", "Edytuj")) + '</button><button class="adm-btn adm-btn--danger" data-action="craft-delete" data-id="' + (+r.id || 0) + '">' + escapeHtml(t("admin.a.delete", "Usuń")) + '</button></div></article>';
+        });
+        return html + '</div></div>';
     }
 
     function resolveSchemes() {
@@ -6154,8 +6225,8 @@
         var ed = state.craftEditor || defaultCraftEditor();
         var html = '<div class="adm-section">';
         html += '<div class="adm-toolbar">';
-        html += '<button class="adm-btn" data-action="craft-back">← Powrót</button>';
-        html += '<span class="adm-craft-title">' + (ed.id > 0 ? "Edycja receptury #" + ed.id : "Nowa receptura") + '</span>';
+        html += '<button class="adm-btn" data-action="craft-back">' + escapeHtml(t("admin.a.back", "← Powrót")) + '</button>';
+        html += '<span class="adm-craft-title">' + (ed.id > 0 ? escapeHtml(t("admin.craft.edit", "Edycja receptury #")) + ed.id : escapeHtml(t("admin.craft.newTitle", "Nowa receptura"))) + (state.craftDirty ? ' <i class="adm-craft-dirty">' + escapeHtml(t("admin.craft.unsaved", "Niezapisane")) + '</i>' : '') + '</span>';
         html += '</div>';
 
         html += '<div class="adm-craft-editor">';
@@ -6169,45 +6240,52 @@
             html += '</div>';
             html += '<div class="adm-craft-preview__label"><strong>' + escapeHtml(resultLabel) + '</strong><small>' + escapeHtml(ed.resultInstance) + '</small></div>';
         } else {
-            html += '<div class="adm-craft-preview adm-craft-preview--empty">Wybierz przedmiot</div>';
+            html += '<div class="adm-craft-preview adm-craft-preview--empty">' + escapeHtml(t("admin.craft.pick", "Wybierz przedmiot")) + '</div>';
         }
-        html += '<button class="adm-btn adm-btn--ghost" data-action="craft-pick-open" data-role="result">' + (ed.resultInstance ? "Zmień przedmiot" : "Wybierz przedmiot") + '</button>';
+        html += '<button class="adm-btn adm-btn--ghost" data-action="craft-pick-open" data-role="result">' + escapeHtml(ed.resultInstance ? t("admin.craft.change", "Zmień przedmiot") : t("admin.craft.pick", "Wybierz przedmiot")) + '</button>';
         html += '</div>';
 
         html += '<div class="adm-craft-editor__right">';
         html += '<div class="adm-grid adm-grid--2">';
-        html += '<label>Nazwa <input class="adm-input" data-craft-f="name" value="' + escapeHtml(ed.name || "") + '" placeholder="np. Zwykły miecz"></label>';
-        html += '<label>Kategoria <select class="adm-input" data-craft-f="category">' +
+        html += '<label>' + escapeHtml(t("admin.a.name", "Nazwa")) + ' <input class="adm-input" maxlength="96" data-craft-f="name" value="' + escapeHtml(ed.name || "") + '" placeholder="' + escapeHtml(t("admin.craft.namePlaceholder", "np. Zwykły miecz")) + '"></label>';
+        html += '<label>' + escapeHtml(t("admin.a.category", "Kategoria")) + ' <select class="adm-input" data-craft-f="category">' +
             ["misc", "weapon", "armor", "food", "potion", "alchemy", "smithing"].map(function (c) {
-                return '<option value="' + c + '"' + (ed.category === c ? " selected" : "") + '>' + c + '</option>';
+                return '<option value="' + c + '"' + (ed.category === c ? " selected" : "") + '>' + escapeHtml(t("crafting.cat." + c, c)) + '</option>';
             }).join("") + '</select></label>';
         html += '</div>';
         html += '<div class="adm-grid adm-grid--3">';
-        html += '<label>Ilość <input class="adm-input" type="number" min="1" data-craft-f="resultAmount" value="' + (ed.resultAmount || 1) + '"></label>';
-        html += '<label>Czas (ms) <input class="adm-input" type="number" min="100" step="100" data-craft-f="craftTimeMs" value="' + (ed.craftTimeMs || 1500) + '"></label>';
-        html += '<label>Wymagany lv <input class="adm-input" type="number" min="0" data-craft-f="requiredLevel" value="' + (ed.requiredLevel || 0) + '"></label>';
+        html += '<label>' + escapeHtml(t("admin.a.amount", "Ilość")) + ' <input class="adm-input" type="number" min="1" max="100000" data-craft-f="resultAmount" value="' + (ed.resultAmount || 1) + '"></label>';
+        html += '<label>' + escapeHtml(t("admin.craft.time", "Czas (ms)")) + ' <input class="adm-input" type="number" min="100" max="600000" step="100" data-craft-f="craftTimeMs" value="' + (ed.craftTimeMs || 1500) + '"></label>';
+        html += '<label>' + escapeHtml(t("admin.craft.level", "Wymagany lv")) + ' <input class="adm-input" type="number" min="0" max="1000" data-craft-f="requiredLevel" value="' + (ed.requiredLevel || 0) + '"></label>';
         html += '</div>';
-        html += '<label>Opis <textarea class="adm-input" data-craft-f="description" rows="2">' + escapeHtml(ed.description || "") + '</textarea></label>';
+        html += '<div class="adm-grid adm-grid--4">';
+        html += '<label>' + escapeHtml(t("admin.craft.profession", "Profesja")) + '<select class="adm-input" data-craft-f="professionId">' + professionOptions(ed.professionId, true) + '</select></label>';
+        html += '<label>' + escapeHtml(t("admin.craft.professionTier", "Wymagany tier")) + '<input class="adm-input" type="number" min="0" max="100" data-craft-f="requiredProfessionTier" value="' + (+ed.requiredProfessionTier || 0) + '"></label>';
+        html += '<label>' + escapeHtml(t("admin.craft.stamina", "Stamina / szt.")) + '<input class="adm-input" type="number" min="0" max="10000" data-craft-f="baseStamina" value="' + (+ed.baseStamina || 0) + '"></label>';
+        html += '<label>' + escapeHtml(t("admin.craft.professionXp", "XP profesji / szt.")) + '<input class="adm-input" type="number" min="0" max="1000000" data-craft-f="professionXp" value="' + (+ed.professionXp || 0) + '"></label>';
+        html += '</div>';
+        html += '<label>' + escapeHtml(t("admin.a.description", "Opis")) + ' <textarea class="adm-input" maxlength="4000" data-craft-f="description" rows="2">' + escapeHtml(ed.description || "") + '</textarea></label>';
         html += '</div>';
         html += '</div>';
 
-        html += '<h4 class="adm-craft-section-title">Składniki (zużywane)</h4>';
+        html += '<h4 class="adm-craft-section-title">' + escapeHtml(t("admin.craft.ingredients", "Składniki (zużywane)")) + '</h4>';
         html += renderCraftIngredients(ed, "consume");
-        html += '<button class="adm-btn" data-action="craft-pick-open" data-role="consume">+ Dodaj składnik</button>';
+        html += '<button class="adm-btn" data-action="craft-pick-open" data-role="consume">+ ' + escapeHtml(t("admin.craft.addIngredient", "Dodaj składnik")) + '</button>';
 
-        html += '<h4 class="adm-craft-section-title">Narzędzia (wymagane, nie zużywane)</h4>';
+        html += '<h4 class="adm-craft-section-title">' + escapeHtml(t("admin.craft.tools", "Narzędzia")) + '</h4>';
         html += renderCraftIngredients(ed, "tool");
-        html += '<button class="adm-btn" data-action="craft-pick-open" data-role="tool">+ Dodaj narzędzie</button>';
+        html += '<button class="adm-btn" data-action="craft-pick-open" data-role="tool">+ ' + escapeHtml(t("admin.craft.addTool", "Dodaj narzędzie")) + '</button>';
 
-        html += '<h4 class="adm-craft-section-title">Dodatkowe produkty (bonusowe itemy obok głównego)</h4>';
+        html += '<h4 class="adm-craft-section-title">' + escapeHtml(t("admin.craft.outputs", "Dodatkowe produkty")) + '</h4>';
         html += renderCraftOutputs(ed);
-        html += '<button class="adm-btn" data-action="craft-pick-open" data-role="output">+ Dodaj dodatkowy produkt</button>';
+        html += '<button class="adm-btn" data-action="craft-pick-open" data-role="output">+ ' + escapeHtml(t("admin.craft.addOutput", "Dodaj produkt")) + '</button>';
 
-        html += '<h4 class="adm-craft-section-title">Stacje / VOB-y otwierające tę recepturę</h4>';
+        html += '<h4 class="adm-craft-section-title">' + escapeHtml(t("admin.craft.stations", "Stacje / VOB-y")) + '</h4>';
         html += renderCraftEditorVobsSummary(ed);
 
+        if (state.craftError) html += '<div class="adm-status is-error adm-craft-inline-error">' + escapeHtml(t("admin.craft.saveFailed", "Nie udało się zapisać receptury.")) + ' [' + escapeHtml(state.craftError) + ']</div>';
         html += '<div class="adm-toolbar adm-craft-actions">';
-        html += '<button class="adm-btn adm-btn--primary" data-action="craft-save">Zapisz recepturę</button>';
+        html += '<button class="adm-btn adm-btn--primary" data-action="craft-save"' + (state.craftSaving ? " disabled" : "") + '>' + escapeHtml(state.craftSaving ? t("admin.craft.saving", "Zapisywanie...") : t("admin.craft.save", "Zapisz recepturę")) + '</button>';
         html += '</div>';
         html += '</div>';
 
@@ -6224,7 +6302,7 @@
         var picked = (ed.visuals || []).map(function (v) { return String(v).toUpperCase(); });
         var html = '<div class="adm-craft-vob-summary">';
         if (picked.length === 0) {
-            html += '<div class="adm-empty">Brak przypisań. Dodaj typ VOB-a aby receptura była dostępna.</div>';
+            html += '<div class="adm-empty">' + escapeHtml(t("admin.craft.noStations", "Brak przypisań. Dodaj typ VOB-a.")) + '</div>';
         } else {
             html += '<div class="adm-craft-vob-picked">';
             picked.forEach(function (v) {
@@ -6232,7 +6310,7 @@
             });
             html += '</div>';
         }
-        html += '<button class="adm-btn adm-btn--ghost" data-action="craft-vob-picker-open">+ Wybierz typ VOB-a</button>';
+        html += '<button class="adm-btn adm-btn--ghost" data-action="craft-vob-picker-open">+ ' + escapeHtml(t("admin.craft.pickVob", "Wybierz typ VOB-a")) + '</button>';
         html += '</div>';
         return html;
     }
@@ -6249,16 +6327,16 @@
             if (String(s.instance || "").toLowerCase().indexOf(filter) !== -1) return true;
             return false;
         });
-        var title = mode === "result" ? "Wybierz przedmiot wynikowy" : (mode === "tool" ? "Wybierz narzędzie" : "Wybierz składnik");
+        var title = mode === "result" ? t("admin.craft.pickResult", "Wybierz przedmiot wynikowy") : (mode === "tool" ? t("admin.craft.pickTool", "Wybierz narzędzie") : t("admin.craft.pickIngredient", "Wybierz składnik"));
 
-        var html = '<div class="adm-craft-modal" data-craft-modal-bg>';
-        html += '<div class="adm-craft-modal__panel" data-craft-modal>';
+        var html = '<div class="adm-modal" data-craft-modal-bg><div class="adm-modal__backdrop"></div>';
+        html += '<div class="adm-modal__panel adm-modal__panel--craft" data-craft-modal>';
         html += '<header class="adm-craft-modal__head"><h3>' + escapeHtml(title) + '</h3>';
         html += '<button class="adm-btn" data-action="craft-pick-close">✕</button></header>';
         html += '<div class="adm-craft-modal__tools">';
-        html += '<input class="adm-input" type="search" placeholder="Szukaj..." data-craft-picker-filter value="' + escapeHtml(state.craftPickerFilter || "") + '">';
+        html += '<input class="adm-input" type="search" placeholder="' + escapeHtml(t("admin.a.search", "Szukaj...")) + '" data-craft-picker-filter value="' + escapeHtml(state.craftPickerFilter || "") + '">';
         html += '<select class="adm-input" data-craft-picker-cat>';
-        html += '<option value="0">Wszystkie kategorie</option>';
+        html += '<option value="0">' + escapeHtml(t("admin.a.allCategories", "Wszystkie kategorie")) + '</option>';
         Object.keys(CATEGORY_LABELS).forEach(function (k) {
             var kk = +k;
             if (kk === 0) return;
@@ -6275,7 +6353,7 @@
             html += '<span class="adm-itemcell__cat">' + escapeHtml(catLabel(s.category)) + '</span>';
             html += '</div>';
         });
-        if (filtered.length === 0) html += '<div class="adm-empty">Brak wyników.</div>';
+        if (filtered.length === 0) html += '<div class="adm-empty">' + escapeHtml(t("admin.a.noResults", "Brak wyników.")) + '</div>';
         html += '</div></div>';
         html += '</div></div>';
         return html;
@@ -6299,9 +6377,9 @@
         var pickedUpper = ((state.craftEditor || {}).visuals || []).map(function (v) { return String(v).toUpperCase(); });
         var source = state.vobSource || "data.xml";
 
-        var html = '<div class="adm-craft-modal" data-craft-modal-bg>';
-        html += '<div class="adm-craft-modal__panel adm-craft-modal__panel--wide" data-craft-modal>';
-        html += '<header class="adm-craft-modal__head"><h3>Wybierz typ VOB-a</h3>';
+        var html = '<div class="adm-modal" data-craft-modal-bg><div class="adm-modal__backdrop"></div>';
+        html += '<div class="adm-modal__panel adm-modal__panel--craft adm-modal__panel--craft-wide" data-craft-modal>';
+        html += '<header class="adm-craft-modal__head"><h3>' + escapeHtml(t("admin.craft.pickVob", "Wybierz typ VOB-a")) + '</h3>';
         html += '<button class="adm-btn" data-action="craft-vob-picker-close">✕</button></header>';
         html += '<div class="adm-craft-modal__tools">';
         html += '<div class="adm-tabs adm-tabs--sub adm-vob-source-tabs">';
@@ -6310,9 +6388,9 @@
             html += '<button class="adm-tab' + active + '" data-action="craft-vob-source" data-src="' + escapeHtml(tab.id) + '">' + escapeHtml(t(tab.labelKey, tab.fallback)) + '</button>';
         });
         html += '</div>';
-        html += '<input class="adm-input" type="search" placeholder="Szukaj modelu..." data-craft-vob-filter value="' + escapeHtml(state.craftVobPickerFilter || "") + '">';
+        html += '<input class="adm-input" type="search" placeholder="' + escapeHtml(t("admin.craft.searchModel", "Szukaj modelu...")) + '" data-craft-vob-filter value="' + escapeHtml(state.craftVobPickerFilter || "") + '">';
         html += '<select class="adm-input" data-craft-vob-cat>';
-        html += '<option value="">Wszystkie kategorie</option>';
+        html += '<option value="">' + escapeHtml(t("admin.a.allCategories", "Wszystkie kategorie")) + '</option>';
         catList.forEach(function (c) {
             html += '<option value="' + escapeHtml(c) + '"' + (cat === c ? " selected" : "") + '>' + escapeHtml(c) + '</option>';
         });
@@ -6329,16 +6407,16 @@
             html += '<span class="adm-vob-cell__visual">' + escapeHtml(v.visual || "") + '</span>';
             html += '</div>';
         });
-        if (filtered.length === 0) html += '<div class="adm-empty">Brak wyników w tym katalogu.</div>';
+        if (filtered.length === 0) html += '<div class="adm-empty">' + escapeHtml(t("admin.craft.noCatalogResults", "Brak wyników w tym katalogu.")) + '</div>';
         html += '</div></div>';
-        html += '<footer class="adm-craft-modal__foot"><button class="adm-btn adm-btn--primary" data-action="craft-vob-picker-close">Gotowe</button></footer>';
+        html += '<footer class="adm-craft-modal__foot"><button class="adm-btn adm-btn--primary" data-action="craft-vob-picker-close">' + escapeHtml(t("admin.a.done", "Gotowe")) + '</button></footer>';
         html += '</div></div>';
         return html;
     }
 
     function renderCraftOutputs(ed) {
         var outs = ed.outputs || [];
-        if (outs.length === 0) return '<div class="adm-empty">Brak. Główny produkt jest wystarczający.</div>';
+        if (outs.length === 0) return '<div class="adm-empty">' + escapeHtml(t("admin.craft.noOutputs", "Brak. Główny produkt jest wystarczający.")) + '</div>';
         var html = '<div class="adm-craft-ing-list" data-role="itemgrid">';
         outs.forEach(function (o, idx) {
             var scheme = state.schemesById[o.instance];
@@ -6363,7 +6441,7 @@
     function renderCraftIngredients(ed, role) {
         var ings = (ed.ingredients || []).map(function (i, idx) { return { idx: idx, role: i.role, instance: i.instance, amount: i.amount }; });
         var filtered = ings.filter(function (i) { return i.role === role; });
-        if (filtered.length === 0) return '<div class="adm-empty">Brak. Kliknij przycisk poniżej.</div>';
+        if (filtered.length === 0) return '<div class="adm-empty">' + escapeHtml(t("admin.craft.noEntries", "Brak. Kliknij przycisk poniżej.")) + '</div>';
         var html = '<div class="adm-craft-ing-list" data-role="itemgrid">';
         filtered.forEach(function (i) {
             var scheme = state.schemesById[i.instance];
@@ -6386,7 +6464,7 @@
     }
 
     function defaultCraftEditor() {
-        return { id: 0, name: "", resultInstance: "", resultAmount: 1, category: "misc", craftTimeMs: 1500, requiredLevel: 0, description: "", ingredients: [], outputs: [], visuals: [] };
+        return { id: 0, name: "", resultInstance: "", resultAmount: 1, category: "misc", craftTimeMs: 1500, requiredLevel: 0, professionId: 0, requiredProfessionTier: 0, baseStamina: 0, professionXp: 0, description: "", ingredients: [], outputs: [], visuals: [] };
     }
 
     function findCraftRecipe(id) {
@@ -6409,6 +6487,8 @@
             id: +src.id || 0, name: src.name || "", resultInstance: src.resultInstance || "",
             resultAmount: +src.resultAmount || 1, category: src.category || "misc",
             craftTimeMs: +src.craftTimeMs || 1500, requiredLevel: +src.requiredLevel || 0,
+            professionId: +src.professionId || 0, requiredProfessionTier: +src.requiredProfessionTier || 0,
+            baseStamina: +src.baseStamina || 0, professionXp: +src.professionXp || 0,
             description: src.description || "",
             ingredients: (src.ingredients || []).map(function (i) {
                 return { role: i.role || "consume", instance: i.instance, amount: +i.amount || 1 };
@@ -6748,10 +6828,55 @@
         }
     }
 
+    function markCraftDirty() {
+        state.craftDirty = true;
+        state.craftError = "";
+    }
+
+    function leaveCraftEditor() {
+        state.craftView = "list";
+        state.craftEditor = null;
+        state.craftPicker = "";
+        state.craftVobPickerOpen = false;
+        state.craftDirty = false;
+        state.craftSaving = false;
+        state.craftError = "";
+        render(true);
+    }
+
+    function validateCraftEditor(editor) {
+        if (!editor || !editor.resultInstance) return t("admin.craft.validation.result", "Wybierz przedmiot wynikowy.");
+        if (!state.schemesById[String(editor.resultInstance).toUpperCase()]) return t("admin.craft.validation.scheme", "Wynik nie istnieje w katalogu itemów.");
+        if (!editor.name || String(editor.name).length > 96) return t("admin.craft.validation.name", "Nazwa jest wymagana i może mieć maks. 96 znaków.");
+        if (+editor.resultAmount < 1 || +editor.resultAmount > 100000) return t("admin.craft.validation.amount", "Ilość musi być w zakresie 1–100000.");
+        if (+editor.craftTimeMs < 100 || +editor.craftTimeMs > 600000) return t("admin.craft.validation.time", "Czas musi być w zakresie 100–600000 ms.");
+        if (+editor.requiredLevel < 0 || +editor.requiredLevel > 1000) return t("admin.craft.validation.level", "Poziom musi być w zakresie 0–1000.");
+        if (+editor.requiredProfessionTier < 0 || +editor.requiredProfessionTier > 100) return t("admin.craft.validation.professionTier", "Tier musi być w zakresie 0–100.");
+        if (+editor.baseStamina < 0 || +editor.baseStamina > 10000) return t("admin.craft.validation.stamina", "Stamina musi być w zakresie 0–10000.");
+        if (+editor.professionXp < 0 || +editor.professionXp > 1000000) return t("admin.craft.validation.professionXp", "XP profesji jest poza zakresem.");
+        if (!(+editor.professionId) && (+editor.requiredProfessionTier > 0 || +editor.professionXp > 0)) return t("admin.craft.validation.profession", "Wybierz profesję dla tieru i XP.");
+        if (!(editor.visuals || []).length) return t("admin.craft.validation.station", "Przypisz co najmniej jedną stację.");
+        if ((editor.ingredients || []).length > 64 || (editor.outputs || []).length > 32 || (editor.visuals || []).length > 32) return t("admin.craft.validation.entries", "Przekroczono limit wpisów receptury.");
+        return "";
+    }
+
     function handleCraftAction(action, el) {
         console.log("[craft]", action, el ? el.dataset : null);
-        if (action === "craft-new") { state.craftEditor = defaultCraftEditor(); state.craftView = "editor"; state.craftPicker = ""; return render(true); }
-        if (action === "craft-back") { state.craftView = "list"; state.craftEditor = null; state.craftPicker = ""; return render(true); }
+        if (action === "craft-new") {
+            state.craftEditor = defaultCraftEditor(); state.craftView = "editor"; state.craftPicker = "";
+            state.craftDirty = false; state.craftSaving = false; state.craftError = "";
+            return render(true);
+        }
+        if (action === "craft-back") {
+            if (!state.craftDirty) { leaveCraftEditor(); return; }
+            openConfirmModal({
+                title: t("admin.craft.unsaved", "Niezapisane zmiany"),
+                message: t("admin.craft.unsavedConfirm", "Odrzucić niezapisane zmiany receptury?"),
+                okLabel: t("admin.craft.discard", "Odrzuć"),
+                onConfirm: leaveCraftEditor
+            });
+            return;
+        }
         if (action === "craft-edit") {
             var id = +el.dataset.id || 0;
             console.log("[craft] edit", id);
@@ -6760,6 +6885,9 @@
                 state.craftEditor = cloneCraftRecipe(rec);
                 state.craftView = "editor";
                 state.craftPicker = "";
+                state.craftDirty = false;
+                state.craftSaving = false;
+                state.craftError = "";
                 return render(true);
             }
             console.log("[craft] edit: recipe not found for id", id, "recipes:", state.craftRecipes);
@@ -6770,9 +6898,9 @@
             console.log("[craft] delete", dId);
             if (!dId) return;
             openConfirmModal({
-                title: "Usuń recepturę",
-                message: "Usunąć recepturę #" + dId + "?",
-                okLabel: "Usuń",
+                title: t("admin.craft.delete", "Usuń recepturę"),
+                message: tFmt("admin.craft.deleteConfirm", dId),
+                okLabel: t("admin.a.delete", "Usuń"),
                 onConfirm: function () { send("craftingDelete", { id: dId }); }
             });
             return;
@@ -6803,6 +6931,7 @@
             } else {
                 state.craftEditor.ingredients.push({ role: mode, instance: inst, amount: 1 });
             }
+            markCraftDirty();
             state.craftPicker = "";
             return render(true);
         }
@@ -6810,6 +6939,7 @@
             var oIdx = +el.dataset.idx;
             if (state.craftEditor && state.craftEditor.outputs && !isNaN(oIdx)) {
                 state.craftEditor.outputs.splice(oIdx, 1);
+                markCraftDirty();
                 return render(true);
             }
             return;
@@ -6840,21 +6970,22 @@
             var idx = +el.dataset.idx;
             if (state.craftEditor && !isNaN(idx)) {
                 state.craftEditor.ingredients.splice(idx, 1);
+                markCraftDirty();
                 return render(true);
             }
             return;
         }
         if (action === "craft-save") {
-            if (!state.craftEditor) return;
-            if (!state.craftEditor.resultInstance) { setStatus("Wybierz przedmiot wynikowy", "error"); return; }
-            if (!state.craftEditor.name) {
+            if (!state.craftEditor || state.craftSaving) return;
+            if (!state.craftEditor.name && state.craftEditor.resultInstance) {
                 var scheme = state.schemesById[state.craftEditor.resultInstance];
                 state.craftEditor.name = scheme ? itemName(scheme) : state.craftEditor.resultInstance;
             }
+            var validationError = validateCraftEditor(state.craftEditor);
+            if (validationError) { state.craftError = validationError; setStatus(validationError, "error"); return render(true); }
+            state.craftSaving = true;
+            state.craftError = "";
             send("craftingSave", state.craftEditor);
-            state.craftView = "list";
-            state.craftEditor = null;
-            state.craftPicker = "";
             return render(true);
         }
         if (action === "craft-vob-toggle") {
@@ -6864,6 +6995,7 @@
             var pos = state.craftEditor.visuals.map(function (x) { return String(x).toUpperCase(); }).indexOf(vis);
             if (pos !== -1) state.craftEditor.visuals.splice(pos, 1);
             else state.craftEditor.visuals.push(vis);
+            markCraftDirty();
             return render(true);
         }
         if (action === "craft-vob-remove") {
@@ -6871,6 +7003,7 @@
             if (!visR || !state.craftEditor || !state.craftEditor.visuals) return;
             var posR = state.craftEditor.visuals.map(function (x) { return String(x).toUpperCase(); }).indexOf(visR);
             if (posR !== -1) state.craftEditor.visuals.splice(posR, 1);
+            markCraftDirty();
             return render(true);
         }
     }
@@ -6881,7 +7014,12 @@
             filter.addEventListener("input", function () {
                 state.craftFilter = filter.value;
                 var list = body.querySelector(".adm-craft-list");
-                if (list) list.outerHTML = renderCraftList().replace(/.*<div class="adm-craft-list">/, '<div class="adm-craft-list">').replace(/<\/div>\s*<\/div>$/, "</div>");
+                if (list) {
+                    var fragment = document.createElement("div");
+                    fragment.innerHTML = renderCraftList();
+                    var replacement = fragment.querySelector(".adm-craft-list");
+                    if (replacement) list.replaceWith(replacement);
+                }
             });
         }
         var picker = body.querySelector("[data-craft-picker-filter]");
@@ -6921,7 +7059,7 @@
         }
         body.querySelectorAll("[data-craft-modal-bg]").forEach(function (bg) {
             bg.addEventListener("click", function (ev) {
-                if (ev.target !== bg) return;
+                if (ev.target !== bg && !ev.target.classList.contains("adm-modal__backdrop")) return;
                 state.craftPicker = "";
                 state.craftVobPickerOpen = false;
                 render(true);
@@ -6933,8 +7071,9 @@
                 if (!state.craftEditor) state.craftEditor = defaultCraftEditor();
                 var k = el.dataset.craftF;
                 var v = el.value;
-                if (k === "resultAmount" || k === "craftTimeMs" || k === "requiredLevel") v = +v || 0;
+                if (k === "resultAmount" || k === "craftTimeMs" || k === "requiredLevel" || k === "professionId" || k === "requiredProfessionTier" || k === "baseStamina" || k === "professionXp") v = +v || 0;
                 state.craftEditor[k] = v;
+                markCraftDirty();
             });
         });
         body.querySelectorAll("[data-craft-ing]").forEach(function (el) {
@@ -6945,6 +7084,7 @@
                 var val = el.value;
                 if (field === "amount") val = Math.max(1, +val || 1);
                 state.craftEditor.ingredients[idx][field] = val;
+                markCraftDirty();
             });
         });
         body.querySelectorAll("[data-craft-out]").forEach(function (el) {
@@ -6952,6 +7092,7 @@
                 var idx = +el.dataset.craftOut;
                 if (!state.craftEditor || !state.craftEditor.outputs || !state.craftEditor.outputs[idx]) return;
                 state.craftEditor.outputs[idx].amount = Math.max(1, +el.value || 1);
+                markCraftDirty();
             });
         });
     }

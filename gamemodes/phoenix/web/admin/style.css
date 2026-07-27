@@ -2657,3 +2657,39 @@ body.phoenix-admin-open .phoenix-chat {
 .adm-player-card { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .adm-player-stats { max-height: 360px; overflow-y: auto; padding-right: 6px; }
 .adm-player-card__field input { width: 92px; min-width: 0; padding: 3px 5px; color: #f0e0c0; background: rgba(0,0,0,.35); border: 1px solid rgba(201,180,138,.24); text-align: right; }
+
+/* Crafting editor: shared admin tokens, common modal shell and responsive states. */
+.adm-section--craft, .adm-craft-editor, .adm-craft-card, .adm-craft-ing, .adm-craft-vob-summary, .adm-craft-vob-picked {
+	background: var(--adm-bg-3) !important;
+	border-color: var(--adm-border) !important;
+	color: var(--adm-text);
+}
+.adm-craft-title, .adm-craft-card__body h4, .adm-craft-section-title, .adm-craft-preview__label strong { color: var(--adm-accent) !important; }
+.adm-craft-card__body small, .adm-craft-card__meta, .adm-craft-preview__label small { color: var(--adm-muted) !important; }
+.adm-craft-dirty { display: inline-block; margin-left: 8px; padding: 3px 7px; border: 1px solid rgba(255,142,80,.48); color: #ffad78; font-size: 9px; font-style: normal; text-transform: uppercase; }
+.adm-craft-inline-error { margin: 12px 0 0; overflow-wrap: anywhere; }
+.adm-craft-actions .adm-btn:disabled { opacity: .55; cursor: wait; }
+.adm-modal__panel--craft { width: min(900px, 92vw) !important; max-width: none !important; max-height: 86vh; padding: 0 !important; display: flex; flex-direction: column; overflow: hidden; font-family: "Inter", "Segoe UI", sans-serif; background: var(--adm-bg-2) !important; border: 1px solid var(--adm-border-strong) !important; color: var(--adm-text); }
+.adm-modal__panel--craft-wide { width: min(1100px, 95vw) !important; }
+.adm-modal__panel--craft .adm-craft-modal__head { background: var(--adm-bg-3); border-color: var(--adm-border); }
+.adm-modal__panel--craft .adm-craft-modal__head h3 { color: var(--adm-accent); }
+.adm-modal__panel--craft .adm-craft-modal__tools, .adm-modal__panel--craft .adm-craft-modal__foot { border-color: var(--adm-border); }
+.adm-modal__panel--craft .adm-craft-modal__body { min-height: 180px; }
+@media (max-width: 1180px) {
+	.adm-craft-list { grid-template-columns: 1fr; }
+	.adm-craft-editor { grid-template-columns: 170px minmax(0, 1fr); }
+	.adm-craft-preview { width: 150px; height: 150px; }
+}
+@media (max-width: 760px) {
+	.adm-craft-editor { grid-template-columns: 1fr; }
+	.adm-craft-editor__left { flex-direction: row; flex-wrap: wrap; justify-content: center; }
+	.adm-craft-ing { grid-template-columns: 44px minmax(0, 1fr) 68px auto; }
+	.adm-craft-card { grid-template-columns: 58px minmax(0, 1fr); }
+	.adm-craft-card__visual { width: 58px; height: 58px; }
+	.adm-craft-card__actions { grid-column: 1 / -1; flex-direction: row; }
+	.adm-modal__panel--craft { width: 96vw !important; max-height: 94vh; }
+	.adm-craft-modal__tools { align-items: stretch; flex-direction: column; }
+}
+
+.adm-grid--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+@media (max-width: 1200px) { .adm-grid--4 { grid-template-columns: repeat(2, minmax(0, 1fr)); } }

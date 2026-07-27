@@ -50,6 +50,7 @@ phoenix.player.StatsClient <- {
 
 	function requestSnapshot(_payload) {
 		try { phoenix.player.Message.StatsRequest().serialize().send(RELIABLE_ORDERED) } catch (e) {}
+		try { phoenix.profession.Message.Request().serialize().send(RELIABLE_ORDERED) } catch (eProfession) {}
 	}
 
 	function onSpend(payload) {

@@ -29,7 +29,9 @@ phoenix.database.Migrations <- {
 		"26-advanced-quests.sql",
 		"27-hud-portrait-default.sql",
 		"28-hud-portrait-scale.sql",
-		"29-custom-consumables-effects.sql"
+		"29-custom-consumables-effects.sql",
+		"30-advanced-crafting.sql",
+		"31-professions.sql"
 	]
 
 	function readStatements(path) {

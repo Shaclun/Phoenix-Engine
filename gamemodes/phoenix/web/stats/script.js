@@ -6,6 +6,7 @@
 	const weaponOrder = ["oneHand", "twoHand", "bow", "crossbow"];
 	let lastSnapshot = null;
 	let lastBestiary = null;
+	let lastProfessions = [];
 	let bestiaryRenderConfig = {};
 	let activeTab = "stats";
 
@@ -18,73 +19,82 @@
 	function fmt(key, value, fallback) {
 		return t(key, fallback).replace("{0}", value);
 	}
+	function escapeHtml(value) {
+		return String(value == null ? "" : value).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; });
+	}
 
 	root.innerHTML =
-		'<div class="stats-panel stats-panel--modern">' +
-			'<button type="button" class="phoenix-exit-btn stats-panel__close" data-action="close" title="ESC" aria-label="close">x</button>' +
-			'<nav class="stats-tabs" data-role="tabs">' +
-				'<button type="button" class="stats-tab is-active" data-tab="stats" data-t="stats.tabs.stats">Statystyki</button>' +
-				'<button type="button" class="stats-tab" data-tab="bestiary" data-t="stats.tabs.bestiary">Bestiariusz</button>' +
-			'</nav>' +
-			'<div class="stats-tabview" data-tab="stats">' +
-				'<header class="stats-hero">' +
-					'<div class="stats-hero__main">' +
-						'<span class="stats-kicker" data-t="stats.card"></span>' +
-						'<h1 data-t="stats.progressTitle"></h1>' +
-						'<div class="stats-level"><strong data-role="level">1</strong><span data-t="stats.levelShort"></span></div>' +
+		'<div class="stats-panel">' +
+			'<header class="stats-toolbar">' +
+				'<div class="stats-brand">' +
+					'<span class="stats-brand__eyebrow" data-t="stats.card">Karta postaci</span>' +
+					'<strong class="stats-brand__title" data-t="stats.progressTitle">Rozwój postaci</strong>' +
+				'</div>' +
+				'<nav class="stats-tabs" data-role="tabs" aria-label="character sections">' +
+					'<button type="button" class="stats-tab is-active" data-tab="stats" data-t="stats.tabs.stats">Statystyki</button>' +
+					'<button type="button" class="stats-tab" data-tab="bestiary" data-t="stats.tabs.bestiary">Bestiariusz</button>' +
+					'<button type="button" class="stats-tab" data-tab="professions" data-t="stats.tabs.professions">Rzemiosła</button>' +
+				'</nav>' +
+				'<button type="button" class="stats-panel__close" data-action="close" title="ESC" aria-label="close">×</button>' +
+			'</header>' +
+			'<main class="stats-content">' +
+				'<div class="stats-tabview" data-tab="stats">' +
+					'<div class="stats-dashboard">' +
+						'<section class="stats-pane stats-pane--identity">' +
+							'<header class="stats-pane__head"><div><span data-t="stats.card">Karta postaci</span><h1 data-t="stats.progressTitle">Rozwój postaci</h1></div><small data-t="stats.section.teachers"></small></header>' +
+							'<div class="stats-rank">' +
+								'<div class="stats-level"><span data-t="stats.levelShort">Poziom</span><strong data-role="level">1</strong></div>' +
+								'<div class="stats-exp">' +
+									'<div class="stats-exp__top"><span data-t="stats.exp">Doświadczenie</span><strong data-role="exp-left">0</strong></div>' +
+									'<div class="stats-exp__track"><i data-role="bar-exp"></i></div>' +
+									'<div class="stats-exp__bottom"><span data-role="text-exp">0 / 0</span><span data-role="exp-percent">0%</span></div>' +
+								'</div>' +
+							'</div>' +
+							'<div class="stats-summary">' +
+								'<div class="stats-chip stats-chip--points"><span data-t="stats.learnPoints"></span><strong data-role="learnPoints">0</strong></div>' +
+								'<div class="stats-chip stats-chip--gold"><span data-t="stats.gold"></span><strong data-role="gold">0</strong></div>' +
+								'<div class="stats-chip stats-chip--health"><span data-t="stats.hp"></span><strong><b data-role="hp">0</b><em>/</em><b data-role="hpMax">0</b></strong></div>' +
+								'<div class="stats-chip stats-chip--mana"><span data-t="stats.mana"></span><strong><b data-role="mana">0</b><em>/</em><b data-role="manaMax">0</b></strong></div>' +
+							'</div>' +
+							'<div class="stats-block stats-block--attributes">' +
+								'<div class="stats-block__head"><h2 data-t="stats.section.attributes"></h2><span data-t="stats.section.teachers"></span></div>' +
+								'<div class="attribute-list">' +
+									'<div class="attribute-row"><span data-t="stats.attr.strength"></span><strong data-role="strength">10</strong></div>' +
+									'<div class="attribute-row"><span data-t="stats.attr.dexterity"></span><strong data-role="dexterity">10</strong></div>' +
+									'<div class="attribute-row"><span data-t="stats.attr.stamina"></span><strong><b data-role="stamina">0</b><em>/</em><b data-role="staminaMax">0</b></strong></div>' +
+								'</div>' +
+							'</div>' +
+						'</section>' +
+						'<section class="stats-pane stats-pane--training">' +
+							'<header class="stats-pane__head"><div><span data-t="stats.section.combatTraining"></span><h1 data-t="stats.section.weapons"></h1></div></header>' +
+							'<div class="stats-block stats-block--weapons">' +
+								'<div class="stats-block__head"><h2 data-t="stats.section.weapons"></h2><span data-t="stats.section.combatTraining"></span></div>' +
+								'<div class="weapon-grid" data-role="weapons"></div>' +
+							'</div>' +
+							'<div class="stats-block stats-block--magic">' +
+								'<div class="stats-block__head"><h2 data-t="stats.section.magic">Magia</h2><span data-t="stats.section.magicHint">Wbijanie poprzez czary</span></div>' +
+								'<article class="weapon-card weapon-card--magic">' +
+									'<div class="weapon-card__top"><span data-t="stats.magic.level">Poziom magii</span><strong data-role="magicLevel">0</strong></div>' +
+									'<div class="weapon-card__meta"><span data-role="magicCircle"></span><span data-role="magicXpText">0 / 0</span></div>' +
+									'<div class="weapon-card__track"><i data-role="magicXpFill" style="width:0%"></i></div>' +
+								'</article>' +
+							'</div>' +
+						'</section>' +
 					'</div>' +
-					'<div class="stats-exp">' +
-						'<div class="stats-exp__top"><span data-t="stats.exp"></span><strong data-role="exp-left">0</strong></div>' +
-						'<div class="stats-exp__track"><i data-role="bar-exp"></i></div>' +
-						'<div class="stats-exp__bottom"><span data-role="text-exp">0 / 0</span><span data-role="exp-percent">0%</span></div>' +
-					'</div>' +
-				'</header>' +
-				'<section class="stats-summary">' +
-					'<div class="stats-chip"><span data-t="stats.learnPoints"></span><strong data-role="learnPoints">0</strong></div>' +
-					'<div class="stats-chip"><span data-t="stats.gold"></span><strong data-role="gold">0</strong></div>' +
-					'<div class="stats-chip"><span data-t="stats.hp"></span><strong><b data-role="hp">0</b>/<b data-role="hpMax">0</b></strong></div>' +
-					'<div class="stats-chip"><span data-t="stats.mana"></span><strong><b data-role="mana">0</b>/<b data-role="manaMax">0</b></strong></div>' +
-				'</section>' +
-				'<section class="stats-grid">' +
-					'<aside class="stats-block stats-block--attributes">' +
-						'<div class="stats-block__head"><h2 data-t="stats.section.attributes"></h2><span data-t="stats.section.teachers"></span></div>' +
-						'<div class="attribute-list">' +
-							'<div class="attribute-row"><span data-t="stats.attr.strength"></span><strong data-role="strength">10</strong></div>' +
-							'<div class="attribute-row"><span data-t="stats.attr.dexterity"></span><strong data-role="dexterity">10</strong></div>' +
-							'<div class="attribute-row"><span data-t="stats.attr.stamina"></span><strong><b data-role="stamina">0</b>/<b data-role="staminaMax">0</b></strong></div>' +
-						'</div>' +
-					'</aside>' +
-					'<aside class="stats-block stats-block--weapons">' +
-						'<div class="stats-block__head"><h2 data-t="stats.section.weapons"></h2><span data-t="stats.section.combatTraining"></span></div>' +
-						'<div class="weapon-grid" data-role="weapons"></div>' +
-					'</aside>' +
-					'<aside class="stats-block stats-block--magic">' +
-						'<div class="stats-block__head"><h2 data-t="stats.section.magic">Magia</h2><span data-t="stats.section.magicHint">Wbijanie poprzez czary</span></div>' +
-						'<article class="weapon-card weapon-card--magic">' +
-							'<div class="weapon-card__top"><span data-t="stats.magic.level">Poziom magii</span><strong data-role="magicLevel">0</strong></div>' +
-							'<div class="weapon-card__meta"><span data-role="magicCircle"></span><span data-role="magicXpText">0 / 0</span></div>' +
-							'<div class="weapon-card__track"><i data-role="magicXpFill" style="width:0%"></i></div>' +
-						'</article>' +
-					'</aside>' +
-				'</section>' +
-				'<footer class="stats-panel__foot"><span class="stats-panel__error" data-role="error"></span></footer>' +
-			'</div>' +
-			'<div class="stats-tabview" data-tab="bestiary" hidden>' +
-				'<header class="bestiary-hero">' +
-					'<div class="bestiary-hero__main">' +
-						'<span class="stats-kicker" data-t="bestiary.kicker">Księga łowcy</span>' +
-						'<h1 data-t="bestiary.title">Bestiariusz</h1>' +
-						'<p class="bestiary-sub" data-t="bestiary.sub">Wpisy pojawiają się po pokonaniu istoty.</p>' +
-					'</div>' +
-					'<div class="bestiary-summary">' +
-						'<div class="stats-chip"><span data-t="bestiary.species">Gatunki</span><strong data-role="bestiary-species">0</strong></div>' +
-						'<div class="stats-chip"><span data-t="bestiary.totalKills">Zabójstwa</span><strong data-role="bestiary-total">0</strong></div>' +
-					'</div>' +
-				'</header>' +
-				'<section class="bestiary-grid" data-role="bestiary-grid">' +
-					'<div class="bestiary-empty" data-role="bestiary-empty" data-t="bestiary.empty">Twój bestiariusz jest pusty. Pokonaj wroga, aby dodać wpis.</div>' +
-				'</section>' +
-			'</div>' +
+					'<footer class="stats-panel__foot"><span class="stats-panel__error" data-role="error"></span></footer>' +
+				'</div>' +
+				'<div class="stats-tabview" data-tab="bestiary" hidden>' +
+					'<header class="stats-view-head">' +
+						'<div class="stats-view-head__copy"><span class="stats-kicker" data-t="bestiary.kicker">Księga łowcy</span><h1 data-t="bestiary.title">Bestiariusz</h1><p data-t="bestiary.sub">Wpisy pojawiają się po pokonaniu istoty.</p></div>' +
+						'<div class="bestiary-summary"><div class="stats-chip"><span data-t="bestiary.species">Gatunki</span><strong data-role="bestiary-species">0</strong></div><div class="stats-chip"><span data-t="bestiary.totalKills">Zabójstwa</span><strong data-role="bestiary-total">0</strong></div></div>' +
+					'</header>' +
+					'<section class="bestiary-grid" data-role="bestiary-grid"><div class="bestiary-empty" data-role="bestiary-empty" data-t="bestiary.empty">Twój bestiariusz jest pusty. Pokonaj wroga, aby dodać wpis.</div></section>' +
+				'</div>' +
+				'<div class="stats-tabview" data-tab="professions" hidden>' +
+					'<header class="stats-view-head"><div class="stats-view-head__copy"><span class="stats-kicker" data-t="professions.kicker">Droga rzemieślnika</span><h1 data-t="professions.title">Rzemiosła</h1><p data-t="professions.sub">Rozwijaj profesje wykonując przypisane czynności.</p></div></header>' +
+					'<section class="profession-grid" data-role="profession-grid"><div class="bestiary-empty" data-t="professions.empty">Brak aktywnych profesji.</div></section>' +
+				'</div>' +
+			'</main>' +
 		'</div>';
 	if (I18n) I18n.applyDom(root);
 
@@ -114,7 +124,8 @@
 		bestiaryGrid: root.querySelector("[data-role='bestiary-grid']"),
 		bestiaryEmpty: root.querySelector("[data-role='bestiary-empty']"),
 		bestiarySpecies: root.querySelector("[data-role='bestiary-species']"),
-		bestiaryTotal: root.querySelector("[data-role='bestiary-total']")
+		bestiaryTotal: root.querySelector("[data-role='bestiary-total']"),
+		professionGrid: root.querySelector("[data-role='profession-grid']")
 	};
 
 	function setText(el, val) { if (el) el.textContent = String(val); }
@@ -245,29 +256,38 @@
 	}
 
 	function bestiaryCard(entry) {
-		const instance = entry.instance || "";
-		const label = npcDisplayLabel(instance, entry.name);
+		const instance = String(entry.instance || "");
+		const label = String(npcDisplayLabel(instance, entry.name) || "");
 		const sub = instance && instance !== label ? instance : "";
 		const npcVisual = window.PhoenixNpcVisuals ? PhoenixNpcVisuals.get(instance) : "";
-		const visual = npcVisual || (entry.visual || "").replace(/\.(MDM|MDL|3DS|MMB|MDS)$/i, function (m) { return m.toUpperCase(); });
+		const visual = String(npcVisual || entry.visual || "").replace(/\.(MDM|MDL|3DS|MMB|MDS)$/i, function (m) { return m.toUpperCase(); });
 		const renderable = visual && /\.(MDM|MRM|MDL|MMB)$/i.test(visual) ? visual : "";
-		const killed = entry.killed | 0;
+		const killed = Math.max(0, entry.killed | 0);
 		const first = formatDate(entry.firstKilledAt);
 		const last = formatDate(entry.lastKilledAt);
-		const cfg = bestiaryRenderConfig[String(instance).toUpperCase()] || { rotX: 0.158, rotY: -0.853, rotZ: 0, scaleValue: 1.5, lightIntensity: 2.3 };
+		const cfg = bestiaryRenderConfig[String(instance).toUpperCase()] || {};
+		function finite(value, fallback) {
+			const number = Number(value);
+			return Number.isFinite(number) ? number : fallback;
+		}
+		const rotX = finite(cfg.rotX, 0.158);
+		const rotY = finite(cfg.rotY, -0.853);
+		const rotZ = finite(cfg.rotZ, 0);
+		const scaleValue = finite(cfg.scaleValue, 1.5);
+		const lightIntensity = finite(cfg.lightIntensity, 2.3);
 		return '<article class="bestiary-card">' +
 			'<div class="bestiary-card__visual">' +
 				(renderable
-					? '<gothic-render width="160" height="200" rot-x="' + cfg.rotX + '" rot-y="' + cfg.rotY + '" rot-z="' + cfg.rotZ + '" scale="' + cfg.scaleValue + '" light-intensity="' + cfg.lightIntensity + '" visual="' + renderable + '"></gothic-render>'
-					: '<div class="bestiary-card__visual-fallback">' + (label ? label.charAt(0) : "?") + '</div>') +
+					? '<gothic-render width="160" height="200" rot-x="' + rotX + '" rot-y="' + rotY + '" rot-z="' + rotZ + '" scale="' + scaleValue + '" light-intensity="' + lightIntensity + '" visual="' + escapeHtml(renderable) + '"></gothic-render>'
+					: '<div class="bestiary-card__visual-fallback">' + escapeHtml(label ? label.charAt(0) : "?") + '</div>') +
 			'</div>' +
 			'<div class="bestiary-card__body">' +
-				'<h3 class="bestiary-card__name">' + label + '</h3>' +
-				(sub ? '<div class="bestiary-card__sub">' + sub + '</div>' : "") +
+				'<h3 class="bestiary-card__name">' + escapeHtml(label) + '</h3>' +
+				(sub ? '<div class="bestiary-card__sub">' + escapeHtml(sub) + '</div>' : "") +
 				'<div class="bestiary-card__stat"><span data-t="bestiary.kills">Zabójstwa</span><strong>' + killed + '</strong></div>' +
 				'<div class="bestiary-card__dates">' +
-					'<span><em data-t="bestiary.first">Pierwszy</em>' + first + '</span>' +
-					'<span><em data-t="bestiary.last">Ostatni</em>' + last + '</span>' +
+					'<span><em data-t="bestiary.first">Pierwszy</em>' + escapeHtml(first) + '</span>' +
+					'<span><em data-t="bestiary.last">Ostatni</em>' + escapeHtml(last) + '</span>' +
 				'</div>' +
 			'</div>' +
 		'</article>';
@@ -290,6 +310,26 @@
 		if (I18n) I18n.applyDom(els.bestiaryGrid);
 	}
 
+	function applyProfessions(payload) {
+		lastProfessions = payload && Array.isArray(payload.entries) ? payload.entries.slice() : [];
+		if (!els.professionGrid) return;
+		if (!lastProfessions.length) {
+			els.professionGrid.innerHTML = '<div class="bestiary-empty">' + escapeHtml(t("professions.empty", "Brak aktywnych profesji.")) + '</div>';
+			return;
+		}
+		const lang = I18n && typeof I18n.getLang === "function" ? I18n.getLang() : "pl";
+		const suffix = { pl: "Pl", en: "En", de: "De", ru: "Ru" }[lang] || "Pl";
+		els.professionGrid.innerHTML = lastProfessions.map(function (entry) {
+			const pct = Math.max(0, Math.min(100, entry.progressPct | 0));
+			const capped = (entry.xpNext | 0) <= 0;
+			const name = entry["name" + suffix] || entry.namePl || entry.name || entry.code || "?";
+			const description = entry["description" + suffix] || entry.descriptionPl || entry.description || "";
+			return '<article class="profession-card"><div class="profession-card__head"><div><small>' + escapeHtml(entry.code || '') + '</small><h3>' + escapeHtml(name) + '</h3></div><strong>T' + (entry.tier | 0) + '</strong></div>' +
+				'<p>' + escapeHtml(description) + '</p><div class="profession-card__meta"><span>' + escapeHtml(t("professions.level", "Poziom")) + ' ' + (entry.level | 0) + '</span><span>' + (capped ? 'MAX' : ((entry.xp | 0) + ' / ' + (entry.xpNext | 0) + ' XP')) + '</span></div>' +
+				'<div class="profession-card__track"><i style="width:' + (capped ? 100 : pct) + '%"></i></div></article>';
+		}).join('');
+	}
+
 	function switchTab(tab) {
 		activeTab = tab;
 		root.querySelectorAll(".stats-tab").forEach(function (btn) {
@@ -300,6 +340,7 @@
 			else view.setAttribute("hidden", "");
 		});
 		if (tab === "bestiary") PhoenixBridge.send("phoenix:bestiary:request", null);
+		if (tab === "professions") PhoenixBridge.send("phoenix:profession:request", null);
 	}
 
 	root.addEventListener("click", function (ev) {
@@ -312,6 +353,7 @@
 	PhoenixBridge.on("phoenix:stats:snapshot", applySnapshot);
 	PhoenixBridge.on("phoenix:stats:result", applyResult);
 	PhoenixBridge.on("phoenix:bestiary:snapshot", applyBestiary);
+	PhoenixBridge.on("phoenix:profession:snapshot", applyProfessions);
 	PhoenixBridge.on("phoenix:bestiary:renderConfig", function (payload) {
 		const entries = payload && Array.isArray(payload.entries) ? payload.entries : [];
 		bestiaryRenderConfig = {};
@@ -325,6 +367,7 @@
 	const page = {
 		onShow: function () {
 			PhoenixBridge.send("phoenix:stats:request", null);
+			PhoenixBridge.send("phoenix:profession:request", null);
 			if (activeTab === "bestiary") PhoenixBridge.send("phoenix:bestiary:request", null);
 			if (I18n) I18n.applyDom(root);
 			if (window.PhoenixHud && typeof window.PhoenixHud.setBlocked === "function") window.PhoenixHud.setBlocked(true);
@@ -337,6 +380,7 @@
 		if (I18n) I18n.applyDom(root);
 		if (lastSnapshot) applySnapshot(lastSnapshot);
 		if (lastBestiary) applyBestiary(lastBestiary);
+		applyProfessions({ entries: lastProfessions });
 	});
 	if (window.phoenixApp) window.phoenixApp.register("stats", page);
 })();

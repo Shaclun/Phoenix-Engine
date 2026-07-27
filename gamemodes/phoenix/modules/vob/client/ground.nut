@@ -47,14 +47,14 @@ phoenix.vob.Ground <- {
 	function isInteractive(entry) {
 		if (entry == null) return false
 		if (entry.interactive == true) return true
-		if (entry.entryKind == "item") return true
+		if (entry.entryKind == "item" || entry.entryKind == "carcass") return true
 		try { if ("craftInteraction" in entry && entry.craftInteraction == true) return true } catch (e0) {}
 		local v = ""
 		try { v = entry.visual != null ? entry.visual.tostring().toupper() : "" } catch (e) {}
 		if (v == "") return false
 		try {
 			if ("crafting" in phoenix && "Client" in phoenix.crafting) {
-				if (v in phoenix.crafting.Client.stationVisuals) return true
+				if (phoenix.crafting.Client.isStationVisual(v)) return true
 			}
 		} catch (e2) {}
 		return false
@@ -87,7 +87,7 @@ phoenix.vob.Ground <- {
 		try { obj.setRotation(entry.rotX, entry.rotY, entry.rotZ) } catch (e4) {}
 		local noCollision = false
 		try { noCollision = entry.noCollision == true } catch (eC) {}
-		if (entry.entryKind == "item") noCollision = true
+		if (entry.entryKind == "item" || entry.entryKind == "carcass") noCollision = true
 		try { obj.cdDynamic = !noCollision } catch (e5) {}
 		try { obj.cdStatic = !noCollision } catch (e6) {}
 		try { obj.visualAlpha = 1.0 } catch (e7) {}

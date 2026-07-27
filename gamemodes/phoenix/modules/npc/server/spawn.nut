@@ -776,10 +776,12 @@ phoenix.npc.Spawn <- {
 						}
 					}
 				} catch (ex) {}
+				try { phoenix.profession.Hunting.spawnCarcass(entry, killerId) } catch (eCarcass) {}
 				if (row.respawnSec > 0) {
 					local sec = row.respawnSec
 					entry.respawnTimer = setTimer(function () {
 						try {
+							phoenix.profession.Hunting.removeBySpawn(row.id)
 							phoenix.npc.Spawn.despawnRow(row.id)
 							phoenix.npc.Spawn.spawnRow(row)
 						} catch (e) {}

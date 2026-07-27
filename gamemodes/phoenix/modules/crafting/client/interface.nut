@@ -5,14 +5,31 @@ phoenix.crafting.Client <- {
 
 	function init() {
 		try { phoenix.web.Router.on("phoenix:crafting:craft", phoenix.crafting.Client.onCraft) } catch (e) {}
+		try { phoenix.web.Router.on("phoenix:crafting:cancel", phoenix.crafting.Client.onCancel) } catch (e) {}
 		try { phoenix.web.Router.on("phoenix:crafting:close", phoenix.crafting.Client.forceClose) } catch (e) {}
 		try { phoenix.ui.ActiveGui.register("crafting", phoenix.crafting.Client.forceClose) } catch (e) {}
 	}
 
+	function stationVisualKeys(visual) {
+		local out = []
+		if (visual == null) return out
+		local key = strip(visual.tostring()).toupper()
+		if (key == "") return out
+		out.append(key)
+		if (key.len() > 4) {
+			local extension = key.slice(key.len() - 4)
+			local visualBase = key.slice(0, key.len() - 4)
+			if (extension == ".3DS") out.append(visualBase + ".MRM")
+			else if (extension == ".MRM") out.append(visualBase + ".3DS")
+		}
+		return out
+	}
+
 	function isStationVisual(visual) {
-		if (visual == null) return false
-		local key = visual.tostring().toupper()
-		return key in phoenix.crafting.Client.stationVisuals
+		foreach (key in phoenix.crafting.Client.stationVisualKeys(visual)) {
+			if (key in phoenix.crafting.Client.stationVisuals) return true
+		}
+		return false
 	}
 
 	function onStations(message) {
@@ -22,8 +39,7 @@ phoenix.crafting.Client <- {
 			if (raw == "") return
 			local lines = split(raw, "\n")
 			foreach (line in lines) {
-				if (line == "") continue
-				phoenix.crafting.Client.stationVisuals[line.toupper()] <- true
+				foreach (key in phoenix.crafting.Client.stationVisualKeys(line)) phoenix.crafting.Client.stationVisuals[key] <- true
 			}
 		} catch (e) {}
 		try { phoenix.crafting.Client.refreshVobInteractive() } catch (e2) {}
@@ -33,10 +49,8 @@ phoenix.crafting.Client <- {
 		if (!("vob" in phoenix) || !("Ground" in phoenix.vob)) return
 		foreach (vobId, entry in phoenix.vob.Ground.entries) {
 			try {
-				local v = entry.visual != null ? entry.visual.tostring().toupper() : ""
-				if (v != "" && (v in phoenix.crafting.Client.stationVisuals)) {
-					entry.interactive = true
-				}
+				local v = entry.visual != null ? entry.visual.tostring() : ""
+				if (phoenix.crafting.Client.isStationVisual(v)) entry.interactive = true
 			} catch (e) {}
 		}
 	}
@@ -81,7 +95,16 @@ phoenix.crafting.Client <- {
 				description = parts[7],
 				ingredients = ings,
 				visual = resultVisual,
-				outputs = extras
+				outputs = extras,
+				professionId = parts.len() >= 12 ? parts[11].tointeger() : 0,
+				professionCode = parts.len() >= 13 ? parts[12] : "",
+				professionName = parts.len() >= 14 ? parts[13] : "",
+				requiredProfessionTier = parts.len() >= 15 ? parts[14].tointeger() : 0,
+				baseStamina = parts.len() >= 16 ? parts[15].tointeger() : 0,
+				professionXp = parts.len() >= 17 ? parts[16].tointeger() : 0,
+				playerProfessionLevel = parts.len() >= 18 ? parts[17].tointeger() : 0,
+				playerProfessionTier = parts.len() >= 19 ? parts[18].tointeger() : 0,
+				effectiveStaminaCost = parts.len() >= 20 ? parts[19].tointeger() : 0
 			})
 		}
 		return recipes
@@ -115,6 +138,7 @@ phoenix.crafting.Client <- {
 			vobId = phoenix.crafting.Client.vobId,
 			stationName = message.stationName != null ? message.stationName.tostring() : "",
 			playerLevel = message.playerLevel,
+			playerStamina = message.playerStamina,
 			recipes = phoenix.crafting.Client.parseRecipes(message.recipes),
 			items = phoenix.crafting.Client.parseItems(message.playerItems)
 		}
@@ -127,11 +151,26 @@ phoenix.crafting.Client <- {
 		local payload = {
 			success = message.success,
 			error = message.error != null ? message.error.tostring() : "",
+			requestId = message.requestId != null ? message.requestId.tostring() : "",
 			resultInstance = message.resultInstance != null ? message.resultInstance.tostring() : "",
 			resultAmount = message.resultAmount,
+			playerStamina = message.playerStamina,
 			items = phoenix.crafting.Client.parseItems(message.playerItems)
 		}
 		try { phoenix.web.Manager.emit("phoenix:crafting:result", payload) } catch (e) {}
+	}
+
+	function onProgress(message) {
+		local payload = {
+			requestId = message.requestId != null ? message.requestId.tostring() : "",
+			recipeId = message.recipeId,
+			quantity = message.quantity,
+			elapsedMs = message.elapsedMs,
+			totalMs = message.totalMs,
+			progress = message.progress,
+			state = message.state != null ? message.state.tostring() : "crafting"
+		}
+		try { phoenix.web.Manager.emit("phoenix:crafting:progress", payload) } catch (e) {}
 	}
 
 	function onCraft(payload) {
@@ -139,7 +178,15 @@ phoenix.crafting.Client <- {
 		local msg = phoenix.crafting.Message.Craft()
 		msg.vobId = phoenix.crafting.Client.vobId
 		msg.recipeId = payload.recipeId.tointeger()
+		try { if ("quantity" in payload) msg.quantity = payload.quantity.tointeger() } catch (eQ) { msg.quantity = 1 }
+		try { if ("requestId" in payload && payload.requestId != null) msg.requestId = payload.requestId.tostring() } catch (eR) {}
 		try { msg.serialize().send(RELIABLE_ORDERED) } catch (e) {}
+	}
+
+	function onCancel(payload) {
+		local msg = phoenix.crafting.Message.Cancel()
+		try { if (payload != null && "requestId" in payload && payload.requestId != null) msg.requestId = payload.requestId.tostring() } catch (e) {}
+		try { msg.serialize().send(RELIABLE_ORDERED) } catch (e2) {}
 	}
 
 	function forceClose(_a = null) {
@@ -156,6 +203,7 @@ phoenix.crafting.Client <- {
 }
 
 phoenix.crafting.Message.Open.bind(phoenix.crafting.Client.onOpen)
+phoenix.crafting.Message.Progress.bind(phoenix.crafting.Client.onProgress)
 phoenix.crafting.Message.Result.bind(phoenix.crafting.Client.onResult)
 phoenix.crafting.Message.Stations.bind(phoenix.crafting.Client.onStations)
 phoenix.crafting.Client.init()

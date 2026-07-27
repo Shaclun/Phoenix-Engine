@@ -73,6 +73,11 @@ phoenix.herb.Structure <- {
 			gatherMs = ("gatherMs" in row) ? row.gatherMs.tointeger() : catalog.gatherMs,
 			cooldownSec = ("cooldownSec" in row) ? row.cooldownSec.tointeger() : catalog.cooldownSec,
 			successChance = ("successChance" in row) ? row.successChance.tointeger() : catalog.successChance,
+			professionId = ("professionId" in row && row.professionId != null) ? row.professionId.tointeger() : 0,
+			requiredProfessionTier = ("requiredProfessionTier" in row) ? row.requiredProfessionTier.tointeger() : 0,
+			baseStamina = ("baseStamina" in row) ? row.baseStamina.tointeger() : 4,
+			baseProfessionXp = ("baseProfessionXp" in row) ? row.baseProfessionXp.tointeger() : 8,
+			baseYield = ("baseYield" in row) ? row.baseYield.tointeger() : 1,
 			db = true
 		}
 	}
@@ -112,7 +117,12 @@ phoenix.herb.Structure <- {
 			gatherMs = gatherMs,
 			cooldownSec = cooldownSec,
 			cooldownLeftSec = cooldownLeftSec,
-			successChance = successChance
+			successChance = successChance,
+			professionId = ("professionId" in spot) ? spot.professionId : 0,
+			requiredProfessionTier = ("requiredProfessionTier" in spot) ? spot.requiredProfessionTier : 0,
+			baseStamina = ("baseStamina" in spot) ? spot.baseStamina : 0,
+			baseProfessionXp = ("baseProfessionXp" in spot) ? spot.baseProfessionXp : 0,
+			baseYield = ("baseYield" in spot) ? spot.baseYield : 1
 		}
 	}
 
@@ -181,7 +191,7 @@ phoenix.herb.Structure <- {
 
 	function ensureSchema(callback) {
 		local sql = "CREATE TABLE IF NOT EXISTS `phoenix_herb_gathers` (`id` INT(11) NOT NULL AUTO_INCREMENT, `characterId` INT(11) NOT NULL, `plantId` VARCHAR(96) NOT NULL, `instanceId` VARCHAR(64) NOT NULL, `lastGatheredAt` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, `lastSuccess` TINYINT(1) NOT NULL DEFAULT 0, `attempts` INT(11) NOT NULL DEFAULT 0, PRIMARY KEY (`id`), UNIQUE KEY `character_plant_unique` (`characterId`, `plantId`), KEY `plant_idx` (`plantId`), KEY `character_idx` (`characterId`)) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci"
-		local sqlSpots = "CREATE TABLE IF NOT EXISTS `phoenix_herb_spots` (`id` INT(11) NOT NULL AUTO_INCREMENT, `plantId` VARCHAR(96) NOT NULL, `instanceId` VARCHAR(64) NOT NULL, `world` VARCHAR(96) NOT NULL DEFAULT 'NEWWORLD.ZEN', `posX` FLOAT NOT NULL DEFAULT 0, `posY` FLOAT NOT NULL DEFAULT 0, `posZ` FLOAT NOT NULL DEFAULT 0, `gatherMs` INT(11) NOT NULL DEFAULT 0, `cooldownSec` INT(11) NOT NULL DEFAULT 0, `successChance` INT(11) NOT NULL DEFAULT 100, `active` TINYINT(1) NOT NULL DEFAULT 1, `createdBy` INT(11) NULL, `createdAt` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (`id`), UNIQUE KEY `plant_unique` (`plantId`), KEY `world_idx` (`world`), KEY `instance_idx` (`instanceId`)) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci"
+		local sqlSpots = "CREATE TABLE IF NOT EXISTS `phoenix_herb_spots` (`id` INT(11) NOT NULL AUTO_INCREMENT, `plantId` VARCHAR(96) NOT NULL, `instanceId` VARCHAR(64) NOT NULL, `world` VARCHAR(96) NOT NULL DEFAULT 'NEWWORLD.ZEN', `posX` FLOAT NOT NULL DEFAULT 0, `posY` FLOAT NOT NULL DEFAULT 0, `posZ` FLOAT NOT NULL DEFAULT 0, `gatherMs` INT(11) NOT NULL DEFAULT 0, `cooldownSec` INT(11) NOT NULL DEFAULT 0, `successChance` INT(11) NOT NULL DEFAULT 100, `professionId` INT(11) NULL, `requiredProfessionTier` INT(11) NOT NULL DEFAULT 0, `baseStamina` INT(11) NOT NULL DEFAULT 4, `baseProfessionXp` INT(11) NOT NULL DEFAULT 8, `baseYield` INT(11) NOT NULL DEFAULT 1, `active` TINYINT(1) NOT NULL DEFAULT 1, `createdBy` INT(11) NULL, `createdAt` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP, `updatedAt` TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP, PRIMARY KEY (`id`), UNIQUE KEY `plant_unique` (`plantId`), KEY `world_idx` (`world`), KEY `instance_idx` (`instanceId`)) ENGINE = InnoDB DEFAULT CHARSET = utf8mb4 COLLATE = utf8mb4_unicode_ci"
 		try {
 			ORM.engine.executeAsync(sql, function(_) {
 				ORM.engine.executeAsync(sqlSpots, function(__) { if (callback != null) callback() })
@@ -264,10 +274,22 @@ phoenix.herb.Structure <- {
 		local successChance = ("successChance" in payload) ? payload.successChance.tointeger() : catalog.successChance
 		if (successChance < 1) successChance = 1
 		if (successChance > 100) successChance = 100
-		local spot = { id = plantId, instance = instance, world = world, x = x, y = y, z = z, gatherMs = gatherMs, cooldownSec = cooldownSec, successChance = successChance, db = true }
+		local professionId = 0; local requiredProfessionTier = 0; local baseStamina = 4; local baseProfessionXp = 8; local baseYield = 1
+		try { if ("professionId" in payload) professionId = payload.professionId.tointeger() } catch (eProfession) {}
+		try { if ("requiredProfessionTier" in payload) requiredProfessionTier = payload.requiredProfessionTier.tointeger() } catch (eTier) {}
+		try { if ("baseStamina" in payload) baseStamina = payload.baseStamina.tointeger() } catch (eStamina) {}
+		try { if ("baseProfessionXp" in payload) baseProfessionXp = payload.baseProfessionXp.tointeger() } catch (eXp) {}
+		try { if ("baseYield" in payload) baseYield = payload.baseYield.tointeger() } catch (eYield) {}
+		if (professionId <= 0) { local gathering = phoenix.profession.Structure.definitionByCode("GATHERING"); if (gathering != null) professionId = gathering.id }
+		if (professionId <= 0 || phoenix.profession.Structure.definition(professionId) == null) { if (callback != null) callback(false, "badProfession", null); return }
+		if (requiredProfessionTier < 0 || requiredProfessionTier > 100 || baseStamina < 0 || baseStamina > 10000 || baseProfessionXp < 0 || baseProfessionXp > 1000000 || baseYield < 1 || baseYield > 1000) {
+			if (callback != null) callback(false, "badProfessionSettings", null); return
+		}
+		local spot = { id = plantId, instance = instance, world = world, x = x, y = y, z = z, gatherMs = gatherMs, cooldownSec = cooldownSec, successChance = successChance,
+			professionId = professionId, requiredProfessionTier = requiredProfessionTier, baseStamina = baseStamina, baseProfessionXp = baseProfessionXp, baseYield = baseYield, db = true }
 		local adminId = "NULL"
 		try { local s = phoenix.account.Structure.get(playerId); if (s != null && s.id() > 0) adminId = s.id().tostring() } catch (e) {}
-		local sql = "INSERT INTO `phoenix_herb_spots` (`plantId`,`instanceId`,`world`,`posX`,`posY`,`posZ`,`gatherMs`,`cooldownSec`,`successChance`,`active`,`createdBy`) VALUES ('" + phoenix.herb.Structure.esc(plantId) + "','" + phoenix.herb.Structure.esc(instance) + "','" + phoenix.herb.Structure.esc(world) + "'," + x + "," + y + "," + z + "," + gatherMs + "," + cooldownSec + "," + successChance + ",1," + adminId + ") ON DUPLICATE KEY UPDATE `instanceId`=VALUES(`instanceId`),`world`=VALUES(`world`),`posX`=VALUES(`posX`),`posY`=VALUES(`posY`),`posZ`=VALUES(`posZ`),`gatherMs`=VALUES(`gatherMs`),`cooldownSec`=VALUES(`cooldownSec`),`successChance`=VALUES(`successChance`),`active`=1"
+		local sql = "INSERT INTO `phoenix_herb_spots` (`plantId`,`instanceId`,`world`,`posX`,`posY`,`posZ`,`gatherMs`,`cooldownSec`,`successChance`,`professionId`,`requiredProfessionTier`,`baseStamina`,`baseProfessionXp`,`baseYield`,`active`,`createdBy`) VALUES ('" + phoenix.herb.Structure.esc(plantId) + "','" + phoenix.herb.Structure.esc(instance) + "','" + phoenix.herb.Structure.esc(world) + "'," + x + "," + y + "," + z + "," + gatherMs + "," + cooldownSec + "," + successChance + "," + professionId + "," + requiredProfessionTier + "," + baseStamina + "," + baseProfessionXp + "," + baseYield + ",1," + adminId + ") ON DUPLICATE KEY UPDATE `instanceId`=VALUES(`instanceId`),`world`=VALUES(`world`),`posX`=VALUES(`posX`),`posY`=VALUES(`posY`),`posZ`=VALUES(`posZ`),`gatherMs`=VALUES(`gatherMs`),`cooldownSec`=VALUES(`cooldownSec`),`successChance`=VALUES(`successChance`),`professionId`=VALUES(`professionId`),`requiredProfessionTier`=VALUES(`requiredProfessionTier`),`baseStamina`=VALUES(`baseStamina`),`baseProfessionXp`=VALUES(`baseProfessionXp`),`baseYield`=VALUES(`baseYield`),`active`=1"
 		try {
 			ORM.engine.executeAsync(sql, function(_) {
 				phoenix.herb.Structure.removeRuntimeSpot(plantId)
@@ -329,24 +351,53 @@ phoenix.herb.Structure <- {
 	function start(playerId, plantId) {
 		local spot = phoenix.herb.Structure.spotById(plantId)
 		if (spot == null) return
-		local active = phoenix.character.Structure.getActive(playerId)
-		if (active == null) return
-		if (playerId in phoenix.herb.Structure.active) return
-		if (!phoenix.herb.Structure.validatePlayer(playerId, spot)) return
 		local entry = phoenix.herb.Structure.entryOf(spot)
-		ORM.engine.executeAsync(phoenix.herb.Structure.cooldownSql(active.id, spot.id), function(rows) {
+		local activeCharacter = phoenix.character.Structure.getActive(playerId)
+		if (activeCharacter == null || !phoenix.herb.Structure.validatePlayer(playerId, spot)) return
+		local otherActivity = (playerId in phoenix.herb.Structure.active)
+		try { if (playerId in phoenix.crafting.Crafter.jobs) otherActivity = true } catch (eCrafting) {}
+		try { if (playerId in phoenix.profession.Hunting.jobs) otherActivity = true } catch (eHunting) {}
+		if (otherActivity) {
+			phoenix.herb.Structure.sendResult(playerId, spot.id, false, entry.instance, entry.namePl, "busy", 0)
+			return
+		}
+		local checked = phoenix.profession.Structure.check(playerId, entry.professionId, entry.requiredProfessionTier, entry.baseStamina, 1)
+		if (!checked.ok) {
+			local code = checked.error; local separator = code.find(":"); if (separator != null) code = code.slice(0, separator)
+			phoenix.herb.Structure.sendResult(playerId, spot.id, false, entry.instance, entry.namePl, code, 0)
+			return
+		}
+		local definition = checked.profession
+		local reductionPerTier = definition != null ? definition.gatherTimeReductionPerTier : 0.0
+		local chancePerTier = definition != null ? definition.gatherChancePerTier : 0
+		local yieldPerTier = definition != null ? definition.gatherYieldPerTier : 0
+		local reduction = reductionPerTier * checked.tier
+		if (reduction > 0.75) reduction = 0.75; if (reduction < 0.0) reduction = 0.0
+		local effectiveMs = (entry.gatherMs.tofloat() * (1.0 - reduction)).tointeger()
+		if (effectiveMs < 750) effectiveMs = 750
+		local effectiveChance = entry.successChance + chancePerTier * checked.tier
+		if (effectiveChance > 100) effectiveChance = 100; if (effectiveChance < 1) effectiveChance = 1
+		local effectiveYield = entry.baseYield + yieldPerTier * checked.tier
+		if (effectiveYield < 1) effectiveYield = 1
+		local capturedCharacterId = activeCharacter.id
+		ORM.engine.executeAsync(phoenix.herb.Structure.cooldownSql(capturedCharacterId, spot.id), function(rows) {
+			local current = phoenix.character.Structure.getActive(playerId)
+			local becameBusy = (playerId in phoenix.herb.Structure.active)
+			try { if (playerId in phoenix.crafting.Crafter.jobs) becameBusy = true } catch (eCrafting) {}
+			try { if (playerId in phoenix.profession.Hunting.jobs) becameBusy = true } catch (eHunting) {}
+			if (current == null || current.id != capturedCharacterId || becameBusy || !phoenix.herb.Structure.validatePlayer(playerId, spot)) return
 			local left = phoenix.herb.Structure.remainingFromRows(rows, entry.cooldownSec)
 			if (left > 0) {
 				phoenix.herb.Structure.sendResult(playerId, spot.id, false, entry.instance, entry.namePl, "cooldown", left)
 				return
 			}
-			phoenix.herb.Structure.active[playerId] <- { plantId = spot.id, characterId = active.id, startedAt = getTickCount(), finishAt = getTickCount() + entry.gatherMs, entry = entry }
+			phoenix.herb.Structure.active[playerId] <- { plantId = spot.id, characterId = capturedCharacterId, startedAt = getTickCount(), finishAt = getTickCount() + effectiveMs,
+				entry = entry, gatherMs = effectiveMs, successChance = effectiveChance, yieldAmount = effectiveYield, professionId = entry.professionId,
+				contentTier = entry.requiredProfessionTier, staminaCost = checked.staminaCost, professionXp = entry.baseProfessionXp }
 			local msg = phoenix.herb.Message.Started()
-			msg.plantId = spot.id
-			msg.label = entry.namePl
-			msg.gatherMs = entry.gatherMs
+			msg.plantId = spot.id; msg.label = entry.namePl; msg.gatherMs = effectiveMs
 			try { msg.serialize().send(playerId, RELIABLE_ORDERED) } catch (e) {}
-			setTimer(phoenix.herb.Structure.finishSweep, entry.gatherMs, 1)
+			setTimer(phoenix.herb.Structure.finishSweep, effectiveMs, 1)
 		})
 	}
 
@@ -366,28 +417,41 @@ phoenix.herb.Structure <- {
 		if (state.plantId != plantId) return
 		phoenix.herb.Structure.active.rawdelete(playerId)
 		local spot = phoenix.herb.Structure.spotById(plantId)
-		if (spot == null) return
-		local okDistance = phoenix.herb.Structure.validatePlayer(playerId, spot)
-		local roll = 1 + (rand() % 100)
-		local success = okDistance && roll <= state.entry.successChance
-		ORM.engine.executeAsync(phoenix.herb.Structure.recordSql(state.characterId, plantId, state.entry.instance, success), function(_) {})
-		if (success) {
-			phoenix.item.Structure.giveItem(PhoenixInventoryOwner.Player, state.characterId, state.entry.instance, { amount = 1, source = "herb" }, function(_) {})
-			phoenix.herb.Structure.sendResult(playerId, plantId, true, state.entry.instance, state.entry.namePl, "", state.entry.cooldownSec)
+		local current = phoenix.character.Structure.getActive(playerId)
+		if (spot == null || current == null || current.id != state.characterId || !phoenix.herb.Structure.validatePlayer(playerId, spot)) {
+			phoenix.herb.Structure.sendResult(playerId, plantId, false, state.entry.instance, state.entry.namePl, "moved", state.entry.cooldownSec)
 			return
 		}
-		local error = okDistance ? "failed" : "moved"
-		phoenix.herb.Structure.sendResult(playerId, plantId, false, state.entry.instance, state.entry.namePl, error, state.entry.cooldownSec)
+		local checked = phoenix.profession.Structure.check(playerId, state.professionId, state.contentTier, state.entry.baseStamina, 1)
+		if (!checked.ok || !phoenix.profession.Structure.consumeStamina(playerId, checked.staminaCost)) {
+			local code = checked.ok ? "noStamina" : checked.error; local separator = code.find(":"); if (separator != null) code = code.slice(0, separator)
+			phoenix.herb.Structure.sendResult(playerId, plantId, false, state.entry.instance, state.entry.namePl, code, 0)
+			return
+		}
+		local roll = 1 + (rand() % 100)
+		if (roll > state.successChance) {
+			ORM.engine.executeAsync(phoenix.herb.Structure.recordSql(state.characterId, plantId, state.entry.instance, false), function(_) {})
+			phoenix.herb.Structure.sendResult(playerId, plantId, false, state.entry.instance, state.entry.namePl, "failed", state.entry.cooldownSec)
+			return
+		}
+		phoenix.item.Structure.giveItem(PhoenixInventoryOwner.Player, state.characterId, state.entry.instance, { amount = state.yieldAmount, source = "herb" }, function(record) {
+			if (record == null) {
+				phoenix.profession.Structure.refundStaminaForCharacter(playerId, state.characterId, checked.staminaCost)
+				phoenix.herb.Structure.sendResult(playerId, plantId, false, state.entry.instance, state.entry.namePl, "grantFailed", 0)
+				return
+			}
+			ORM.engine.executeAsync(phoenix.herb.Structure.recordSql(state.characterId, plantId, state.entry.instance, true), function(_) {})
+			local xp = phoenix.profession.Structure.awardForCharacter(playerId, state.characterId, state.professionId, state.professionXp, state.contentTier)
+			local active = phoenix.character.Structure.getActive(playerId)
+			if (active != null && active.id == state.characterId)
+				phoenix.herb.Structure.sendResult(playerId, plantId, true, state.entry.instance, state.entry.namePl, "", state.entry.cooldownSec, state.yieldAmount, xp)
+		})
 	}
 
-	function sendResult(playerId, plantId, success, instance, label, error, cooldownSec) {
+	function sendResult(playerId, plantId, success, instance, label, error, cooldownSec, amount = 0, xp = 0) {
 		local msg = phoenix.herb.Message.Result()
-		msg.plantId = plantId
-		msg.success = success
-		msg.instance = instance
-		msg.label = label
-		msg.error = error
-		msg.cooldownSec = cooldownSec
+		msg.plantId = plantId; msg.success = success; msg.instance = instance; msg.label = label; msg.error = error
+		msg.cooldownSec = cooldownSec; msg.amount = amount; msg.xp = xp
 		try { msg.serialize().send(playerId, RELIABLE_ORDERED) } catch (e) {}
 	}
 

@@ -6,7 +6,7 @@ phoenix.npc.Hostility <- {
 
 phoenix.npc.Catalog <- [
 	{ instance = "WOLF",                label = "Wilk",                  category = "monster",  defaultHostile = 1, tier = 1 },
-	{ instance = "YWOLF",               label = "Mlody wilk",            category = "monster",  defaultHostile = 1, tier = 1 },
+	{ instance = "YWOLF",               label = "Młody wilk",            category = "monster",  defaultHostile = 1, tier = 1 },
 	{ instance = "WARG",                label = "Warg",                  category = "monster",  defaultHostile = 1, tier = 3 },
 	{ instance = "ICEWOLF",             label = "Lodowy wilk",           category = "monster",  defaultHostile = 1, tier = 3 },
 

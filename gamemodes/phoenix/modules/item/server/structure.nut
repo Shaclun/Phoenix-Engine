@@ -202,16 +202,20 @@ phoenix.item.Structure.getInventory <- function(ownerType, ownerId) {
 	return null
 }
 
-phoenix.item.Structure.countInstance <- function(ownerType, ownerId, instanceId) {
+phoenix.item.Structure.countRequiredInstance <- function(ownerType, ownerId, instanceId, includeEquipped = false) {
 	local inv = phoenix.item.Structure.getInventory(ownerType, ownerId)
 	if (inv == null) return 0
 	local wanted = instanceId != null ? instanceId.toupper() : ""
 	local total = 0
 	foreach (rec in inv.items) {
 		local current = rec.instanceId != null ? rec.instanceId.toupper() : ""
-		if (current == wanted && rec.equipped == 0) total += rec.amount
+		if (current == wanted && (includeEquipped || rec.equipped == 0)) total += rec.amount
 	}
 	return total
+}
+
+phoenix.item.Structure.countInstance <- function(ownerType, ownerId, instanceId) {
+	return phoenix.item.Structure.countRequiredInstance(ownerType, ownerId, instanceId, false)
 }
 
 phoenix.item.Structure.takeInstance <- function(ownerType, ownerId, instanceId, amount, callback = null) {
@@ -245,6 +249,7 @@ phoenix.item.Structure.giveItem <- function(ownerType, ownerId, instanceId, opti
 	local quality = ("quality" in opts) ? opts.quality : phoenix.item.Quality.roll()
 	local upgrade = ("upgrade" in opts) ? opts.upgrade : 0
 	local source  = ("source"  in opts) ? opts.source  : "system"
+	local suppressQuest = ("suppressQuest" in opts && opts.suppressQuest == true)
 	if (amount <= 0) { if (callback != null) callback(null); return }
 
 	if (!phoenix.item.Quality.isValid(quality)) quality = PhoenixItemQuality.Common
@@ -266,7 +271,7 @@ phoenix.item.Structure.giveItem <- function(ownerType, ownerId, instanceId, opti
 				existing.saveAsync(function(_) {
 					phoenix.item.Structure._notifyUpdate(ownerType, ownerId, existing)
 					phoenix.item.Structure._applyToWorld(ownerType, ownerId, instanceId, amount)
-					try { phoenix.quest.Events.itemGranted(ownerType, ownerId, instanceId, amount, source, existing.id) } catch (eQuest) {}
+					if (!suppressQuest) try { phoenix.quest.Events.itemGranted(ownerType, ownerId, instanceId, amount, source, existing.id) } catch (eQuest) {}
 					if (callback != null) callback(existing)
 				})
 				return
@@ -290,7 +295,7 @@ phoenix.item.Structure.giveItem <- function(ownerType, ownerId, instanceId, opti
 		if (inv != null) inv.items.push(rec)
 		phoenix.item.Structure._notifyAdd(ownerType, ownerId, rec)
 		phoenix.item.Structure._applyToWorld(ownerType, ownerId, instanceId, amount)
-		try { phoenix.quest.Events.itemGranted(ownerType, ownerId, instanceId, amount, source, rec.id) } catch (eQuest) {}
+		if (!suppressQuest) try { phoenix.quest.Events.itemGranted(ownerType, ownerId, instanceId, amount, source, rec.id) } catch (eQuest) {}
 		if (callback != null) callback(rec)
 	})
 }

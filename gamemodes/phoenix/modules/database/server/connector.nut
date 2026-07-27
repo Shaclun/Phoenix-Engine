@@ -34,7 +34,9 @@ phoenix.database.Connector <- {
 
 	function bootstrap() {
 		loadEnv()
-		ORM.migration_enabled = true
+		// Schema changes are owned by versioned SQL migrations. The ORM migrator
+		// cannot introspect named composite indexes and may rebuild constrained tables.
+		ORM.migration_enabled = false
 
 		local cfg = readConfig()
 		if (!isComplete(cfg))
