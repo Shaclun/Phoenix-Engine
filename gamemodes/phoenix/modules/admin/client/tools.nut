@@ -14,6 +14,12 @@ phoenix.admin.Tools <- {
 	freecamPitch = 0.0
 	freecamLastTick = 0
 	freecamSpeed = 0.5
+	mapPlayersEnabled = false
+	mapPlayersMap = "newworld"
+	mapPlayersPending = false
+	mapPlayersRequestId = 0
+	mapPlayersLastTick = 0
+	mapPlayersSentAt = 0
 
 	function isAdmin() {
 		try { return phoenix.account.Model.role == 1 } catch (e) {}
@@ -99,8 +105,17 @@ phoenix.admin.Tools <- {
 		}
 		phoenix.admin.Tools.applyPlayerLock()
 	}
+	function resetMapPlayers() {
+		phoenix.admin.Tools.mapPlayersEnabled = false
+		phoenix.admin.Tools.mapPlayersPending = false
+		phoenix.admin.Tools.mapPlayersRequestId += 1
+		phoenix.admin.Tools.mapPlayersLastTick = 0
+		phoenix.admin.Tools.mapPlayersSentAt = 0
+		try { phoenix.web.Manager.emit("phoenix:adminmap:players", { map = phoenix.admin.Tools.mapPlayersMap, players = [] }) } catch (e) {}
+	}
+
 	function openMap() {
-		if (!phoenix.admin.Tools.isAdmin() || phoenix.admin.Tools.mapOpen) return
+		if (phoenix.admin.Tools.mapOpen) return
 		try { if (phoenix.ui.ActiveGui.isAnyOpen()) return } catch (e) {}
 		phoenix.admin.Tools.mapOpen = true
 		try { phoenix.ui.ActiveGui.set("adminMap") } catch (e) {}
@@ -112,6 +127,7 @@ phoenix.admin.Tools <- {
 	function closeMap() {
 		if (!phoenix.admin.Tools.mapOpen) return
 		phoenix.admin.Tools.mapOpen = false
+		phoenix.admin.Tools.resetMapPlayers()
 		try { phoenix.web.Manager.emit("phoenix:adminmap:close", null) } catch (e) {}
 		try { if (phoenix.ui.ActiveGui.is("adminMap")) phoenix.ui.ActiveGui.clear() } catch (e) {}
 		try { phoenix.web.Manager.deactivate() } catch (e) {}
@@ -211,13 +227,16 @@ phoenix.admin.Tools <- {
 
 	function onKeyDown(key) {
 		try { if (phoenix.chat.Client.inputOpen) return } catch (e) {}
-		if (!phoenix.admin.Tools.isAdmin()) return
 		if (key == KEY_M) {
 			if (phoenix.admin.Tools.mapOpen) phoenix.admin.Tools.closeMap()
 			else phoenix.admin.Tools.openMap()
+			try { cancelEvent() } catch (e) {}
 			return
 		}
-		if (key == KEY_ESCAPE && phoenix.admin.Tools.mapOpen) phoenix.admin.Tools.closeMap()
+		if (key == KEY_ESCAPE && phoenix.admin.Tools.mapOpen) {
+			phoenix.admin.Tools.closeMap()
+			try { cancelEvent() } catch (e) {}
+		}
 	}
 	function resolveTeleportY(x, z) {
 		try {
@@ -248,7 +267,64 @@ phoenix.admin.Tools <- {
 		else if (payload.action == "godmode") phoenix.admin.Tools.requestGodmode()
 	}
 
+	function onMapChanged(payload) {
+		if (payload == null || !("map" in payload)) return
+		local mapKey = payload.map.tostring()
+		if (mapKey != "newworld" && mapKey != "city") return
+		phoenix.admin.Tools.mapPlayersMap = mapKey
+		phoenix.admin.Tools.mapPlayersPending = false
+		phoenix.admin.Tools.mapPlayersRequestId += 1
+		phoenix.admin.Tools.mapPlayersLastTick = 0
+		try { phoenix.web.Manager.emit("phoenix:adminmap:players", { map = mapKey, players = [] }) } catch (e) {}
+	}
+
+	function onMapPlayersToggle(payload) {
+		if (!phoenix.admin.Tools.isAdmin()) {
+			phoenix.admin.Tools.resetMapPlayers()
+			return
+		}
+		local enabled = false
+		try { enabled = payload != null && "enabled" in payload && (payload.enabled == true || payload.enabled == 1) } catch (e) {}
+		phoenix.admin.Tools.mapPlayersEnabled = enabled
+		phoenix.admin.Tools.mapPlayersPending = false
+		phoenix.admin.Tools.mapPlayersRequestId += 1
+		phoenix.admin.Tools.mapPlayersLastTick = 0
+		if (payload != null && "map" in payload) phoenix.admin.Tools.onMapChanged(payload)
+		if (!enabled) {
+			try { phoenix.web.Manager.emit("phoenix:adminmap:players", { map = phoenix.admin.Tools.mapPlayersMap, players = [] }) } catch (e) {}
+		}
+	}
+
+	function onMapPlayersTick() {
+		if (!phoenix.admin.Tools.mapOpen || !phoenix.admin.Tools.mapPlayersEnabled || !phoenix.admin.Tools.isAdmin()) return
+		local now = getTickCount()
+		if (phoenix.admin.Tools.mapPlayersPending && now - phoenix.admin.Tools.mapPlayersSentAt >= 3000) phoenix.admin.Tools.mapPlayersPending = false
+		if (phoenix.admin.Tools.mapPlayersPending || now - phoenix.admin.Tools.mapPlayersLastTick < 1000) return
+		phoenix.admin.Tools.mapPlayersLastTick = now
+		phoenix.admin.Tools.mapPlayersSentAt = now
+		phoenix.admin.Tools.mapPlayersPending = true
+		phoenix.admin.Tools.mapPlayersRequestId += 1
+		phoenix.admin.Model.send("adminMapPlayers", { map = phoenix.admin.Tools.mapPlayersMap, requestId = phoenix.admin.Tools.mapPlayersRequestId })
+	}
+
 	function onResponse(message) {
+		if (message.action == "adminMapPlayers") {
+			local responseId = -1
+			local mapKey = ""
+			try {
+				responseId = message.payload.requestId.tointeger()
+				mapKey = message.payload.map.tostring()
+			} catch (e) { return }
+			if (responseId != phoenix.admin.Tools.mapPlayersRequestId || mapKey != phoenix.admin.Tools.mapPlayersMap) return
+			phoenix.admin.Tools.mapPlayersPending = false
+			if (!message.success) {
+				if (message.error == "denied") phoenix.admin.Tools.mapPlayersEnabled = false
+				try { phoenix.web.Manager.emit("phoenix:adminmap:players", { map = mapKey, players = [] }) } catch (e) {}
+				return
+			}
+			try { phoenix.web.Manager.emit("phoenix:adminmap:players", message.payload) } catch (e) {}
+			return
+		}
 		if (message.action == "adminFly") {
 			if (!message.success) {
 				phoenix.admin.Tools.notify("Fly", "Nie mozna przelaczyc latania")
@@ -284,6 +360,7 @@ phoenix.admin.Tools <- {
 
 	function reset() {
 		if (phoenix.admin.Tools.mapOpen) phoenix.admin.Tools.closeMap()
+		else phoenix.admin.Tools.resetMapPlayers()
 		phoenix.admin.Tools.flying = false
 		phoenix.admin.Tools.flyPosition = null
 		phoenix.admin.Tools.flyLastTick = 0
@@ -299,6 +376,7 @@ addEventHandler("onKeyDown", function(key) { phoenix.admin.Tools.onKeyDown(key) 
 addEventHandler("onRender", function() {
 	phoenix.admin.Tools.onFlyTick()
 	phoenix.admin.Tools.onFreecamTick()
+	phoenix.admin.Tools.onMapPlayersTick()
 })
 addEventHandler("onMouseMove", function(x, y) { phoenix.admin.Tools.onFreecamMouseMove(x, y) })
 local phoenixAdminAuthenticatedEvent = "phoenix.account." + "OnAuthenticated"
@@ -311,4 +389,6 @@ addEventHandler("phoenix.character.OnSelected", function(_characterId, _name) {
 phoenix.web.Router.on("phoenix:adminmap:close", function(_payload) { phoenix.admin.Tools.closeMap() })
 phoenix.web.Router.on("phoenix:adminmap:teleport", phoenix.admin.Tools.onMapTeleport)
 phoenix.web.Router.on("phoenix:adminmap:tool", phoenix.admin.Tools.onMapTool)
+phoenix.web.Router.on("phoenix:adminmap:map", phoenix.admin.Tools.onMapChanged)
+phoenix.web.Router.on("phoenix:adminmap:playersToggle", phoenix.admin.Tools.onMapPlayersToggle)
 try { phoenix.ui.ActiveGui.register("adminMap", phoenix.admin.Tools.closeMap) } catch (e) {}

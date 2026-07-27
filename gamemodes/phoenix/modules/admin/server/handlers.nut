@@ -1,6 +1,7 @@
 phoenix.admin.Server <- {
 	flyStates = {}
 	godmodeStates = {}
+	mapPlayerPollAt = {}
 
 	function findPlayerByCharacterId(characterId) {
 		local maxSlots = getMaxSlots()
@@ -319,6 +320,51 @@ phoenix.admin.Server <- {
 		} catch (e) {}
 		phoenix.admin.Server.audit(playerId, "tpHere", "player", targetPid, targetName, "")
 		phoenix.admin.Server.reply(playerId, "tpHere", true, "", null)
+	}
+
+	function dispatchAdminMapPlayers(playerId, payload) {
+		if (!phoenix.account.Auth.isAdmin(playerId)) return phoenix.admin.Server.reply(playerId, "adminMapPlayers", false, "denied", null)
+		local mapKey = "newworld"
+		local requestId = 0
+		try {
+			if (payload != null && "map" in payload) mapKey = payload.map.tostring()
+			if (payload != null && "requestId" in payload) requestId = payload.requestId.tointeger()
+		} catch (e) { return phoenix.admin.Server.reply(playerId, "adminMapPlayers", false, "payload", { map = mapKey, requestId = requestId, players = [] }) }
+		local bounds = null
+		if (mapKey == "newworld") bounds = { minX = -28000.0, maxX = 95500.0, minZ = -42500.0, maxZ = 50500.0 }
+		else if (mapKey == "city") bounds = { minX = -6900.0, maxX = 21600.0, minZ = -9400.0, maxZ = 11800.0 }
+		if (bounds == null) return phoenix.admin.Server.reply(playerId, "adminMapPlayers", false, "map", { map = mapKey, requestId = requestId, players = [] })
+		local now = getTickCount()
+		if (playerId in phoenix.admin.Server.mapPlayerPollAt) {
+			local elapsed = now - phoenix.admin.Server.mapPlayerPollAt[playerId]
+			if (elapsed >= 0 && elapsed < 750) return phoenix.admin.Server.reply(playerId, "adminMapPlayers", false, "rateLimited", { map = mapKey, requestId = requestId, players = [] })
+		}
+		if (playerId in phoenix.admin.Server.mapPlayerPollAt) phoenix.admin.Server.mapPlayerPollAt[playerId] = now
+		else phoenix.admin.Server.mapPlayerPollAt[playerId] <- now
+		local requesterWorld = ""
+		local requesterVirtualWorld = 0
+		try { requesterWorld = getPlayerWorld(playerId).tostring().toupper() } catch (e) {}
+		try { requesterVirtualWorld = getPlayerVirtualWorld(playerId) } catch (e) {}
+		local rows = []
+		for (local i = 0; i < getMaxSlots() && rows.len() < 64; i += 1) {
+			if (i == playerId) continue
+			try {
+				if (!isPlayerConnected(i)) continue
+				local record = phoenix.character.Structure.getActive(i)
+				if (record == null) continue
+				local targetWorld = getPlayerWorld(i).tostring().toupper()
+				if (targetWorld != requesterWorld || getPlayerVirtualWorld(i) != requesterVirtualWorld) continue
+				local position = getPlayerPosition(i)
+				if (position == null) continue
+				if (position.x < bounds.minX || position.x > bounds.maxX || position.z < bounds.minZ || position.z > bounds.maxZ) continue
+				local name = ""
+				try { name = record.name } catch (e) { try { name = getPlayerName(i) } catch (en) {} }
+				local angle = 0.0
+				try { angle = getPlayerAngle(i) } catch (e) {}
+				rows.append({ playerId = i, characterId = record.id, name = name, x = position.x, y = position.y, z = position.z, angle = angle })
+			} catch (e) {}
+		}
+		phoenix.admin.Server.reply(playerId, "adminMapPlayers", true, "", { map = mapKey, requestId = requestId, players = rows })
 	}
 
 	function dispatchAdminMapTeleport(playerId, payload) {
@@ -1483,6 +1529,7 @@ phoenix.admin.Server.dispatchers = {
 	giveItem = phoenix.admin.Server.dispatchGiveItem,
 	tpTo = phoenix.admin.Server.dispatchTeleportTo,
 	tpHere = phoenix.admin.Server.dispatchTeleportHere,
+	adminMapPlayers = phoenix.admin.Server.dispatchAdminMapPlayers,
 	adminMapTeleport = phoenix.admin.Server.dispatchAdminMapTeleport,
 	adminFly = phoenix.admin.Server.dispatchAdminFly,
 	adminGodmode = phoenix.admin.Server.dispatchAdminGodmode,
@@ -1560,9 +1607,11 @@ addEventHandler("phoenix.database.OnReady", function () {
 addEventHandler("onPlayerDisconnect", function (playerId, _reason) {
 	if (playerId in phoenix.admin.Server.flyStates) phoenix.admin.Server.flyStates.rawdelete(playerId)
 	if (playerId in phoenix.admin.Server.godmodeStates) phoenix.admin.Server.godmodeStates.rawdelete(playerId)
+	if (playerId in phoenix.admin.Server.mapPlayerPollAt) phoenix.admin.Server.mapPlayerPollAt.rawdelete(playerId)
 })
 
 addEventHandler("phoenix.character.OnSelected", function (playerId, _characterId) {
+	if (playerId in phoenix.admin.Server.mapPlayerPollAt) phoenix.admin.Server.mapPlayerPollAt.rawdelete(playerId)
 	phoenix.admin.Server.disableFly(playerId)
 	if (playerId in phoenix.admin.Server.godmodeStates) {
 		phoenix.admin.Server.godmodeStates.rawdelete(playerId)
