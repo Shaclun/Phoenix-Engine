@@ -1,5 +1,6 @@
 phoenix.core.Bootstrap <- {
 	function onInit() {
+		try { clearMultiplayerMessages() } catch (e) {}
 	}
 }
 

@@ -617,6 +617,23 @@ phoenix.admin.Server <- {
 		})
 	}
 
+	function dispatchDevelopmentConfigGet(playerId, _payload) {
+		if (!phoenix.account.Auth.isAdmin(playerId)) { phoenix.admin.Server.reply(playerId, "developmentConfigGet", false, "denied", null); return }
+		phoenix.admin.Server.reply(playerId, "developmentConfigGet", true, "", phoenix.player.Development.snapshot())
+	}
+
+	function dispatchDevelopmentConfigUpdate(playerId, payload) {
+		if (!phoenix.account.Auth.isAdmin(playerId)) { phoenix.admin.Server.reply(playerId, "developmentConfigUpdate", false, "denied", null); return }
+		local session = phoenix.account.Structure.get(playerId)
+		local accountId = session != null ? session.id() : 0
+		local result = phoenix.player.Development.updateConfig(payload, accountId)
+		if (result.ok) {
+			local details = "revision=" + result.snapshot.revision + ", dailyGrant=" + result.snapshot.config.dailyGrant + ", cap=" + result.snapshot.config.accumulationCap
+			phoenix.admin.Server.audit(playerId, "developmentConfigUpdate", "server", null, "dailyLp", details)
+		}
+		phoenix.admin.Server.reply(playerId, "developmentConfigUpdate", result.ok, result.error, result.snapshot)
+	}
+
 	function dispatchListLog(playerId, payload) {
 		local limit = 100
 		if (payload != null && "limit" in payload) limit = payload.limit
@@ -1576,6 +1593,8 @@ phoenix.admin.Server.dispatchers = {
 	players = phoenix.admin.Server.dispatchListPlayers,
 	serverFeaturesGet = phoenix.admin.Server.dispatchServerFeaturesGet,
 	serverFeaturesUpdate = phoenix.admin.Server.dispatchServerFeaturesUpdate,
+	developmentConfigGet = phoenix.admin.Server.dispatchDevelopmentConfigGet,
+	developmentConfigUpdate = phoenix.admin.Server.dispatchDevelopmentConfigUpdate,
 	setPlayerStats = phoenix.admin.Server.dispatchSetPlayerStats,
 	schemes = phoenix.admin.Server.dispatchListSchemes,
 	schemeDetails = phoenix.admin.Server.dispatchSchemeDetails,

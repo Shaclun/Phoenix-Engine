@@ -7,6 +7,8 @@
 		dexterity: "stats.attr.dexterity",
 		hpMax: "stats.attr.hpMax",
 		manaMax: "stats.attr.manaMax",
+		staminaMax: "stats.attr.staminaMax",
+		magicLevel: "stats.magic.level",
 		oneHand: "stats.weapon.oneHand",
 		twoHand: "stats.weapon.twoHand",
 		bow: "stats.weapon.bow",
@@ -21,7 +23,7 @@
 	let merchantModal = null;
 	let lastMerchantPick = { key: "", at: 0 };
 	let featureFlags = {};
-	const featureDefaults = { "npc.interaction": true, "npc.teachers": true, "npc.merchants": true, "progression.learnPoints": true, "progression.statsSpending": true, "progression.weaponExperience": true };
+	const featureDefaults = { "npc.interaction": true, "npc.teachers": true, "npc.merchants": true, "progression.learnPoints": true, "progression.statsSpending": true, "progression.weaponExperience": true, "progression.dailyLp": false };
 	const ITEM_RENDER = { rotX: "1.584", rotY: "-1.662", rotZ: "-0.488", scale: "1.40", light: "2.85" };
 
 	function featureEnabled(path) {
@@ -34,12 +36,13 @@
 		return value !== false;
 	}
 	function trainingAvailable() {
-		return featureEnabled("progression.learnPoints") && (featureEnabled("progression.statsSpending") || featureEnabled("progression.weaponExperience"));
+		return featureEnabled("progression.learnPoints") && (featureEnabled("progression.dailyLp") || featureEnabled("progression.statsSpending") || featureEnabled("progression.weaponExperience"));
 	}
 	function teacherAvailable() { return featureEnabled("npc.interaction") && featureEnabled("npc.teachers") && trainingAvailable(); }
 	function merchantAvailable() { return featureEnabled("npc.interaction") && featureEnabled("npc.merchants"); }
 	function trainingSkillAvailable(skill) {
 		if (!featureEnabled("progression.learnPoints")) return false;
+		if (featureEnabled("progression.dailyLp")) return true;
 		return isWeaponSkill(skill) ? featureEnabled("progression.weaponExperience") : featureEnabled("progression.statsSpending");
 	}
 	function closeDisabledTeacher() {
@@ -188,6 +191,9 @@
 		return out;
 	}
 	function teacherCost(skill, d, progress) {
+		const development = d.development || {};
+		const quote = development.skills && development.skills[skill];
+		if (development.enabled && quote) return quote.maxPurchase <= 0 ? t("stats.weaponState.max", "MAX") : quote.cost + " LP · +" + quote.unit;
 		if (!isWeaponSkill(skill)) return d.cost;
 		const item = progress[skill] || { level: 0, cap: 30 };
 		if (item.cap >= 100) return t("stats.weaponState.max", "MAX");
@@ -255,10 +261,18 @@
 		state.mode = "teacher";
 		state.npcName = d.npcName || state.npcName;
 		shell("teacher.title");
-		const skills = (d.skills || "").split(",").map(s => s.trim()).filter(function (skill) { return skill && trainingSkillAvailable(skill); });
+		const development = d.development || {};
+		const skills = (d.skills || "").split(",").map(s => s.trim()).filter(function (skill) {
+			if (!skill || !trainingSkillAvailable(skill)) return false;
+			if (!development.enabled) return true;
+			return !!(development.skills && development.skills[skill] && development.skills[skill].enabled);
+		});
 		const progress = parseWeaponProgress(d.weaponProgress || "");
-		let html = '<section class="teacher-panel__info"><span>' + esc(t("teacher.cost", "Koszt")) + ': <strong>' + d.cost + '</strong></span><span>' + esc(t("stats.gold", "Zloto")) + ': <strong>' + d.playerGold + '</strong></span><span>' + esc(t("stats.learnPoints", "PN")) + ': <strong>' + d.playerLearnPoints + '</strong></span></section><section class="teacher-panel__list">';
-		html += skills.map(function (skill) { return '<button type="button" class="teacher-row" data-action="train" data-skill="' + esc(skill) + '"><span>' + esc(t(skillLabels[skill] || skill, skill)) + '</span><span class="teacher-row__cost">' + esc(teacherCost(skill, d, progress)) + '</span></button>'; }).join("");
+		let html = '<section class="teacher-panel__info">';
+		if (development.enabled) html += '<span>' + esc(t("stats.learnPoints", "PN")) + ': <strong>' + d.playerLearnPoints + '</strong></span><span>' + esc(t("development.daily", "Dziennie")) + ': <strong>' + (development.dailyGrant || 0) + ' LP</strong></span><span>' + esc(t("development.bank", "Bank")) + ': <strong>' + (development.balance || 0) + '/' + (development.accumulationCap || 0) + '</strong></span>';
+		else html += '<span>' + esc(t("teacher.cost", "Koszt")) + ': <strong>' + d.cost + '</strong></span><span>' + esc(t("stats.gold", "Zloto")) + ': <strong>' + d.playerGold + '</strong></span><span>' + esc(t("stats.learnPoints", "PN")) + ': <strong>' + d.playerLearnPoints + '</strong></span>';
+		html += '</section><section class="teacher-panel__list">';
+		html += skills.map(function (skill) { const quote = development.skills && development.skills[skill]; const disabled = development.enabled && quote && !quote.available; return '<button type="button" class="teacher-row" data-action="train" data-skill="' + esc(skill) + '"' + (disabled ? ' disabled' : '') + '><span>' + esc(t(skillLabels[skill] || skill, skill)) + '</span><span class="teacher-row__cost">' + esc(teacherCost(skill, d, progress)) + '</span></button>'; }).join("");
 		html += '</section><button type="button" class="teacher-row teacher-row--muted" data-action="back"><span data-t="npc.dialog.back"></span></button>';
 		root.querySelector("[data-role='body']").innerHTML = html;
 		if (I18n) I18n.applyDom(root);
@@ -410,7 +424,7 @@
 		if ((action === "merchant" || action.indexOf("merchant-") === 0) && !merchantAvailable()) return;
 		if (action === "close") PhoenixBridge.send("phoenix:teacher:close", null);
 		else if (action === "teacher" || action === "merchant" || action === "back") PhoenixBridge.send("phoenix:npc:dialogAction", { action: action === "back" ? "root" : action });
-		else if (action === "train") PhoenixBridge.send("phoenix:teacher:train", { skill: target.dataset.skill });
+		else if (action === "train" && !target.disabled) PhoenixBridge.send("phoenix:teacher:train", { skill: target.dataset.skill, requestId: "teacher:" + Date.now() + ":" + Math.floor(Math.random() * 1000000) });
 		else if (action === "merchant-close") closeMerchantModal();
 		else if (action === "merchant-confirm") commitMerchant();
 		else if (action === "merchant-pick") handleMerchantPick(target);

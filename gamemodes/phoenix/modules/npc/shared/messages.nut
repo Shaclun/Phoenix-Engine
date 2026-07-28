@@ -44,13 +44,15 @@ class phoenix.npc.Message.TeacherDialog extends phoenix.net.Message {
 	</ type = phoenix.net.type.String /> skills = ""
 	</ type = phoenix.net.type.UInt32 /> cost = 0
 	</ type = phoenix.net.type.UInt32 /> playerGold = 0
-	</ type = phoenix.net.type.UInt16 /> playerLearnPoints = 0
+	</ type = phoenix.net.type.UInt32 /> playerLearnPoints = 0
 	</ type = phoenix.net.type.String /> weaponProgress = ""
+	</ type = phoenix.net.type.String /> development = ""
 }
 
 class phoenix.npc.Message.TeacherTrain extends phoenix.net.Message {
 	</ type = phoenix.net.type.UInt32 /> npcId = 0
 	</ type = phoenix.net.type.String /> skill = ""
+	</ type = phoenix.net.type.String /> requestId = ""
 }
 
 class phoenix.npc.Message.TeacherResult extends phoenix.net.Message {

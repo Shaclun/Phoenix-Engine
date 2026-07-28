@@ -2739,3 +2739,9 @@ body.phoenix-admin-open .phoenix-chat {
 .adm-feature-groups section h4 small { color: var(--phoenix-muted); font-size: 10px; letter-spacing: 1px; }
 .adm-feature-toggle span em { display: inline-block; margin-top: 7px; padding: 2px 6px; color: #a9dfa0; border: 1px solid rgba(120,200,110,.24); font-size: 9px; font-style: normal; letter-spacing: 1px; text-transform: uppercase; }
 @media (max-width: 720px) { .adm-feature-tools { align-items: stretch; flex-direction: column; } .adm-feature-tools .adm-search { max-width: none; } }
+
+.adm-development { margin-top: 14px; }
+.adm-development .adm-table { min-width: 1180px; }
+.adm-development .adm-table td { vertical-align: top; }
+.adm-development .adm-table .adm-input { min-width: 78px; width: 100%; box-sizing: border-box; }
+.adm-development .adm-table textarea.adm-input { min-width: 210px; resize: vertical; font-family: Consolas, monospace; font-size: 10px; }

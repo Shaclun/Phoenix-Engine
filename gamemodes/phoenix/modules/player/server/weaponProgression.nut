@@ -58,7 +58,9 @@ phoenix.player.WeaponProgression <- {
 		local level = phoenix.player.WeaponProgression._readRecordValue(record, key)
 		if (level < 0) level = 0
 		if (level > 100) level = 100
-		return { level = level, xp = 0, cap = phoenix.player.WeaponProgression._capForLevel(level) }
+		local cap = phoenix.player.WeaponProgression._capForLevel(level)
+		try { if (phoenix.player.Development.enabled() && key in phoenix.player.Development.config.skills) cap = phoenix.player.Development.config.skills[key].cap } catch (e) {}
+		return { level = level, xp = 0, cap = cap }
 	}
 
 	function _stateFromRecord(record) {
@@ -84,8 +86,13 @@ phoenix.player.WeaponProgression <- {
 						local cap = row.cap.tointeger()
 						if (level < 0) level = 0
 						if (level > 100) level = 100
-						if (cap != 60 && cap != 100) cap = 30
-						if (level > cap) cap = phoenix.player.WeaponProgression._capForLevel(level)
+						local configuredCap = 0
+						try { if (phoenix.player.Development.enabled() && key in phoenix.player.Development.config.skills) configuredCap = phoenix.player.Development.config.skills[key].cap } catch (e) {}
+						if (configuredCap > 0) cap = configuredCap
+						else {
+							if (cap != 60 && cap != 100) cap = 30
+							if (level > cap) cap = phoenix.player.WeaponProgression._capForLevel(level)
+						}
 						state[key] <- { level = level, xp = xp, cap = cap }
 					}
 				}
@@ -127,7 +134,9 @@ phoenix.player.WeaponProgression <- {
 		local record = phoenix.character.Structure.getActive(playerId)
 		if (record == null) return
 		phoenix.player.WeaponProgression._writeRecordValue(record, key, entry.level)
-		try { setPlayerSkillWeapon(playerId, phoenix.player.WeaponProgression._weaponConst(key), entry.level) } catch (e) {}
+		local runtimeValue = entry.level
+		try { runtimeValue = phoenix.player.Development.talentValue(key, entry.level) } catch (e) {}
+		try { setPlayerSkillWeapon(playerId, phoenix.player.WeaponProgression._weaponConst(key), runtimeValue) } catch (e) {}
 	}
 
 	function saveEntry(characterId, key, entry) {

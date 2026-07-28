@@ -35,8 +35,10 @@ phoenix.player.Progression <- {
 		local level = 1
 		try { level = record.level.tointeger() } catch (e) { level = 1 }
 		if (level < 1) level = 1
-		local gained = level - 1
-		local magicBonus = phoenix.player.Progression._magicLevel(record) * phoenix.player.Progression.manaPerMagicLevel
+		local dailyDevelopment = false
+		try { dailyDevelopment = phoenix.features.Settings.isEnabled("progression.dailyLp") } catch (e) {}
+		local gained = dailyDevelopment ? 0 : level - 1
+		local magicBonus = dailyDevelopment ? 0 : phoenix.player.Progression._magicLevel(record) * phoenix.player.Progression.manaPerMagicLevel
 		return {
 			hpMax = 100 + gained * 10,
 			manaMax = phoenix.player.Progression._baseManaMax(record) + gained * ((record != null && ("klass" in record) && record.klass == 1) ? 8 : 2) + magicBonus,
@@ -118,7 +120,7 @@ phoenix.player.Progression <- {
 		record.staminaMax += 5
 		if (record.klass == 1) record.manaMax += 8
 		else record.manaMax += 2
-		if (phoenix.features.Settings.isEnabled("progression.learnPoints")) record.learnPoints += 10
+		if (phoenix.features.Settings.isEnabled("progression.learnPoints") && !phoenix.features.Settings.isEnabled("progression.dailyLp")) record.learnPoints += 10
 		phoenix.player.Resources.syncMaximums(playerId, record)
 		phoenix.player.Resources.set(playerId, record, "hp", record.hpMax, true)
 		phoenix.player.Resources.set(playerId, record, "mana", record.manaMax, true)

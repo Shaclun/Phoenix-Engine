@@ -131,7 +131,7 @@
 	});
 
 	document.addEventListener("keydown", function (e) {
-		if (e.key === "F12" || (e.ctrlKey && e.shiftKey && (e.key === "I" || e.key === "i"))) {
+		if (e.ctrlKey && e.shiftKey && (e.key === "I" || e.key === "i")) {
 			e.preventDefault();
 			toggle();
 		}

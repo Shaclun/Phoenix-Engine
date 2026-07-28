@@ -14,6 +14,7 @@
 		"progression.leveling": true,
 		"progression.statsSpending": true,
 		"progression.learnPoints": true,
+		"progression.dailyLp": false,
 		"progression.weaponExperience": true,
 		"progression.magicExperience": true,
 		"player.stamina": true,
@@ -32,7 +33,7 @@
 	}
 
 	function tabEnabled(tab) {
-		if (tab === "stats") return featureEnabled("progression.leveling") || featureEnabled("progression.statsSpending");
+		if (tab === "stats") return featureEnabled("progression.leveling") || featureEnabled("progression.statsSpending") || featureEnabled("progression.dailyLp");
 		if (tab === "bestiary") return featureEnabled("bestiary.enabled");
 		if (tab === "professions") return featureEnabled("professions.enabled");
 		return false;
@@ -51,6 +52,7 @@
 		root.querySelectorAll(".stats-tab").forEach(function (node) { node.hidden = !tabEnabled(node.dataset.tab); });
 		root.querySelectorAll(".stats-rank").forEach(function (node) { node.hidden = !featureEnabled("progression.leveling"); });
 		root.querySelectorAll(".stats-block--attributes").forEach(function (node) { node.hidden = !featureEnabled("progression.statsSpending"); });
+		root.querySelectorAll(".stats-block--development").forEach(function (node) { node.hidden = !featureEnabled("progression.dailyLp"); });
 		root.querySelectorAll(".stats-chip--points").forEach(function (node) { node.hidden = !featureEnabled("progression.learnPoints"); });
 		root.querySelectorAll(".stats-block--weapons").forEach(function (node) { node.hidden = !featureEnabled("progression.weaponExperience"); });
 		root.querySelectorAll(".stats-block--magic").forEach(function (node) { node.hidden = !featureEnabled("progression.magicExperience"); });
@@ -117,6 +119,7 @@
 								'<div class="stats-chip stats-chip--health"><span data-t="stats.hp"></span><strong><b data-role="hp">0</b><em>/</em><b data-role="hpMax">0</b></strong></div>' +
 								'<div class="stats-chip stats-chip--mana"><span data-t="stats.mana"></span><strong><b data-role="mana">0</b><em>/</em><b data-role="manaMax">0</b></strong></div>' +
 							'</div>' +
+							'<div class="stats-block stats-block--development" data-role="development"><div class="stats-block__head"><h2 data-t="development.title"></h2><span data-role="development-next"></span></div><div class="development-meta" data-role="development-meta"></div><div class="development-grid" data-role="development-skills"></div></div>' +
 							'<div class="stats-block stats-block--attributes">' +
 								'<div class="stats-block__head"><h2 data-t="stats.section.attributes"></h2><span data-t="stats.section.teachers"></span></div>' +
 								'<div class="attribute-list">' +
@@ -181,6 +184,10 @@
 		magicCircle: root.querySelector("[data-role='magicCircle']"),
 		magicXpText: root.querySelector("[data-role='magicXpText']"),
 		magicXpFill: root.querySelector("[data-role='magicXpFill']"),
+		development: root.querySelector("[data-role='development']"),
+		developmentNext: root.querySelector("[data-role='development-next']"),
+		developmentMeta: root.querySelector("[data-role='development-meta']"),
+		developmentSkills: root.querySelector("[data-role='development-skills']"),
 		tabs: root.querySelectorAll("[data-tab]"),
 		bestiaryGrid: root.querySelector("[data-role='bestiary-grid']"),
 		bestiaryEmpty: root.querySelector("[data-role='bestiary-empty']"),
@@ -248,6 +255,26 @@
 		els.weapons.innerHTML = weaponOrder.map(function (key) { return weaponCard(key, weapons[key]); }).join("");
 	}
 
+	function renderDevelopment(data) {
+		if (!els.development || !els.developmentSkills) return;
+		const enabled = !!(data && data.enabled && featureEnabled("progression.dailyLp"));
+		els.development.hidden = !enabled;
+		if (!enabled) { els.developmentSkills.innerHTML = ""; return; }
+		const reset = data.nextGrantAt ? new Date(data.nextGrantAt * 1000).toLocaleString(I18n && I18n.getLang ? I18n.getLang() : "pl") : "—";
+		setText(els.developmentNext, t("development.nextGrant", "Następny grant: {0}").replace("{0}", reset));
+		setText(els.developmentMeta, t("development.meta", "Dziennie: {0} LP · bank: {1}/{2}").replace("{0}", data.dailyGrant || 0).replace("{1}", data.balance || 0).replace("{2}", data.accumulationCap || 0));
+		const order = ["strength", "dexterity", "hpMax", "manaMax", "staminaMax", "oneHand", "twoHand", "bow", "crossbow", "magicLevel"];
+		const labels = { strength: "stats.attr.strength", dexterity: "stats.attr.dexterity", hpMax: "stats.attr.hpMax", manaMax: "stats.attr.manaMax", staminaMax: "stats.attr.staminaMax", oneHand: "stats.weapon.oneHand", twoHand: "stats.weapon.twoHand", bow: "stats.weapon.bow", crossbow: "stats.weapon.crossbow", magicLevel: "stats.magic.level" };
+		els.developmentSkills.innerHTML = order.map(function (key) {
+			const skill = data.skills && data.skills[key];
+			if (!skill || !skill.enabled) return "";
+			const disabled = !skill.available || skill.maxPurchase <= 0;
+			const detail = skill.current + " / " + skill.cap + " · +" + skill.unit + " · " + skill.cost + " LP";
+			const batch = (skill.batchAmount || 0) > 1 ? '<button type="button" data-action="develop" data-skill="' + escapeHtml(key) + '" data-amount="' + skill.batchAmount + '" title="' + escapeHtml(skill.batchCost + ' LP') + '">+' + (skill.batchAmount * skill.unit) + '</button>' : '';
+			return '<div class="development-skill"><span><b>' + escapeHtml(t(labels[key] || key, key)) + '</b><small>' + escapeHtml(detail) + '</small></span><div class="development-skill__actions"><button type="button" data-action="develop" data-skill="' + escapeHtml(key) + '" data-amount="1"' + (disabled ? ' disabled' : '') + '>+' + skill.unit + '</button>' + batch + '</div></div>';
+		}).join("");
+	}
+
 	function applySnapshot(d) {
 		if (!d || !tabEnabled("stats")) return;
 		lastSnapshot = d;
@@ -271,6 +298,7 @@
 		setText(els.strength, d.strength || 0);
 		setText(els.dexterity, d.dexterity || 0);
 		setText(els.error, "");
+		renderDevelopment(d.development || null);
 		renderWeapons(d);
 		renderMagic(d);
 	}
@@ -410,6 +438,12 @@
 	root.addEventListener("click", function (ev) {
 		const closeTarget = ev.target.closest("[data-action='close']");
 		if (closeTarget) { PhoenixBridge.send("phoenix:stats:close", null); return; }
+		const developTarget = ev.target.closest("[data-action='develop']");
+		if (developTarget && developTarget.dataset.skill && !developTarget.disabled) {
+			developTarget.disabled = true;
+			PhoenixBridge.send("phoenix:stats:spend", { stat: developTarget.dataset.skill, amount: Math.max(1, parseInt(developTarget.dataset.amount, 10) || 1), requestId: "stats:" + Date.now() + ":" + Math.floor(Math.random() * 1000000) });
+			return;
+		}
 		const tabTarget = ev.target.closest(".stats-tab");
 		if (tabTarget && tabTarget.dataset.tab) { switchTab(tabTarget.dataset.tab); }
 	});

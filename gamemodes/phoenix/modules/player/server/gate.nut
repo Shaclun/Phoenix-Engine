@@ -126,9 +126,6 @@ phoenix.player.Gate <- {
 		try { setPlayerInvisible(playerId, true) } catch (e) {}
 		try { setPlayerPosition(playerId, phoenix.player.Gate.LOBBY_X, phoenix.player.Gate.LOBBY_Y, phoenix.player.Gate.LOBBY_Z) } catch (e) {}
 		try { setPlayerAngle(playerId, phoenix.player.Gate.LOBBY_ANGLE) } catch (e) {}
-		try {
-			if (!isPlayerSpawned(playerId)) spawnPlayer(playerId)
-		} catch (e) {}
 	}
 
 	function release(playerId) {

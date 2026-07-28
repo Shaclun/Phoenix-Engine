@@ -1,13 +1,16 @@
 <server>
 	<script src="shared/namespace.nut" type="shared" />
+	<script src="shared/animations.nut" type="shared" />
 	<script src="shared/messages.nut"   type="shared" />
 	<script src="server/resources.nut" type="server" />
 	<script src="server/progression.nut" type="server" />
 	<script src="server/weaponProgression.nut" type="server" />
+	<script src="server/development.nut" type="server" />
 	<script src="server/combat.nut" type="server" />
 	<script src="server/hud.nut" type="server" />
 	<script src="server/stats.nut" type="server" />
 	<script src="server/gate.nut" type="server" />
+	<script src="server/animations.nut" type="server" />
 	<script src="server/hotbar.nut" type="server" />
 	<script src="server/uiSettings.nut" type="server" />
 	<script src="server/lobbyConfig.nut" type="server" />
@@ -18,4 +21,5 @@
 	<script src="client/combatText.nut" type="client" />
 	<script src="client/stats.nut" type="client" />
 	<script src="client/settings.nut" type="client" />
+	<script src="client/animations.nut" type="client" />
 </server>

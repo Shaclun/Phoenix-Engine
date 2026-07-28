@@ -24,13 +24,15 @@ phoenix.player.Stats <- {
 		local record = phoenix.character.Structure.getActive(playerId)
 		if (record == null) return
 		phoenix.player.Progression.normalizeRecordStats(record)
+		local development = "{}"
+		try { development = phoenix.player.Development.playerSnapshotJson(playerId, "direct") } catch (e) {}
 		local hp = phoenix.player.Resources.current(playerId, record, "hp")
 		local mana = phoenix.player.Resources.current(playerId, record, "mana")
 		local m = phoenix.player.Message.StatsSnapshot()
 		m.level = phoenix.player.Stats._u16(record.level)
 		m.experience = record.experience
 		m.experienceNext = record.experienceNext > 0 ? record.experienceNext : phoenix.player.Progression.expForLevel(record.level + 1)
-		m.learnPoints = phoenix.player.Stats._u16(record.learnPoints)
+		m.learnPoints = record.learnPoints < 0 ? 0 : record.learnPoints
 		m.hp = phoenix.player.Stats._u16(hp)
 		m.hpMax = phoenix.player.Stats._u16(phoenix.player.Resources.max(record, "hp", playerId))
 		m.mana = phoenix.player.Stats._u16(mana)
@@ -48,6 +50,7 @@ phoenix.player.Stats <- {
 		try { m.magicXpNext = phoenix.item.Spells != null ? phoenix.item.Spells.xpToNext(m.magicLevel) : 0 } catch (e) { m.magicXpNext = 20 + m.magicLevel * m.magicLevel * 3 }
 		m.gold = phoenix.item.Structure.countInstance(PhoenixInventoryOwner.Player, record.id, "ITMI_GOLD")
 		try { m.weaponProgress = phoenix.player.WeaponProgression.progressString(playerId) } catch (e) { m.weaponProgress = "" }
+		m.development = development
 		m.serialize().send(playerId, RELIABLE_ORDERED)
 	}
 
@@ -86,10 +89,11 @@ phoenix.player.Stats <- {
 
 	// Spend learn points to raise a stat. amount: how many points to spend (each grants +1 stat * unitFor(stat)).
 	// Returns null on success, error key on failure.
-	function spend(playerId, stat, amount) {
+	function spend(playerId, stat, amount, channel = "direct", requestId = "") {
 		if (!phoenix.features.Settings.isEnabled("progression.statsSpending")) return "featureDisabled"
 		local record = phoenix.character.Structure.getActive(playerId)
 		if (record == null) return "noCharacter"
+		if (phoenix.features.Settings.isEnabled("progression.dailyLp")) return phoenix.player.Development.purchase(playerId, stat, amount, channel, requestId)
 		phoenix.player.Progression.normalizeRecordStats(record)
 		if (!(stat in phoenix.player.Stats.cost)) return "unknownStat"
 		if (amount <= 0) return "unknownStat"
@@ -135,8 +139,9 @@ phoenix.player.Stats <- {
 		if (!phoenix.features.Settings.isEnabled("progression.statsSpending")) return
 		local stat = message.stat
 		local amount = message.amount.tointeger()
-		if (amount > 50) amount = 50
-		local err = phoenix.player.Stats.spend(playerId, stat, amount)
+		local requestLimit = phoenix.features.Settings.isEnabled("progression.dailyLp") ? 100 : 50
+		if (amount > requestLimit) amount = requestLimit
+		local err = phoenix.player.Stats.spend(playerId, stat, amount, "direct", message.requestId)
 		phoenix.player.Stats.reply(playerId, err == null, err)
 		if (err == null) phoenix.player.Stats.pushSnapshot(playerId)
 	}

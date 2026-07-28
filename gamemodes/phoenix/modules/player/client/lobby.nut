@@ -126,7 +126,14 @@ phoenix.player.Lobby <- {
 		try { Camera.setRotation(s.rot.x, s.rot.y, s.rot.z) } catch (e) {}
 	}
 
+	function onInit() {
+		try { clearMultiplayerMessages() } catch (e) {}
+		phoenix.player.Lobby.pickSpot()
+		phoenix.player.Lobby.applyLobbyCamera()
+	}
+
 	function onWebReady() {
+		try { clearMultiplayerMessages() } catch (e) {}
 		phoenix.player.Lobby.pickSpot()
 		phoenix.player.Lobby.applyLobbyCamera()
 
@@ -142,6 +149,7 @@ phoenix.player.Lobby <- {
 	}
 }
 
+addEventHandler("onInit", phoenix.player.Lobby.onInit)
 addEventHandler("phoenix.web.OnReady", phoenix.player.Lobby.onWebReady)
 addEventHandler("phoenix.character.OnSelected", phoenix.player.Lobby.onCharacterSelected)
 phoenix.player.Message.LobbyConfig.bind(phoenix.player.Lobby.applyServerConfig)

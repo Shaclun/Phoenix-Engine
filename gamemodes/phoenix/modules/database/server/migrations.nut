@@ -33,7 +33,8 @@ phoenix.database.Migrations <- {
 		"30-advanced-crafting.sql",
 		"31-professions.sql",
 		"32-server-feature-settings.sql",
-		"33-server-feature-registry.sql"
+		"33-server-feature-registry.sql",
+		"34-rp-daily-development.sql"
 	]
 
 	function readStatements(path) {

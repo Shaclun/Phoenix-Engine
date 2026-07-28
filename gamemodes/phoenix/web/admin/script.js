@@ -217,6 +217,9 @@
         featureDraft: null,
         featureFilter: "",
         featureSaving: false,
+        developmentSettings: null,
+        developmentDraft: null,
+        developmentSaving: false,
         schemes: [],
         schemesById: {},
         bans: [],
@@ -667,6 +670,7 @@
         var skills = [
             ["strength", "stats.attr.strength"], ["dexterity", "stats.attr.dexterity"],
             ["hpMax", "stats.attr.hpMax"], ["manaMax", "stats.attr.manaMax"],
+            ["staminaMax", "stats.attr.staminaMax"], ["magicLevel", "stats.magic.level"],
             ["oneHand", "stats.weapon.oneHand"], ["twoHand", "stats.weapon.twoHand"],
             ["bow", "stats.weapon.bow"], ["crossbow", "stats.weapon.crossbow"]
         ];
@@ -917,6 +921,7 @@
         try { if (global.app && global.app.renderLangSwitcher) global.app.renderLangSwitcher(); } catch (e) {}
         send("players");
         send("serverFeaturesGet");
+        send("developmentConfigGet");
         send("schemes");
         send("bans");
         send("log", { limit: 100 });
@@ -967,7 +972,7 @@
                 activeTab = tab.id;
                 buildTabs();
                 if (tab.id === "log") send("log", { limit: 100 });
-                if (tab.id === "features") send("serverFeaturesGet");
+                if (tab.id === "features") { send("serverFeaturesGet"); send("developmentConfigGet"); }
                 if (tab.id === "bans") send("bans");
                 if (tab.id === "items") { send("players"); send("schemes"); send("itemRenderList"); }
                 if (tab.id === "inv") send("players");
@@ -1266,6 +1271,38 @@
         return t("admin.features.flag." + key, fallback);
     }
 
+    function cloneDevelopmentConfig(snapshot) {
+        if (!snapshot || !snapshot.config) return null;
+        try { return { revision: +snapshot.revision || 0, config: JSON.parse(JSON.stringify(snapshot.config)) }; } catch (e) { return null; }
+    }
+
+    function renderDevelopmentConfig() {
+        var draft = state.developmentDraft;
+        if (!draft || !draft.config) return '<section class="adm-section adm-development"><div class="adm-empty">' + escapeHtml(t("admin.development.loading")) + '</div><button class="adm-btn" data-action="development-reload">' + escapeHtml(t("admin.a.refresh")) + '</button></section>';
+        var cfg = draft.config;
+        var labels = { strength: "stats.attr.strength", dexterity: "stats.attr.dexterity", hpMax: "stats.attr.hpMax", manaMax: "stats.attr.manaMax", staminaMax: "stats.attr.staminaMax", oneHand: "stats.weapon.oneHand", twoHand: "stats.weapon.twoHand", bow: "stats.weapon.bow", crossbow: "stats.weapon.crossbow", magicLevel: "stats.magic.level" };
+        var html = '<section class="adm-section adm-development"><div class="adm-features__hero"><div><span class="adm-features__kicker">' + escapeHtml(t("admin.development.kicker")) + '</span><h3>' + escapeHtml(t("admin.development.title")) + '</h3><p>' + escapeHtml(t("admin.development.description")) + '</p></div><div class="adm-features__revision"><span>' + escapeHtml(t("admin.features.revision")) + '</span><strong>#' + (+draft.revision || 0) + '</strong></div></div>';
+        html += '<div class="adm-grid adm-grid--3">';
+        [["dailyGrant", "admin.development.dailyGrant", 0, 10000], ["accumulationCap", "admin.development.bankCap", 0, 1000000], ["maxCatchupDays", "admin.development.catchup", 0, 365], ["resetHour", "admin.development.resetHour", 0, 23], ["resetOffsetMinutes", "admin.development.offset", -720, 840]].forEach(function (field) {
+            html += '<label class="adm-field"><span>' + escapeHtml(t(field[1])) + '</span><input type="number" min="' + field[2] + '" max="' + field[3] + '" data-development-global="' + field[0] + '" value="' + (+cfg[field[0]] || 0) + '"></label>';
+        });
+        html += '<label class="adm-field"><span>' + escapeHtml(t("admin.development.timezone")) + '</span><input maxlength="32" data-development-global="resetTimezone" value="' + escapeHtml(cfg.resetTimezone || "UTC") + '"></label></div>';
+        html += '<div class="adm-checkgrid"><label class="adm-check"><input type="checkbox" data-development-channel="direct"' + (cfg.channels && cfg.channels.direct ? ' checked' : '') + '> ' + escapeHtml(t("admin.development.channel.direct")) + '</label><label class="adm-check"><input type="checkbox" data-development-channel="teacher"' + (cfg.channels && cfg.channels.teacher ? ' checked' : '') + '> ' + escapeHtml(t("admin.development.channel.teacher")) + '</label></div>';
+        html += '<div class="adm-table-wrap"><table class="adm-table"><thead><tr><th>' + escapeHtml(t("admin.development.skill")) + '</th><th>' + escapeHtml(t("admin.development.unit")) + '</th><th>' + escapeHtml(t("admin.development.cap")) + '</th><th>' + escapeHtml(t("admin.development.maxPurchase")) + '</th><th>' + escapeHtml(t("admin.development.multiplier")) + '</th><th>' + escapeHtml(t("admin.development.channels")) + '</th><th>' + escapeHtml(t("admin.development.costs")) + '</th><th>' + escapeHtml(t("admin.development.animation")) + '</th></tr></thead><tbody>';
+        Object.keys(cfg.skills || {}).forEach(function (key) {
+            var skill = cfg.skills[key];
+            var costs = "";
+            var animation = "";
+            try { costs = JSON.stringify(skill.costs || []); animation = JSON.stringify(skill.animation || []); } catch (e) {}
+            html += '<tr><td><label class="adm-check"><input type="checkbox" data-development-skill="' + escapeHtml(key) + '" data-development-field="enabled"' + (skill.enabled ? ' checked' : '') + '> <b>' + escapeHtml(t(labels[key] || key, key)) + '</b></label></td>';
+            ["unit", "cap", "maxPurchase", "teacherMultiplier"].forEach(function (field) { html += '<td><input class="adm-input" type="number" step="' + (field === "teacherMultiplier" ? '0.1' : '1') + '" data-development-skill="' + escapeHtml(key) + '" data-development-field="' + field + '" value="' + skill[field] + '"></td>'; });
+            html += '<td><label class="adm-check"><input type="checkbox" data-development-skill="' + escapeHtml(key) + '" data-development-field="direct"' + (skill.direct ? ' checked' : '') + '> +</label><label class="adm-check"><input type="checkbox" data-development-skill="' + escapeHtml(key) + '" data-development-field="teacher"' + (skill.teacher ? ' checked' : '') + '> NPC</label></td>';
+            html += '<td><textarea class="adm-input" rows="2" data-development-json="costs" data-development-key="' + escapeHtml(key) + '">' + escapeHtml(costs) + '</textarea></td><td><textarea class="adm-input" rows="2" data-development-json="animation" data-development-key="' + escapeHtml(key) + '"' + (["oneHand", "twoHand", "bow", "crossbow"].indexOf(key) < 0 ? ' disabled' : '') + '>' + escapeHtml(animation) + '</textarea></td></tr>';
+        });
+        html += '</tbody></table></div><div class="adm-features__foot"><small>' + escapeHtml(t("admin.development.audit")) + '</small><div class="adm-toolbar"><button class="adm-btn" data-action="development-reload">' + escapeHtml(t("admin.a.refresh")) + '</button><button class="adm-btn adm-btn--primary" data-action="development-save"' + (state.developmentSaving ? ' disabled' : '') + '>' + escapeHtml(state.developmentSaving ? t("admin.features.saving") : t("admin.a.save")) + '</button></div></div></section>';
+        return html;
+    }
+
     function renderServerFeatures() {
         var draft = state.featureDraft;
         if (!draft) return '<div class="adm-section adm-features"><div class="adm-empty">' + escapeHtml(t("admin.features.loading")) + '</div><button class="adm-btn" data-action="features-reload">' + escapeHtml(t("admin.a.refresh")) + '</button></div>';
@@ -1315,6 +1352,7 @@
         if (warnings.length) html += '<div class="adm-feature-warning">' + escapeHtml(t("admin.features.dependencyWarning", "Niespełnione zależności")) + ': ' + escapeHtml(warnings.join(", ")) + '</div>';
         html += '<div class="adm-features__foot"><div><b>' + escapeHtml(t("admin.features.hotUpdate")) + '</b><small>' + escapeHtml(t("admin.features.updatedBy")) + ': ' + (+snapshot.updatedBy || 0) + ' · schema ' + (+draft.schemaVersion || 0) + '</small></div><div class="adm-toolbar"><button class="adm-btn" data-action="features-reload">' + escapeHtml(t("admin.features.reload")) + '</button><button class="adm-btn adm-btn--primary" data-action="features-save"' + (state.featureSaving ? ' disabled' : '') + '>' + escapeHtml(state.featureSaving ? t("admin.features.saving") : t("admin.features.save")) + '</button></div></div>';
         html += '</div>';
+        html += renderDevelopmentConfig();
         return html;
     }
 
@@ -3347,6 +3385,32 @@
             var next = body.querySelector("[data-role='feature-filter']");
             if (next) { next.focus(); next.setSelectionRange(next.value.length, next.value.length); }
         }, 120));
+        body.querySelectorAll("[data-development-global]").forEach(function (el) {
+            el.addEventListener("input", function () {
+                if (!state.developmentDraft) return;
+                var key = el.dataset.developmentGlobal;
+                state.developmentDraft.config[key] = el.type === "number" ? +el.value : el.value;
+            });
+        });
+        body.querySelectorAll("[data-development-channel]").forEach(function (el) {
+            el.addEventListener("change", function () { if (state.developmentDraft) state.developmentDraft.config.channels[el.dataset.developmentChannel] = !!el.checked; });
+        });
+        body.querySelectorAll("[data-development-skill]").forEach(function (el) {
+            var eventName = el.type === "checkbox" ? "change" : "input";
+            el.addEventListener(eventName, function () {
+                if (!state.developmentDraft) return;
+                var skill = state.developmentDraft.config.skills[el.dataset.developmentSkill];
+                if (!skill) return;
+                skill[el.dataset.developmentField] = el.type === "checkbox" ? !!el.checked : +el.value;
+            });
+        });
+        body.querySelectorAll("[data-development-json]").forEach(function (el) {
+            el.addEventListener("change", function () {
+                if (!state.developmentDraft) return;
+                try { state.developmentDraft.config.skills[el.dataset.developmentKey][el.dataset.developmentJson] = JSON.parse(el.value || "[]"); }
+                catch (e) { state.status = { text: t("admin.development.invalidJson"), kind: "error" }; }
+            });
+        });
         body.querySelectorAll("[data-cbind]").forEach(function (el) {
             el.addEventListener("input", function () {
                 var k = el.dataset.cbind;
@@ -3818,6 +3882,17 @@
             send("serverFeaturesUpdate", featurePayload);
             setStatus(t("admin.features.saving"), "");
             return;
+        }
+        if (a === "development-reload") { state.developmentDraft = null; send("developmentConfigGet"); return render(true); }
+        if (a === "development-save") {
+            if (!state.developmentDraft || state.developmentSaving) return;
+            var jsonFields = body.querySelectorAll("[data-development-json]");
+            try {
+                jsonFields.forEach(function (field) { state.developmentDraft.config.skills[field.dataset.developmentKey][field.dataset.developmentJson] = JSON.parse(field.value || "[]"); });
+            } catch (error) { return setStatus(t("admin.development.invalidJson"), "error"); }
+            state.developmentSaving = true;
+            send("developmentConfigUpdate", { expectedRevision: +state.developmentDraft.revision || 0, config: state.developmentDraft.config });
+            return setStatus(t("admin.development.saving"), "");
         }
         if (a === "profession-refresh") return send("professionList");
         if (a === "profession-new") { state.professionEditor = defaultProfessionEditor(); return render(true); }
@@ -4787,6 +4862,23 @@
             if (p.success) return setStatus(t("admin.features.saved"), "ok");
             var errorKey = p.error === "conflict" ? "admin.features.conflict" : (p.error === "dependencyGraph" || String(p.error || "").indexOf("dependency:") === 0 || p.error === "profileMismatch" ? "admin.features.dependencyError" : "admin.features.saveError");
             return setStatus(t(errorKey), "error");
+        }
+        if (p.action === "developmentConfigGet") {
+            if (!p.success) return setStatus(t("admin.development.loadError"), "error");
+            state.developmentSettings = pl;
+            state.developmentDraft = cloneDevelopmentConfig(pl);
+            state.developmentSaving = false;
+            return render(true);
+        }
+        if (p.action === "developmentConfigUpdate") {
+            state.developmentSaving = false;
+            if ((p.success || p.error === "conflict") && pl && pl.config) {
+                state.developmentSettings = pl;
+                state.developmentDraft = cloneDevelopmentConfig(pl);
+                render(true);
+            }
+            if (p.success) return setStatus(t("admin.development.saved"), "ok");
+            return setStatus(t(p.error === "conflict" ? "admin.development.conflict" : "admin.development.saveError") + (p.error && p.error !== "conflict" ? " (" + p.error + ")" : ""), "error");
         }
         if (p.action === "questList" && p.success) { state.questDefinitions = pl.entries || []; return render(true); }
         if (p.action === "questCatalog" && p.success) { state.questCatalog = pl; return render(true); }

@@ -26,15 +26,17 @@ phoenix.features.Settings <- {
 		{ key = "progression.partyExperience", defaultValue = true, domain = "progression", dependencies = ["progression.leveling", "social.party"], clientVisible = true, hotReload = true, restartRequired = false },
 		{ key = "progression.weaponExperience", defaultValue = true, domain = "progression", dependencies = ["progression.leveling"], clientVisible = true, hotReload = true, restartRequired = false },
 		{ key = "progression.magicExperience", defaultValue = true, domain = "progression", dependencies = ["progression.leveling"], clientVisible = true, hotReload = true, restartRequired = false },
-		{ key = "progression.learnPoints", defaultValue = true, domain = "progression", dependencies = ["progression.leveling"], clientVisible = true, hotReload = true, restartRequired = false },
-		{ key = "progression.statsSpending", defaultValue = true, domain = "progression", dependencies = ["progression.leveling"], clientVisible = true, hotReload = true, restartRequired = false },
+		{ key = "progression.learnPoints", defaultValue = true, domain = "progression", dependencies = [], clientVisible = true, hotReload = true, restartRequired = false },
+		{ key = "progression.statsSpending", defaultValue = true, domain = "progression", dependencies = ["progression.learnPoints"], clientVisible = true, hotReload = true, restartRequired = false },
+		{ key = "progression.dailyLp", defaultValue = false, domain = "progression", dependencies = ["progression.learnPoints", "progression.statsSpending"], clientVisible = true, hotReload = true, restartRequired = false },
 		{ key = "player.stamina", defaultValue = true, domain = "progression", dependencies = [], clientVisible = true, hotReload = true, restartRequired = false },
 		{ key = "player.regeneration", defaultValue = true, domain = "progression", dependencies = [], clientVisible = true, hotReload = true, restartRequired = false },
 		{ key = "player.sitting", defaultValue = true, domain = "progression", dependencies = [], clientVisible = true, hotReload = true, restartRequired = false },
 		{ key = "player.knockdown", defaultValue = true, domain = "progression", dependencies = [], clientVisible = true, hotReload = true, restartRequired = false },
 		{ key = "player.fallDamage", defaultValue = true, domain = "progression", dependencies = [], clientVisible = true, hotReload = true, restartRequired = false },
 		{ key = "player.combatText", defaultValue = true, domain = "progression", dependencies = [], clientVisible = true, hotReload = true, restartRequired = false },
-		{ key = "player.targetHud", defaultValue = true, domain = "progression", dependencies = [], clientVisible = true, hotReload = true, restartRequired = false }
+		{ key = "player.targetHud", defaultValue = true, domain = "progression", dependencies = [], clientVisible = true, hotReload = true, restartRequired = false },
+		{ key = "player.animations", defaultValue = true, domain = "progression", dependencies = [], clientVisible = true, hotReload = true, restartRequired = false }
 	]
 }
 
@@ -123,7 +125,10 @@ phoenix.features.Settings.buildRegistry <- function() {
 	hybrid["chat.ooc"] = true
 	hybrid["chat.rpActions"] = true
 	local rp = phoenix.features.Settings.copyFlags(hybrid)
-	foreach (key in ["progression.leveling", "progression.mobExperience", "progression.partyExperience", "progression.weaponExperience", "progression.magicExperience", "progression.learnPoints", "progression.statsSpending", "hud.levelExperience", "hud.magicExperience", "hud.weaponExperience"]) rp[key] = false
+	foreach (key in ["progression.leveling", "progression.mobExperience", "progression.partyExperience", "progression.weaponExperience", "progression.magicExperience", "hud.levelExperience", "hud.magicExperience", "hud.weaponExperience"]) rp[key] = false
+	rp["progression.learnPoints"] = true
+	rp["progression.statsSpending"] = true
+	rp["progression.dailyLp"] = true
 	phoenix.features.Settings.profiles = { mmorpg = mmorpg, rp = rp, hybrid = hybrid }
 	phoenix.features.Settings.flags = phoenix.features.Settings.copyFlags(mmorpg)
 }

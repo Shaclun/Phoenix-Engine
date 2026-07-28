@@ -58,11 +58,14 @@ phoenix.player.StatsClient <- {
 		local m = phoenix.player.Message.StatsSpend()
 		m.stat = payload.stat.tostring()
 		m.amount = ("amount" in payload) ? payload.amount.tointeger() : 1
+		m.requestId = ("requestId" in payload) ? payload.requestId.tostring() : ""
 		try { m.serialize().send(RELIABLE_ORDERED) } catch (e) {}
 	}
 
 	function onSnapshot(message) {
 		try {
+			local development = {}
+			try { development = phoenix.web.Json.parse(message.development) } catch (eJson) {}
 			phoenix.web.Manager.emit("phoenix:stats:snapshot", {
 				level = message.level,
 				experience = message.experience,
@@ -76,7 +79,8 @@ phoenix.player.StatsClient <- {
 				bow = message.bow, crossbow = message.crossbow,
 				magicLevel = message.magicLevel, magicXp = message.magicXp, magicXpNext = message.magicXpNext,
 				gold = message.gold,
-				weaponProgress = message.weaponProgress
+				weaponProgress = message.weaponProgress,
+				development = development
 			})
 		} catch (e) {}
 	}

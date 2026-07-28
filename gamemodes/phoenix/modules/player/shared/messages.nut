@@ -50,7 +50,7 @@ class phoenix.player.Message.StatsSnapshot extends phoenix.net.Message {
 	</ type = phoenix.net.type.UInt16 /> level = 1
 	</ type = phoenix.net.type.UInt32 /> experience = 0
 	</ type = phoenix.net.type.UInt32 /> experienceNext = 500
-	</ type = phoenix.net.type.UInt16 /> learnPoints = 0
+	</ type = phoenix.net.type.UInt32 /> learnPoints = 0
 	</ type = phoenix.net.type.UInt16 /> hp = 100
 	</ type = phoenix.net.type.UInt16 /> hpMax = 100
 	</ type = phoenix.net.type.UInt16 /> mana = 0
@@ -68,11 +68,13 @@ class phoenix.player.Message.StatsSnapshot extends phoenix.net.Message {
 	</ type = phoenix.net.type.UInt32 /> magicXpNext = 0
 	</ type = phoenix.net.type.UInt32 /> gold = 0
 	</ type = phoenix.net.type.String /> weaponProgress = ""
+	</ type = phoenix.net.type.String /> development = ""
 }
 
 class phoenix.player.Message.StatsSpend extends phoenix.net.Message {
 	</ type = phoenix.net.type.String /> stat = ""
 	</ type = phoenix.net.type.UInt16 /> amount = 1
+	</ type = phoenix.net.type.String /> requestId = ""
 }
 
 class phoenix.player.Message.StatsResult extends phoenix.net.Message {
@@ -116,4 +118,18 @@ class phoenix.player.Message.LobbyConfig extends phoenix.net.Message {
 	</ type = phoenix.net.type.String /> characterCreateCamera = ""
 	</ type = phoenix.net.type.String /> characterSelectCamera = ""
 	</ type = phoenix.net.type.String /> hudPortrait = ""
+}
+
+class phoenix.player.Message.AnimationPlayRequest extends phoenix.net.Message {
+	</ type = phoenix.net.type.String /> id = ""
+}
+
+class phoenix.player.Message.AnimationStopRequest extends phoenix.net.Message {
+}
+
+class phoenix.player.Message.AnimationResult extends phoenix.net.Message {
+	</ type = phoenix.net.type.Bool /> success = false
+	</ type = phoenix.net.type.String /> error = ""
+	</ type = phoenix.net.type.String /> id = ""
+	</ type = phoenix.net.type.Bool /> active = false
 }

@@ -7,7 +7,9 @@ phoenix.npc.Teacher <- {
 		bow = "bow",
 		crossbow = "crossbow",
 		manaMax = "manaMax",
-		hpMax = "hpMax"
+		hpMax = "hpMax",
+		staminaMax = "staminaMax",
+		magicLevel = "magicLevel"
 	}
 
 	function _findByNpcId(npcId) {
@@ -144,8 +146,9 @@ phoenix.npc.Teacher <- {
 		m.skills = skills
 		m.cost = ("teachCost" in row) ? row.teachCost : 100
 		m.playerGold = phoenix.npc.Teacher._playerGold(playerId)
-		m.playerLearnPoints = rec != null ? rec.learnPoints : 0
 		try { m.weaponProgress = phoenix.player.WeaponProgression.progressString(playerId) } catch (e) { m.weaponProgress = "" }
+		try { m.development = phoenix.player.Development.playerSnapshotJson(playerId, "teacher") } catch (e) { m.development = "{}" }
+		m.playerLearnPoints = rec != null ? rec.learnPoints : 0
 		try { m.serialize().send(playerId, RELIABLE_ORDERED) } catch (e) {}
 	}
 
@@ -178,10 +181,19 @@ phoenix.npc.Teacher <- {
 		} catch (e) {}
 		local gold = phoenix.npc.Teacher._playerGold(playerId)
 		local cost = ("teachCost" in row) ? row.teachCost : 100
-		if (phoenix.npc.Teacher._isWeaponSkill(skill)) cost = 0
+		if (phoenix.npc.Teacher._isWeaponSkill(skill) || phoenix.features.Settings.isEnabled("progression.dailyLp")) cost = 0
 		if (gold < cost) { phoenix.npc.Teacher._reply(playerId, false, "noGold"); return }
 		local stat = (skill in phoenix.npc.Teacher.skillToStat) ? phoenix.npc.Teacher.skillToStat[skill] : null
 		if (stat == null) { phoenix.npc.Teacher._reply(playerId, false, "skillUnavailable"); return }
+		if (phoenix.features.Settings.isEnabled("progression.dailyLp")) {
+			local dailyError = null
+			try { dailyError = phoenix.player.Development.purchase(playerId, stat, 1, "teacher", message.requestId) } catch (e) { dailyError = "internal" }
+			if (dailyError != null) { phoenix.npc.Teacher._reply(playerId, false, dailyError); return }
+			phoenix.npc.Teacher._reply(playerId, true, "")
+			try { phoenix.player.Stats.pushSnapshot(playerId) } catch (e) {}
+			phoenix.npc.Teacher.openDialog(playerId, npcId)
+			return
+		}
 		if (phoenix.npc.Teacher._isWeaponSkill(skill)) {
 			if (!phoenix.features.Settings.isEnabled("progression.weaponExperience")) {
 				phoenix.npc.Teacher._reply(playerId, false, "skillUnavailable")

@@ -67,6 +67,7 @@ phoenix.npc.Interaction <- {
 		local m = phoenix.npc.Message.TeacherTrain()
 		m.npcId = phoenix.npc.Interaction.currentNpcId
 		m.skill = payload.skill.tostring()
+		m.requestId = ("requestId" in payload) ? payload.requestId.tostring() : ""
 		try { m.serialize().send(RELIABLE_ORDERED) } catch (e) {}
 	}
 
@@ -157,6 +158,8 @@ phoenix.npc.Interaction <- {
 	}
 
 	function onDialog(message) {
+		local development = {}
+		try { development = phoenix.web.Json.parse(message.development) } catch (e) {}
 		phoenix.npc.Interaction.open({
 			mode = "teacher",
 			npcId = message.npcId,
@@ -165,7 +168,8 @@ phoenix.npc.Interaction <- {
 			cost = message.cost,
 			playerGold = message.playerGold,
 			playerLearnPoints = message.playerLearnPoints,
-			weaponProgress = message.weaponProgress
+			weaponProgress = message.weaponProgress,
+			development = development
 		})
 	}
 
